@@ -10,7 +10,6 @@ import homeBannerRoutes from "./homeBanner.routes.js";
 const router = Router();
 
 // Mount routes
-
 router.use("/v1", exampleRoutes);
 router.use("/v1", productRoutes);
 router.use("/v1", companyRoutes);

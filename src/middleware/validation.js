@@ -5,6 +5,7 @@ import { APIError } from './errorHandler.js';
  * Middleware to validate request data against schema
  */
 export const validateRequest = (validations) => {
+  
   return async (req, res, next) => {
     // Run all validations
     await Promise.all(validations.map(validation => validation.run(req)));
