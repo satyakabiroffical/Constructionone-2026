@@ -13,6 +13,11 @@ const subcategorySchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    type:{
+      type:String,
+      trim:true
+
+    },
     pCategory: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Pcategory",
