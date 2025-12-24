@@ -4,6 +4,7 @@ import { Router } from "express";
 import exampleRoutes from "./example.routes.js";
 import productRoutes from "./product.routes.js";
 import companyRoutes from "./company.routes.js";
+import authRoutes from "./auth.routes.js";
 import fAQRoutes from "./fAQ.routes.js";
 import homeBannerRoutes from "./homeBanner.routes.js";
 
@@ -16,5 +17,6 @@ router.use("/v1", productRoutes);
 router.use("/v1", companyRoutes);
 router.use("/v1", fAQRoutes);
 router.use("/v1", homeBannerRoutes);
+router.use("/v1", authRoutes);
 
 export default router;
