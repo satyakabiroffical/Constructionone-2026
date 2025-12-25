@@ -8,7 +8,7 @@ const wishlistSchema = new mongoose.Schema(
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "--",
+      ref: "User",
     },
   },
   { timestamps: true }

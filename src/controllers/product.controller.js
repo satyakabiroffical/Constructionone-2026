@@ -1,25 +1,15 @@
 import { connect } from "mongoose";
 import Product from "../models/product.model.js";
 import { generateSlug } from "../utils/slug.js";
-import { APIError } from '../middleware/errorHandler.js';
-
+import { APIError } from "../middleware/errorHandler.js";
 
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
-
 
 // CREATE PRODUCT
 export const createProduct = async (req, res, next) => {
   try {
     const { title, price, category, company } = req.body;
-
-    // Basic validation
-    if (!title || !price || !category || !company) {
-      throw new APIError(
-        400,
-        "Title, price, category and company are required"
-      );
-    }
 
     // Generate unique slug (custom OR title-based)
     const finalSlug = await generateSlug(
@@ -48,14 +38,13 @@ export const createProduct = async (req, res, next) => {
   }
 };
 
-
 // UPDATE PRODUCT
 export const updateProduct = async (req, res, next) => {
   try {
     if (req.files?.length) {
       req.body.images = req.files.map((file) => file.location);
     }
-     
+
     // update unique slug
     if (req.body.slug || req.body.title) {
       req.body.slug = await generateSlug(
@@ -70,7 +59,7 @@ export const updateProduct = async (req, res, next) => {
     });
 
     if (!product) {
-      throw new APIError(404,"Product not found");
+      throw new APIError(404, "Product not found");
     }
     res.json({
       status: "success",
@@ -82,97 +71,119 @@ export const updateProduct = async (req, res, next) => {
   }
 };
 
-
 //TOGGLE PRODUCT
-export const toggleProduct = async (req, res, next)=>{
+export const toggleProduct = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id);
     console.log(product);
 
-    if(!product){
-      throw new APIError(404,"Product not found");
+    if (!product) {
+      throw new APIError(404, "Product not found");
     }
 
-    product.isActive= !product.isActive;
+    product.isActive = !product.isActive;
     await product.save();
     res.json({
       status: "success",
-      message: `product: ${product.isActive?"enabled":"disabeld"}`,
+      message: `product: ${product.isActive ? "enabled" : "disabeld"}`,
     });
-
   } catch (error) {
     next(error);
   }
-}
+};
 
 // PUBLIC
 
 //GET-PRODUCT
 
-export const getProduct = async (req, res, next)=>{
+export const getProduct = async (req, res, next) => {
   try {
-     const {id}= req.params;
-     
-     const product = await Product.findOne({
-      isActive:true,
-      _id:id
-     })
-      // .populate('category', 'name slug')
-      // .populate('subCategory', 'name slug')
-      // .populate('pCategory', 'name slug')
-      // .populate('brand', 'name')
-      // .populate('company', 'name')
-      // .populate('offer')
-      // .populate('features');
+    const { id } = req.params;
 
-       if (!product) {
-      throw new APIError(404, 'Product not found');
-       }
-      res.json({
+    const product = await Product.findOne({
+      isActive: true,
+      _id: id,
+    });
+    // .populate('category', 'name slug')
+    // .populate('subCategory', 'name slug')
+    // .populate('pCategory', 'name slug')
+    // .populate('brand', 'name')
+    // .populate('company', 'name')
+    // .populate('offer')
+    // .populate('features');
+
+    if (!product) {
+      throw new APIError(404, "Product not found");
+    }
+    res.json({
       status: "success",
       message: "Product data",
       data: { product },
     });
-    
   } catch (error) {
-    next(error)
-    console.log(error)
+    next(error);
+    console.log(error);
   }
-
-}
+};
 
 // GET ALL PRODUCT
 
-export const getAllProducts= async (req, res, next)=>{
+export const getAllProducts = async (req, res, next) => {
   try {
+    const { page = 1, limit = 12, sort = "-createdAt", search } = req.query;
+
     const cacheKey = `products_${JSON.stringify(req.query)}`;
 
+    // Cache check
     if (cache.has(cacheKey)) {
       const cached = cache.get(cacheKey);
       if (Date.now() - cached.timestamp < CACHE_TTL) {
         return res.json(cached.data);
       }
     }
-    const queryObj={...req.query};
-    ['page','sort','limit'].forEach(el=> delete queryObj[el]);
 
-    const products = await Product.find(queryObj)
-                    // .populate('category')
-                    .sort(req.query.sort || '-createdAt')
-                    .limit(req.query.limit || 12)
-                    
+    // Filter object
+    const filter = {};
+
+    // SEARCH (title, description etc.)
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Pagination calc
+    const skip = (page - 1) * limit;
+
+    // Query
+    const products = await Product.find(filter)
+      .sort(sort)
+      .skip(Number(skip))
+      .limit(Number(limit));
+    // .populate('category')
+
+    const total = await Product.countDocuments(filter);
+
     const response = {
-      status: 'success',
+      status: "success",
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / limit),
       results: products.length,
-      data: { products }
+      data: { products },
     };
 
-    cache.set(cacheKey,{data:response, timestamp:Date.now()})
-     res.json(response)
-    
+    // Cache save
+    cache.set(cacheKey, {
+      data: response,
+      timestamp: Date.now(),
+    });
+
+    res.status(200).json(response);
   } catch (error) {
-    next(error)
+    next(error);
     console.log(error.stack);
-    
   }
-}
+};
