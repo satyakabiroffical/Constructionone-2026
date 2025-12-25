@@ -1,4 +1,4 @@
-import { adminLogin, adminSignup } from "../controllers/admin.controllers.js";
+import { adminLogin, adminSignup } from "../controller/admin.controller.js";
 import { Router } from "express";
 import authMiddleware from "../middleware/auth.js";
 
