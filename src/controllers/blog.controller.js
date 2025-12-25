@@ -4,18 +4,14 @@ import { APIError } from "../middleware/errorHandler.js";
 
 export const createBlog = async (req, res, next) => {
     try {
-        const file = req.file;
 
         const { title, description, content, author, pcategory, tags } = req.body;
 
-        const blogImage = req.file ? req.file.location : null;
+        const files = req.files || {};
+        const blogImage = files?.blogImage
+            ? files.blogImage[0].location
+            : null;
 
-        if (!title || !description || !content) {
-            return res.status(400).json({
-                success: false,
-                message: "Title, description, and content are required",
-            });
-        }
 
         const finalSlug = await generateSlug(
             title,
@@ -45,7 +41,7 @@ export const createBlog = async (req, res, next) => {
 
 export const updateBlog = async (req, res, next) => {
     try {
-        const file = req.file;
+        const files = req.files || {};
         let { slug } = req.params;
         const { title, description, content, author, pcategory, tags } = req.body;
 
@@ -71,8 +67,8 @@ export const updateBlog = async (req, res, next) => {
         if (pcategory !== undefined) updateData.pcategory = pcategory;
         if (tags !== undefined) updateData.tags = tags;
         updateData.slug = finalSlug;
-        if (file) {
-            updateData.image = file.location;
+        if (files?.blogImage) {
+            updateData.image = files.blogImage[0].location;
         }
 
         const updatedBlog = await Blog.findByIdAndUpdate(blog._id, updateData, {
@@ -94,22 +90,22 @@ export const updateBlog = async (req, res, next) => {
 //PATCH DELETE
 
 
-export const toggle = async (req, res, next) =>{
+export const toggle = async (req, res, next) => {
     try {
-        const {id} = req.params;
+        const { slug } = req.params;
 
-        const exist = await Blog.findById(id);
+        const blog = await Blog.findOne({ slug });
 
-        if(!exist){
+        if (!blog) {
             throw new APIError(404, "Blog not found");
         }
 
-        exist.isActive =! exist.isActive
-        await exist.save();
+        blog.isActive = !blog.isActive
+        await blog.save();
 
         res.status(200).json({
-            success:true,
-           message: `Blog ${exist.isActive ? "enabled" : "disabled"}`
+            success: true,
+            message: `Blog ${blog.isActive ? "enabled" : "disabled"}`
         })
 
     } catch (error) {
@@ -119,7 +115,7 @@ export const toggle = async (req, res, next) =>{
 
 // PUBLIC 
 
-// get all bog
+// get all blog
 
 export const getAllBlogs = async (req, res, next) => {
     try {
@@ -183,9 +179,7 @@ export const getBySlug = async (req, res, next) => {
     try {
         const { slug } = req.params;
 
-        const blog = await Blog.findOneA({ slug: slug });
-
-       
+        const blog = await Blog.findOneAndUpdate({ slug: slug }, { $inc: { views: 1 } }, { new: true });
 
         if (!blog) {
             throw new APIError(404, "Blog not found");
