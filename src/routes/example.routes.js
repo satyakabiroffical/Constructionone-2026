@@ -11,6 +11,7 @@ import {
 const router = Router();
 
 // All routes are mounted at /api/v1/examples
+
 router.route('/examples')
   .get(getExamples)
   .post(createExample);

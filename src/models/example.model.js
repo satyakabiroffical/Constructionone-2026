@@ -1,45 +1,45 @@
-import mongoose from 'mongoose';
-import validator from 'validator';
-import { APIError } from '../middleware/errorHandler.js';
+import mongoose from "mongoose";
+import validator from "validator";
+import { APIError } from "../middleware/errorHandler.js";
 
 const exampleSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Name is required'],
+      required: [true, "Name is required"],
       trim: true,
-      minlength: [3, 'Name must be at least 3 characters'],
-      maxlength: [50, 'Name must be at most 50 characters'],
+      minlength: [3, "Name must be at least 3 characters"],
+      maxlength: [50, "Name must be at most 50 characters"],
     },
     description: {
       type: String,
       trim: true,
-      maxlength: [500, 'Description must be at most 500 characters'],
+      maxlength: [500, "Description must be at most 500 characters"],
     },
     status: {
       type: String,
       enum: {
-        values: ['active', 'inactive', 'pending'],
-        message: 'Status must be either active, inactive, or pending',
+        values: ["active", "inactive", "pending"],
+        message: "Status must be either active, inactive, or pending",
       },
-      default: 'active',
+      default: "active",
     },
     priority: {
       type: Number,
-      min: [1, 'Priority must be at least 1'],
-      max: [5, 'Priority must be at most 5'],
+      min: [1, "Priority must be at least 1"],
+      max: [5, "Priority must be at most 5"],
       default: 3,
     },
     tags: [
       {
         type: String,
         trim: true,
-        maxlength: [20, 'Each tag must be at most 20 characters'],
+        maxlength: [20, "Each tag must be at most 20 characters"],
       },
     ],
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
     },
   },
   {
@@ -50,13 +50,13 @@ const exampleSchema = new mongoose.Schema(
 );
 
 // Indexes for better query performance
-exampleSchema.index({ name: 'text', description: 'text' });
+exampleSchema.index({ name: "text", description: "text" });
 exampleSchema.index({ status: 1, priority: -1 });
 
 // Document middleware: runs before .save() and .create()
-exampleSchema.pre('save', function (next) {
+exampleSchema.pre("save", function (next) {
   // Example of document middleware
-  if (this.isModified('name')) {
+  if (this.isModified("name")) {
     this.name = this.name.trim();
   }
   next();
@@ -66,7 +66,7 @@ exampleSchema.pre('save', function (next) {
 exampleSchema.pre(/^find/, function (next) {
   // Automatically filter out inactive documents unless explicitly requested
   if (this.getFilter().status === undefined) {
-    this.find({ status: { $ne: 'inactive' } });
+    this.find({ status: { $ne: "inactive" } });
   }
   next();
 });
@@ -77,13 +77,13 @@ exampleSchema.statics.calculateStats = async function () {
   const stats = await this.aggregate([
     {
       $group: {
-        _id: '$status',
+        _id: "$status",
         count: { $sum: 1 },
-        avgPriority: { $avg: '$priority' },
+        avgPriority: { $avg: "$priority" },
       },
     },
   ]);
-  
+
   return stats;
 };
 
@@ -98,29 +98,29 @@ exampleSchema.methods.getSimilarExamples = function () {
 };
 
 // Virtual property (not stored in DB)
-exampleSchema.virtual('priorityLabel').get(function () {
+exampleSchema.virtual("priorityLabel").get(function () {
   const priorityMap = {
-    1: 'Low',
-    2: 'Medium-Low',
-    3: 'Medium',
-    4: 'High-Medium',
-    5: 'High',
+    1: "Low",
+    2: "Medium-Low",
+    3: "Medium",
+    4: "High-Medium",
+    5: "High",
   };
-  return priorityMap[this.priority] || 'Unknown';
+  return priorityMap[this.priority] || "Unknown";
 });
 
 // Error handling middleware
-exampleSchema.post('save', function (error, doc, next) {
-  if (error.name === 'MongoError' && error.code === 11000) {
-    next(new APIError(400, 'Name must be unique', true));
-  } else if (error.name === 'ValidationError') {
+exampleSchema.post("save", function (error, doc, next) {
+  if (error.name === "MongoError" && error.code === 11000) {
+    next(new APIError(400, "Name must be unique", true));
+  } else if (error.name === "ValidationError") {
     const errors = Object.values(error.errors).map((el) => el.message);
-    next(new APIError(400, `${errors.join('. ')}`, true));
+    next(new APIError(400, `${errors.join(". ")}`, true));
   } else {
     next(error);
   }
 });
 
-const Example = mongoose.model('Example', exampleSchema);
+const Example = mongoose.model("Example", exampleSchema);
 
 export default Example;

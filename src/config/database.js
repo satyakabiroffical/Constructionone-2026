@@ -18,6 +18,7 @@ const connectionOptions = {
 
 // Handle MongoDB connection events
 function setupMongoEventHandlers(mongooseConnection) {
+  
   mongooseConnection.on('connected', () => {
     const { host, port, name } = mongoose.connection;
     logger.info(`✅ MongoDB Connected: ${host}:${port}/${name}`);

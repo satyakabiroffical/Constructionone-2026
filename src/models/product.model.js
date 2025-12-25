@@ -1,9 +1,9 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 import { APIError } from "../middleware/errorHandler.js";
 
 const productSchema = new mongoose.Schema(
   {
-     title: {
+    title: {
       type: String,
       // required: [true, "Product title is required"],
       trim: true,
@@ -150,11 +150,9 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-
 productSchema.index({ title: "text", description: "text" });
 productSchema.index({ status: 1, price: 1 });
 productSchema.index({ category: 1 });
-
 
 productSchema.pre("save", function (next) {
   if (this.isModified("title")) {
@@ -163,7 +161,6 @@ productSchema.pre("save", function (next) {
   next();
 });
 
-
 productSchema.pre(/^find/, function (next) {
   if (this.getFilter().isActive === undefined) {
     this.find({ isActive: true });
@@ -171,22 +168,20 @@ productSchema.pre(/^find/, function (next) {
   next();
 });
 
-
 productSchema.virtual("isOutOfStock").get(function () {
   return this.stock <= 0;
 });
 
-
 // Error handling middleware
-productSchema.post('save', function (error, doc, next) {
-  if (error.name === 'MongoError' && error.code === 11000) {
-    next(new APIError(400, 'Name must be unique', true));
-  } else if (error.name === 'ValidationError') {
+productSchema.post("save", function (error, doc, next) {
+  if (error.name === "MongoError" && error.code === 11000) {
+    next(new APIError(400, "Name must be unique", true));
+  } else if (error.name === "ValidationError") {
     const errors = Object.values(error.errors).map((el) => el.message);
-    next(new APIError(400, `${errors.join('. ')}`, true));
+    next(new APIError(400, `${errors.join(". ")}`, true));
   } else {
     next(error);
   }
 });
 
-export default mongoose.model('Product', productSchema);
+export default mongoose.model("Product", productSchema);
