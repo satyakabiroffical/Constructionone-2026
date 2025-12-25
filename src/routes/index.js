@@ -11,6 +11,7 @@ import fAQRoutes from "./fAQ.routes.js";
 import homeBannerRoutes from "./homeBanner.routes.js";
 import contectRoutes from "./contect.routes.js";
 import homeRoutes from "./home.routes.js";
+import admin from "./admin.routes.js";
 
 const router = Router();
 
@@ -26,6 +27,7 @@ router.use("/v1", companyRoutes);
 router.use("/v1", fAQRoutes);
 router.use("/v1", homeBannerRoutes);
 router.use('/v1',contectRoutes);
-router.use('/v1',homeRoutes)
+router.use('/v1',homeRoutes);
+router.use("/v1", admin);
 
 export default router;
