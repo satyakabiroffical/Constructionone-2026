@@ -18,8 +18,8 @@ export const createProduct = async (req, res, next) => {
     );
 
     // Collect S3 image URLs
-    const images = req.files?.length
-      ? req.files.map((file) => file.location)
+    const images = req.files?.images?.length
+      ? req.files.images.map((file) => file.location)
       : [];
 
     const product = await Product.create({
@@ -41,8 +41,10 @@ export const createProduct = async (req, res, next) => {
 // UPDATE PRODUCT
 export const updateProduct = async (req, res, next) => {
   try {
-    if (req.files?.length) {
-      req.body.images = req.files.map((file) => file.location);
+
+    const {salePrice,price}= req.body;
+    if (req.files?.images?.length) {
+      req.body.images = req.files.images.map((file) => file.location);
     }
 
     // update unique slug
@@ -53,6 +55,13 @@ export const updateProduct = async (req, res, next) => {
           await Product.exists({ slug: value, _id: { $ne: req.params.id } })
       );
     }
+    // console.log(salePrice,price)
+    // if (salePrice>price) {
+    //   return res.status(400).json({
+    //     message: "Sale price cannot be greater than price",
+    //   });
+    // }
+
     const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
@@ -67,7 +76,8 @@ export const updateProduct = async (req, res, next) => {
       data: { product },
     });
   } catch (error) {
-    next(error);
+    next(error)
+    console.log(error.stack)
   }
 };
 
@@ -104,13 +114,7 @@ export const getProduct = async (req, res, next) => {
       isActive: true,
       _id: id,
     });
-    // .populate('category', 'name slug')
-    // .populate('subCategory', 'name slug')
-    // .populate('pCategory', 'name slug')
-    // .populate('brand', 'name')
-    // .populate('company', 'name')
-    // .populate('offer')
-    // .populate('features');
+    
 
     if (!product) {
       throw new APIError(404, "Product not found");

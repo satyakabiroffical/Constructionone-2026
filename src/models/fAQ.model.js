@@ -9,6 +9,10 @@ const fAQSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  isActive:{
+    type:Boolean,
+    default:true
+  }
 });
 
 const fAQModel = mongoose.model("fAQ", fAQSchema);

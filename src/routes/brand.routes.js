@@ -11,15 +11,18 @@ getBySlug,
 getById,
 } from "../controllers/brand.controller.js";
 
+import authMiddleware from "../middleware/auth.js";
+import { isAdmin } from "../middleware/role.js";
+
 const router = Router();
 
 router.route('/brands')
-    .post(s3Uploader().fields([{ name: "brandImage", maxCount: 1 }]),createBrand)
+    .post(authMiddleware, isAdmin ,s3Uploader().fields([{ name: "brandImage", maxCount: 1 }]),createBrand)
     .get(getAllBrands)
 
 router.route('/brands/:id')
-    .put( s3Uploader().fields([{ name: "brandImage", maxCount: 1 }]), updateBrand)
-    .patch(toggle)
+    .put(authMiddleware, isAdmin , s3Uploader().fields([{ name: "brandImage", maxCount: 1 }]), updateBrand)
+    .patch(authMiddleware, isAdmin ,toggle)
     .get(getById)
 
 router.route('/brands/:slug')

@@ -35,14 +35,7 @@ const productSchema = new mongoose.Schema(
     salePrice: {
       type: Number,
       min: [0, "Sale price must be positive"],
-      validate: {
-        validator: function (value) {
-          return value <= this.price;
-        },
-        message: "Sale price cannot be greater than price",
-      },
     },
-
     images: {
       type: [String],
       default: [],
@@ -153,6 +146,7 @@ const productSchema = new mongoose.Schema(
 productSchema.index({ title: "text", description: "text" });
 productSchema.index({ status: 1, price: 1 });
 productSchema.index({ category: 1 });
+
 
 productSchema.pre("save", function (next) {
   if (this.isModified("title")) {

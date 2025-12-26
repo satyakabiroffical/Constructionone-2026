@@ -6,17 +6,19 @@ import {createBlog,
         toggle,
 } from "../controllers/blog.controller.js";
 import { s3Uploader } from "../middleware/uploads.js";
+import authMiddleware from "../middleware/auth.js";
+import {isAdmin} from '../middleware/role.js';
 
 const router = Router();
 
 router.route('/blog')
-    .post( s3Uploader().fields([{ name: "blogImage", maxCount: 1 }]), createBlog)
+    .post(authMiddleware, isAdmin , s3Uploader().fields([{ name: "blogImage", maxCount: 1 }]), createBlog)
     .get(getAllBlogs);
 
 router.route('/blog/:slug')
-    .put( s3Uploader().fields([{ name: "blogImage", maxCount: 1 }]), updateBlog)
+    .put(authMiddleware, isAdmin , s3Uploader().fields([{ name: "blogImage", maxCount: 1 }]), updateBlog)
     .get(getBySlug)
-    .patch(toggle)
+    .patch(authMiddleware, isAdmin ,toggle)
     
 export default router;
 

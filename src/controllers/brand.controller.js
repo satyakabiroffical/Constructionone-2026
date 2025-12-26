@@ -79,7 +79,7 @@ export const toggle = async (req, res, next) => {
 
         const brand = await Brand.findById(id);
 
-        if (!Brand) {
+        if (!brand) {
             throw new APIError(404, "Brand not found");
         }
 

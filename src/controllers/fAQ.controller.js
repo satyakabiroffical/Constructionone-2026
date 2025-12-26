@@ -16,7 +16,7 @@ export const createfAQ = async (req, res, next) => {
 
 export const getAllfAQ = async (req, res, next) => {
   try {
-    const faqs = await fAQModel.find().sort({ createdAt: -1 });
+    const faqs = await fAQModel.find({ isActive:true}).sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -119,3 +119,27 @@ export const getfAQById = async (req, res, next) => {
     next(error);
   }
 };
+
+
+
+export const toggle = async (req, res, next) => {
+    try {
+        const { faqId } = req.params;
+
+        const faq = await fAQModel.findById(faqId);
+
+        if (!faq) {
+            throw new APIError(404, "Faq not found");
+        }
+
+        faq.isActive = !faq.isActive
+        await faq.save();
+
+        res.status(200).json({
+            success: true,
+            message: `Faq ${brand.isActive ? "enabled" : "disabled"}`
+        })
+    } catch (error) {
+        next(error)
+    }
+}
