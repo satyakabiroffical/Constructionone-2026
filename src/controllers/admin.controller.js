@@ -7,22 +7,18 @@ export const adminSignup = async (req, res) => {
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "Name, email and password are required",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "Name, email and password are required",
+      });
     }
 
     const existingUser = await UserModel.findOne({ email });
     if (existingUser) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "Admin with this email already exists",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "Admin with this email already exists",
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
