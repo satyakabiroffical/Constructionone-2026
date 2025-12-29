@@ -12,10 +12,10 @@ import homeBannerRoutes from "./homeBanner.routes.js";
 import contectRoutes from "./contect.routes.js";
 import homeRoutes from "./home.routes.js";
 import admin from "./admin.routes.js";
-import auth from './auth.routes.js';
-import addressRoutes from './address.routes.js';
-
+import auth from "./auth.routes.js";
+import addressRoutes from "./address.routes.js";
 import review from "./review.routes.js";
+import cart from "./cart.routes.js";
 import reviewlikes from "./reviewlikes.routes.js";
 import orderRoutes from "./order.routes.js";
 
@@ -38,6 +38,9 @@ router.use('/v1', auth);
 router.use('/v1', addressRoutes)
 router.use("/v1", review);
 router.use("/v1", reviewlikes);
-router.use('/v1', orderRoutes)
+router.use('/v1', orderRoutes);
+router.use("/v1", cart);
+
+
 
 export default router;

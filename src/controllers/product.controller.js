@@ -2,7 +2,8 @@ import { connect } from "mongoose";
 import Product from "../models/product.model.js";
 import { generateSlug } from "../utils/slug.js";
 import { APIError } from "../middleware/errorHandler.js";
-import  Category  from "../models/category.model.js";
+// import  Category  from "../models/category.model.js";
+// import Cart from "../models/cart.model.js";
 
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
@@ -38,7 +39,6 @@ export const createProduct = async (req, res, next) => {
     next(error);
   }
 };
-
 // UPDATE PRODUCT
 export const updateProduct = async (req, res, next) => {
   try {
@@ -56,12 +56,6 @@ export const updateProduct = async (req, res, next) => {
           await Product.exists({ slug: value, _id: { $ne: req.params.id } })
       );
     }
-    // console.log(salePrice,price)
-    // if (salePrice>price) {
-    //   return res.status(400).json({
-    //     message: "Sale price cannot be greater than price",
-    //   });
-    // }
 
     const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
@@ -69,20 +63,21 @@ export const updateProduct = async (req, res, next) => {
     });
 
     if (!product) {
-      throw new APIError(404, "Product not found");
+      return res.status(404).json({ message: "Product not found" });
     }
+
     res.json({
       status: "success",
-      message: "Product updated successfully",
-      data: { product },
+      message: "Product & Cart updated successfully",
+      data: product,
     });
   } catch (error) {
-    next(error)
-    console.log(error.stack)
+    next(error);
   }
 };
 
 //TOGGLE PRODUCT
+
 export const toggleProduct = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -115,7 +110,6 @@ export const getProduct = async (req, res, next) => {
       isActive: true,
       _id: id,
     });
-
 
     if (!product) {
       throw new APIError(404, "Product not found");

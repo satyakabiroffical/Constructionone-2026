@@ -1,4 +1,4 @@
-import { Router } from "express"; 
+import { Router } from "express";
 
 import { createAddress,updateAddress,getAllAddress,getAddress} from '../controllers/address.controller.js';
 import authMiddleware from "../middleware/auth.js";
@@ -11,5 +11,6 @@ router.route('/address')
 router.route('/address/:id')
     .post(authMiddleware,updateAddress)
     .get(authMiddleware,getAddress)
+
 
 export default router;

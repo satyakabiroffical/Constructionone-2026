@@ -147,7 +147,6 @@ productSchema.index({ title: "text", description: "text" });
 productSchema.index({ status: 1, price: 1 });
 productSchema.index({ category: 1 });
 
-
 productSchema.pre("save", function (next) {
   if (this.isModified("title")) {
     this.title = this.title.trim();
