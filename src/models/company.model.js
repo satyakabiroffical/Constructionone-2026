@@ -32,6 +32,44 @@ const companySchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  email: {
+    type: String,
+    default: "company@gmail.com",
+  },
+  facebook: {
+    type: String,
+    default: "www.company.com",
+  },
+  googleMyBusiness: {
+    type: String,
+    default: "www.google.com",
+  },
+  pinterest: {
+    type: String,
+    default: "www.pinterest.com",
+  },
+  instagram: {
+    type: String,
+    default: "www.company.com",
+  },
+  linkedin: {
+    type: String,
+    default: "www.company.com",
+  },
+  twitter: {
+    type: String,
+    default: "www.company.com",
+  },
+  map: {
+    lang: {
+      type: Number,
+      default: 24.746712898193618, 
+    },
+    long: {
+      type: Number,
+      default: 90.40926898280507,
+    },
+  },
 
   supportEmail: {
     type: String,
@@ -40,6 +78,28 @@ const companySchema = new mongoose.Schema({
   logo: {
     type: String,
     trim: true,
+  },
+  loader: {
+    type: String,
+    default:
+      "HomeService/1690967242433loader.gif",
+  },
+  fav_icon: {
+    type: String,
+    default:
+      "HomeService/1690967242421logo.png",
+  },
+  refund_Policy: {
+    type: String,
+    default: "<h1>refund_Policy</h1>"
+  },
+  return_policy: {
+    type: String,
+    default: "<h1>return_policy </h1>",
+  },
+  gst: {
+    type: String,
+    default: "23BGJPG17838",
   },
 });
 

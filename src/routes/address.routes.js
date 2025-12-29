@@ -1,14 +1,15 @@
 import { Router } from "express"; 
 
-import { createAddress,updateAddress} from '../controllers/address.controller.js';
+import { createAddress,updateAddress,getAllAddress,getAddress} from '../controllers/address.controller.js';
 import authMiddleware from "../middleware/auth.js";
 
 const router = Router();
 router.route('/address')
     .post(authMiddleware,createAddress)
-    // .get(getAllBlogs);
+    .get(authMiddleware,getAllAddress)
 
 router.route('/address/:id')
-    .post(updateAddress)
+    .post(authMiddleware,updateAddress)
+    .get(authMiddleware,getAddress)
 
 export default router;

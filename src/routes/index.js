@@ -17,6 +17,7 @@ import addressRoutes from './address.routes.js';
 
 import review from "./review.routes.js";
 import reviewlikes from "./reviewlikes.routes.js";
+import orderRoutes from "./order.routes.js";
 
 const router = Router();
 // Mount routes
@@ -30,12 +31,13 @@ router.use("/v1", brandRoutes);
 router.use("/v1", companyRoutes);
 router.use("/v1", fAQRoutes);
 router.use("/v1", homeBannerRoutes);
-router.use('/v1',contectRoutes);
-router.use('/v1',homeRoutes);
+router.use('/v1', contectRoutes);
+router.use('/v1', homeRoutes);
 router.use('/v1', admin);
-router.use('/v1',auth);
-router.use('/v1',addressRoutes)
+router.use('/v1', auth);
+router.use('/v1', addressRoutes)
 router.use("/v1", review);
 router.use("/v1", reviewlikes);
+router.use('/v1', orderRoutes)
 
 export default router;

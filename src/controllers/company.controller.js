@@ -14,6 +14,13 @@ export const getCompany = async (req, res, next) => {
         privatePolicy: "",
         logo: "",
         supportEmail: "",
+        map:"",
+        loader: "",
+        fav_icon: "", 
+        refund_Policy: "<h1>refund_Policy</h1>",
+        return_policy: "<h1>return_policy </h1>",
+        gst: "23BGJPG17838",  
+        
       });
     }
 
@@ -39,7 +46,20 @@ export const updateCompany = async (req, res, next) => {
       "termsAndConditon",
       "privatePolicy",
       "supportEmail",
+       "email",
       "logo",
+      "facebook",
+      "googleMyBusiness",
+      "pinterest",
+      "instagram",
+      "linkedin",
+      "twitter",
+      "map",
+      "loader",
+      "fav_icon",
+      "refund_Policy",
+      "return_policy",
+      "gst"
     ];
 
     updateFeilds.forEach((field) => {

@@ -2,6 +2,7 @@ import { connect } from "mongoose";
 import Product from "../models/product.model.js";
 import { generateSlug } from "../utils/slug.js";
 import { APIError } from "../middleware/errorHandler.js";
+import  Category  from "../models/category.model.js";
 
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
@@ -42,7 +43,7 @@ export const createProduct = async (req, res, next) => {
 export const updateProduct = async (req, res, next) => {
   try {
 
-    const {salePrice,price}= req.body;
+    const { salePrice, price } = req.body;
     if (req.files?.images?.length) {
       req.body.images = req.files.images.map((file) => file.location);
     }
@@ -104,7 +105,7 @@ export const toggleProduct = async (req, res, next) => {
 
 // PUBLIC
 
-//GET-PRODUCT
+//GET-PRODUCTById
 
 export const getProduct = async (req, res, next) => {
   try {
@@ -114,7 +115,7 @@ export const getProduct = async (req, res, next) => {
       isActive: true,
       _id: id,
     });
-    
+
 
     if (!product) {
       throw new APIError(404, "Product not found");
@@ -191,3 +192,84 @@ export const getAllProducts = async (req, res, next) => {
     console.log(error.stack);
   }
 };
+
+
+// PRODUCT GET BY PCATEGORY
+
+export const getByPCategory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    // const categories= await Category.find({
+    //   pCategory:id,
+    //   isActive:true
+    // }).select("_id");
+
+    // const categoryIds= categories.map((cat)=>cat._id );
+    const products = await Product.find({
+      // category:{$in:categoryIds},
+      pCategory:id ,
+      isActive: true,
+    }).populate("pCategory")
+
+    return res.status(200).json({
+      success: true,
+      count: products.length,
+      products
+    });
+
+  } catch (error) {
+    next(error)
+  }
+}
+
+// PRODUCT GET BY CATEGORY 
+
+export const getByCategory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const products = await Product.find({
+      category: id ,
+      isActive: true,
+    }).populate("category");
+
+    return res.status(200).json({
+      success: true,
+      count: products.length,
+      products
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+
+// PRODUCT  getByBrands
+
+export const getByBrands =async (req,res,next)=>{
+  try {
+    const {id}=req.params;
+
+    const products = await Product.find(({
+      brand :id,
+      isActive:true,
+    })).populate('brand');
+   return res.status(200).json({
+      success: true,
+      count: products.length,
+      products
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+
+
+
+
+
+
+
+
+

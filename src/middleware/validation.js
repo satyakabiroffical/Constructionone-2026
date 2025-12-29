@@ -21,9 +21,9 @@ export const validateRequest = (validations) => {
     errors.array().map(err => extractedErrors.push({ [err.param]: err.msg }));
 
     // Throw validation error
-    throw new APIError(400, 'Validation failed', true, {
+    next(new APIError(400, 'Validation failed', true, {
       errors: extractedErrors
-    });
+    }));
   };
 };
 

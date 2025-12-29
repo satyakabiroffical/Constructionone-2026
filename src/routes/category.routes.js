@@ -4,6 +4,7 @@ import {
     createCategory,
     updateCategory,
     getAllCategory,
+    getCategory,
     toggle,
     } from "../controllers/category.controller.js";
 
@@ -19,6 +20,7 @@ router.route('/categories')
 
 router.route('/categories/:id')
     .put(authMiddleware, isAdmin , s3Uploader().fields([{ name: "categoryIcon", maxCount: 1 },{name: "categoryImage", maxCount: 1}]),updateCategory)
-    .patch(toggle)
+    .patch(authMiddleware,isAdmin,toggle)
+    .get(getCategory);
     
 export default router;
