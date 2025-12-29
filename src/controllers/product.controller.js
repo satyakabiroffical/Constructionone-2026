@@ -183,3 +183,53 @@ export const getAllProducts = async (req, res, next) => {
     console.log(error.stack);
   }
 };
+
+// getsimilar products
+
+export const getSimilarProducts = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const currentProduct = await Product.findById(id);
+
+    if (!currentProduct) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    const minPrice = currentProduct.price * 0.8;
+    const maxPrice = currentProduct.price * 1.2;
+
+    const similarQuery = {
+      _id: { $ne: currentProduct._id },
+      status: "ACTIVE",
+      isActive: true,
+      category: currentProduct.category,
+      price: { $gte: minPrice, $lte: maxPrice },
+    };
+
+    if (currentProduct.subCategory) {
+      similarQuery.subCategory = currentProduct.subCategory;
+    }
+
+    if (currentProduct.brand) {
+      similarQuery.brand = currentProduct.brand;
+    }
+
+    // 4️⃣ Fetch similar products
+
+    const similarProducts = await Product.find(similarQuery)
+      .limit(6)
+      .select("title slug price salePrice images avgRating stock")
+      .sort({ soldCount: -1 }); // popular first
+
+    res.status(200).json({
+      message: "Similar products fetched successfully",
+      total: similarProducts.length,
+      data: similarProducts,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

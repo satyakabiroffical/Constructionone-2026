@@ -6,6 +6,7 @@ import {
   toggleProduct,
   getProduct,
   getAllProducts,
+  getSimilarProducts,
 } from "../controllers/product.controller.js";
 import { s3Uploader } from "../middleware/uploads.js";
 
@@ -34,5 +35,6 @@ router
   )
   .patch(authMiddleware, isAdmin, toggleProduct)
   .get(getProduct);
+router.get("/products/:id/similar", getSimilarProducts);
 
 export default router;
