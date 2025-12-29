@@ -12,10 +12,10 @@ import homeBannerRoutes from "./homeBanner.routes.js";
 import contectRoutes from "./contect.routes.js";
 import homeRoutes from "./home.routes.js";
 import admin from "./admin.routes.js";
-import auth from './auth.routes.js';
-import addressRoutes from './address.routes.js';
-
+import auth from "./auth.routes.js";
+import addressRoutes from "./address.routes.js";
 import review from "./review.routes.js";
+import cart from "./cart.routes.js";
 import reviewlikes from "./reviewlikes.routes.js";
 
 const router = Router();
@@ -30,12 +30,13 @@ router.use("/v1", brandRoutes);
 router.use("/v1", companyRoutes);
 router.use("/v1", fAQRoutes);
 router.use("/v1", homeBannerRoutes);
-router.use('/v1',contectRoutes);
-router.use('/v1',homeRoutes);
-router.use('/v1', admin);
-router.use('/v1',auth);
-router.use('/v1',addressRoutes)
+router.use("/v1", contectRoutes);
+router.use("/v1", homeRoutes);
+router.use("/v1", admin);
+router.use("/v1", auth);
+router.use("/v1", addressRoutes);
 router.use("/v1", review);
 router.use("/v1", reviewlikes);
+router.use("/v1", cart);
 
 export default router;

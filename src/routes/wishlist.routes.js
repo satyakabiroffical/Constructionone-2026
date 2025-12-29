@@ -12,8 +12,10 @@ router
   .route("/wishlist/:productid")
   .post(authMiddleware, addToWishlist)
   .delete(authMiddleware, removeFromWishlist);
-  
-router.route("/wishlist").get(authMiddleware, getWishlist);
-router.route("/wishlist").delete(authMiddleware, clearWishlist);
+
+router
+  .route("/wishlist")
+  .get(authMiddleware, getWishlist)
+  .delete(authMiddleware, clearWishlist);
 
 export default router;
