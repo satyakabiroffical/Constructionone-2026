@@ -69,12 +69,12 @@ categorySchema.pre("save", function (next) {
 });
 
 
-categorySchema.pre(/^find/, function (next) {
-  if (this.getFilter().isActive === undefined) {
-    this.find({ isActive: true });
-  }
-  next();
-});
+// categorySchema.pre(/^find/, function (next) {
+//   if (this.getFilter().isActive === undefined) {
+//     this.find({ isActive: true });
+//   }
+//   next();
+// });
 
 
 

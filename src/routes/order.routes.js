@@ -11,6 +11,7 @@ import {
   cancelOrder,
   returnRequest,
 } from "../controllers/order.controller.js";
+
 import orderValidation from "../validations/order.validation.js";
 import { validateRequest } from "../middleware/validation.js";
 
@@ -35,8 +36,6 @@ router.route("/order/order-status/:id/cancel").put(authMiddleware, cancelOrder);
 
 router.route("/order/:id/return").put(authMiddleware, returnRequest);
 
-// aprove
-
-// refund
+router.route("/order/:id/");
 
 export default router;

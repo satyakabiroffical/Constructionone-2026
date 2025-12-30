@@ -2,7 +2,7 @@ import companyModel from "../models/company.model.js";
 
 export const getCompany = async (req, res, next) => {
   try {
-    const company = await companyModel.findOne();
+    let company = await companyModel.findOne();
     if (!company) {
       company = await companyModel.create({
         companyName: "E-Commerce-Make-Up",
@@ -14,7 +14,7 @@ export const getCompany = async (req, res, next) => {
         privatePolicy: "",
         logo: "",
         supportEmail: "",
-        map:"",
+        map: { lang, long },
         loader: "",
         fav_icon: "", 
         refund_Policy: "<h1>refund_Policy</h1>",

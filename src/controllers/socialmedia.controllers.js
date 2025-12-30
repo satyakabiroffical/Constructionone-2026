@@ -10,7 +10,7 @@ export const UploadSocialMediaPhotos = async (req, res) => {
 
     const existUrl = await Socialmedia.findOne({ url });
     if (existUrl) {
-      return res.status(409).json({ message: "url already exists" });
+      return res.status(400).json({ message: "url already exists" });
     }
 
     const data = await Socialmedia.create({ url });

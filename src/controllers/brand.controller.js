@@ -144,9 +144,10 @@ export const getAllBrands = async (req, res, next) => {
 
 export const getBySlug = async (req, res, next) => {
   try {
-    const { slugId } = req.params;
+    const { slug } = req.params;
+    // console.log(slug);
 
-    const brand = await Brand.findOne({ slug: slugId });
+    const brand = await Brand.findOne({ slug: slug });
 
     if (!brand) {
       throw new APIError(404, "Brand not found");

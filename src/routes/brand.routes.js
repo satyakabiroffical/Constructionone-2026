@@ -37,6 +37,6 @@ router
   .patch(authMiddleware, isAdmin, toggle)
   .get(getById);
 
-router.route("/brands/slug/:slugId").get(getBySlug);
+router.route("/brands/slug/:slug").get(getBySlug);
 
 export default router;

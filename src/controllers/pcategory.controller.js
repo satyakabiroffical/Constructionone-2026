@@ -8,9 +8,13 @@ export const createpCategory = async (req, res, next) => {
   try {
     const files = req.files;
 
-    const categoryIcon = files?.categoryIcon ? files.categoryIcon[0] : null;
+    const categoryIcon = files?.categoryIcon
+      ? files.categoryIcon[0].location
+      : null;
 
-    const categoryImage = files?.categoryImage ? files.categoryImage[0] : null;
+    const categoryImage = files?.categoryImage
+      ? files.categoryImage[0].location
+      : null;
 
     const { type, name } = req.body;
 
@@ -60,8 +64,12 @@ export const updatepCategory = async (req, res, next) => {
     const { name, type } = req.body;
     let { slug } = req.body;
     const { id } = req.params;
-    const categoryIcon = files?.categoryIcon ? files.categoryIcon[0] : null;
-    const categoryImage = files?.categoryImage ? files.categoryImage[0] : null;
+    const categoryIcon = files?.categoryIcon
+      ? files.categoryIcon[0].location
+      : null;
+    const categoryImage = files?.categoryImage
+      ? files.categoryImage[0].location
+      : null;
     console.log(id);
 
     const exist = await Pcategory.findById(id);
@@ -157,7 +165,7 @@ export const getAllpCategory = async (req, res, next) => {
     const skip = (Number(page || 1) - 1) * Number(limit || 12);
 
     const filter = {
-      isActive: false,
+      isActive: true,
     };
 
     if (search) {
@@ -180,14 +188,14 @@ export const getAllpCategory = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      results: categories.length,
-      data: { categories },
       pagination: {
         page: Number(page),
         limit: Number(limit),
         total,
         totalPages: Math.ceil(total / limit),
       },
+      results: categories.length,
+      data: { categories },
     });
   } catch (error) {
     next(error);

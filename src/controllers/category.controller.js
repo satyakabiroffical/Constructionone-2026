@@ -67,6 +67,68 @@ export const updateCategory = async (req, res, next) => {
     const exists = await Category.findById(id);
     if (!exists) {
       throw new APIError(404, "Category not found");
+      //  Check category exists
+
+      const exists = await Category.findById(id);
+      if (!exists) {
+        throw new APIError(404, "Category not found");
+      }
+
+      //  Generate / validate slug
+      if (name || slug) {
+        slug = await generateSlug(
+          slug || name,
+          async (value) =>
+            await Category.exists({
+              slug: value,
+              _id: { $ne: id },
+            })
+        );
+      }
+
+      //  Duplicate check (name + type)
+      if (name || type) {
+        const duplicate = await Category.findOne({
+          _id: { $ne: id },
+          name: name ?? exists.name,
+          type: type ?? exists.type,
+        });
+
+        if (duplicate) {
+          throw new APIError(
+            409,
+            "Category with same name and type already exists"
+          );
+        }
+      }
+
+      //  Prepare update object
+      const updateData = {};
+
+      if (type !== undefined) updateData.type = type;
+      if (name !== undefined) updateData.name = name;
+      if (slug !== undefined) updateData.slug = slug;
+      if (pCategory !== undefined) updateData.pCategory = pCategory;
+
+      if (files?.categoryIcon) {
+        updateData.icon = files.categoryIcon[0].location;
+      }
+
+      if (files?.categoryImage) {
+        updateData.image = files.categoryImage[0].location;
+      }
+
+      // Single DB update
+      const updated = await Category.findByIdAndUpdate(id, updateData, {
+        new: true,
+        runValidators: true,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Category updated successfully",
+        data: updated,
+      });
     }
 
     //  Generate / validate slug
@@ -152,6 +214,43 @@ export const getAllCategory = async (req, res, next) => {
     // search
     if (queryObj.search) {
       filter.name = { $regex: queryObj.search, $options: "i" };
+      // remove non-filter params
+      ["page", "limit", "sortBy", "sortOrder"].forEach(
+        (el) => delete queryObj[el]
+      );
+
+      const filter = {};
+
+      // search
+      if (queryObj.search) {
+        filter.name = { $regex: queryObj.search, $options: "i" };
+      }
+
+      // type filter
+      if (queryObj.type) {
+        filter.type = queryObj.type.toUpperCase();
+      }
+
+      // isActive filter (example: only active categories)
+      filter.isActive = true;
+
+      const total = await Category.countDocuments(filter);
+      const categories = await Category.find(filter)
+        .sort({ [sortBy]: sortOrder })
+        .skip(skip)
+        .limit(limit);
+
+      res.status(200).json({
+        success: true,
+        results: categories.length,
+        data: { categories },
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
     }
 
     // type filter
