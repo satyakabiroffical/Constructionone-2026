@@ -32,7 +32,6 @@ const pcategorySchema = new mongoose.Schema(
 
     slug: {
       type: String,
-      required: [true, "Slug is required"],
       lowercase: true,
       trim: true,
       // unique: true,

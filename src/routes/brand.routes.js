@@ -25,7 +25,7 @@ router.route('/brands/:id')
     .patch(authMiddleware, isAdmin ,toggle)
     .get(getById)
 
-router.route('/brands/:slug')
+router.route('/brands/slug/:slug')
     .get(getBySlug)
 
 

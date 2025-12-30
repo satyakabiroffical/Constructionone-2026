@@ -67,10 +67,12 @@ export const updateCategory = async (req, res, next) => {
         let slug = req.body.slug;
 
         //  Check category exists
+
         const exists = await Category.findById(id);
         if (!exists) {
             throw new APIError(404, "Category not found");
         }
+       
 
         //  Generate / validate slug
         if (name || slug) {
@@ -169,7 +171,7 @@ export const getAllCategory = async (req, res, next) => {
         filter.isActive = true;
 
         const total = await Category.countDocuments(filter)
-        const categories = await Category.find(queryObj)
+        const categories = await Category.find(filter)
             .sort({ [sortBy]: sortOrder })
             .skip(skip)
             .limit(limit)
@@ -187,7 +189,6 @@ export const getAllCategory = async (req, res, next) => {
         });
 
     } catch (error) {
-        console.log(error.stack);
         next(error);
     }
 };

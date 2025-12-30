@@ -6,53 +6,58 @@ import { generateSlug } from "../utils/slug.js";
 // POST CREATE
 
 export const createpCategory = async (req, res, next) => {
-    try {
-        const files = req.files;
+  try {
+    const files = req.files || {};
 
-        const categoryIcon = files?.categoryIcon ? files.categoryIcon[0] : null;
+    const categoryIcon = files?.categoryIcon?.[0]?.location || null;
+    const categoryImage = files?.categoryImage?.[0]?.location || null;
 
-        const categoryImage = files?.categoryImage ? files.categoryImage[0] : null;
+    let { type, name } = req.body;
 
-        const { type, name } = req.body;
-
-        if (!type || !name) {
-            return res.status(400).json({
-                success: false,
-                message: "Type and Name are required",
-            });
-        }
-
-        const exists = await Pcategory.exists({ type: type, name: name });
-        if (exists) {
-            return res.status(400).json({
-                success: false,
-                message: "Pcategory already exists",
-            });
-        }
-
-        const finalSlug = await generateSlug(name,
-            async (value) => await Pcategory.exists({ slug: value })
-        )
-
-        const pcategory = await Pcategory.create({
-            name,
-            slug: finalSlug,
-            type,
-            icon: categoryIcon,
-            image: categoryImage,
-        })
-
-        res.status(200).json({
-            success: true,
-            message: "PCategory created successfully",
-            data: pcategory,
-        })
-
-
-    } catch (error) {
-        next(error)
+    if (!type || !name) {
+      return res.status(400).json({
+        success: false,
+        message: "Type and Name are required",
+      });
     }
-}
+
+    type = type.trim().toUpperCase();
+    name = name.trim();
+
+    const exists = await Pcategory.exists({
+      type,
+      name: new RegExp(`^${name}$`, "i"),
+    });
+
+    if (exists) {
+      throw new APIError(400, "Pcategory already exists");
+    }
+
+    const finalSlug = await generateSlug(
+      name,
+      async (value) => await Pcategory.exists({ slug: value })
+    );
+
+    const pcategory = await Pcategory.create({
+      name,
+      slug: finalSlug,
+      type,
+      icon: categoryIcon,
+      image: categoryImage,
+      isActive: true,
+    });
+
+    
+    res.status(201).json({
+      success: true,
+      message: "PCategory created successfully",
+      data: pcategory,
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
 
 
 // PUT UPDATE
@@ -63,13 +68,11 @@ export const updatepCategory = async (req, res, next) =>{
         const {name,type}=req.body;
         let {slug}=req.body;
         const {id}=req.params;
-        const categoryIcon = files?.categoryIcon?files.categoryIcon[0]:null;
-        const categoryImage = files?.categoryImage?files.categoryImage[0]:null;
-        console.log(id)
+        const categoryIcon = files?.categoryIcon?files.categoryIcon[0].location:null;
+        const categoryImage = files?.categoryImage?files.categoryImage[0].location:null;
 
         const exist = await Pcategory.findById(id);
-        console.log(exist)
-
+        
         if(!exist){
             throw new APIError(404, "Category not found");
         }

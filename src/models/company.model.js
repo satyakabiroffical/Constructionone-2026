@@ -13,12 +13,10 @@ const companySchema = new mongoose.Schema({
 
   contactNumber: {
     type: Number,
-    trim: true,
   },
 
   whatsAppNumber: {
     type: Number,
-    trim: true,
   },
   aboutUs: {
     type: String,

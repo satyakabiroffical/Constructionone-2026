@@ -206,12 +206,13 @@ export const cancelOrder = async (req, res, next) => {
 };
 
 
-// RETURN REQUESTED
+// RETURN REQUESTED post
 
 export const returnRequest = async (req, res, next) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
+        const {returnReason}=req.body;
 
         const order = await Order.findOne({
             _id: id,
@@ -221,11 +222,27 @@ export const returnRequest = async (req, res, next) => {
         if (!order) {
             throw new APIError(400, "Order fot found");
         }
+        if(!returnReason){
+            throw new APIError(400, "Return Reason must be requried");
+        }
 
         if (order.orderStatus !== "DELIVERED") {
             throw new APIError(400, "Return allowed only after delivery");
         }
 
+        if(order.deliveredAt){
+            throw new APIError(400,"Delivery date missing   ")
+        }
+
+        const deleveryDate= new Date(order.deliveredAt);
+        const curentDate = new Date;
+
+        const diff = (curentDate-deleveryDate)/1000 * 60*60*24;
+
+        if(diff>7){
+            throw new APIError(400, "Return period expired (7 days completed)")
+        }
+        order.returnReason= returnReason;
         order.orderStatus = "REQUESTED";
         order.returnRequestedAt = Date.now();
 
@@ -245,10 +262,38 @@ export const returnRequest = async (req, res, next) => {
 
 // ADMIN - APROVE OR REJECT
 
-// export const aproveReturn = async (req, res, next)=>{
-//     try {
-        
-//     } catch (error) {
-//         next(error)
-//     }
-// }
+export const returnStatus = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { action } = req.body; // 'APPROVE' or 'REJECT'
+        const { userId } = req.body;// coustumer ki id
+        const order = await Order.findById(id);
+        if (!order) {
+            throw new APIError(400, "Order fot found");
+        }
+
+        if (
+            // !order.orderRequested ||
+            !order.returnReason ||
+            order.orderStatus !== "REQUESTED") {
+            throw new APIError(400, "No return request to process");
+        }
+        if(action === "APPROVE"){
+            order.orderStatus = "RETURNED";
+            // order.returnedAt = Date.now();
+        } else if(action === "REJECT"){
+            order.orderStatus = "REJECTED";
+        }
+
+        await order.save();
+        res.status(200).json({
+            success: true,
+            message: `Return request ${action.toLowerCase()}ed successfully`,
+            data: order,
+        });
+
+
+    } catch (error) {
+        next(error)
+    }
+}

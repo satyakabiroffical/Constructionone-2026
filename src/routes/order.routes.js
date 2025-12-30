@@ -3,7 +3,8 @@ import { Router } from "express";
 import authMiddleware from "../middleware/auth.js";
 import { isAdmin } from "../middleware/role.js";
 
-import { createOrder, updateOrder, getAllOrder, getOrder,cancelOrder,returnRequest
+import { createOrder, updateOrder, getAllOrder, getOrder,cancelOrder,
+    returnRequest,returnStatus
  } from '../controllers/order.controller.js';
 import orderValidation from "../validations/order.validation.js";
 import { validateRequest } from "../middleware/validation.js";
@@ -27,6 +28,8 @@ router.route('/order/order-status/:id')
 
  router.route('/order/:id/return')
     .put(authMiddleware, returnRequest)
+
+router.route('/order/:id/')
 
 
     // aprove
