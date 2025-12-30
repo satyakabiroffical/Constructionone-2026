@@ -1,7 +1,14 @@
 import mongoose from "mongoose";
 
 const socialmediaSchema = new mongoose.Schema(
-  { url: { type: String } },
+  {
+    url: { type: String },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+
   { timestamps: true }
 );
 

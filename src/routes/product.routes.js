@@ -7,6 +7,9 @@ import {
   getProduct,
   getAllProducts,
   getSimilarProducts,
+  getByPCategory,
+  getByCategory,
+  getByBrands,
 } from "../controllers/product.controller.js";
 import { s3Uploader } from "../middleware/uploads.js";
 
@@ -23,6 +26,7 @@ router
     s3Uploader().fields([{ name: "images", maxCount: 5 }]),
     createProduct
   )
+
   .get(getAllProducts);
 
 router
@@ -35,6 +39,11 @@ router
   )
   .patch(authMiddleware, isAdmin, toggleProduct)
   .get(getProduct);
-router.get("/products/:id/similar", getSimilarProducts);
+router.route("/products/pcategory/:id").get(getByPCategory);
+
+router.route("/products/category/:id").get(getByCategory);
+
+router.route("/products/brand/:id").get(getByBrands);
+router.route("/products/:id/similar").get(getSimilarProducts);
 
 export default router;

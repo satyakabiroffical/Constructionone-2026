@@ -7,6 +7,8 @@ import {
 
 const router = Router();
 
-router.route("/company").get(getCompany).patch(updateCompany);
+router.route("/company")
+  .get(getCompany)
+  .patch(updateCompany);
 
 export default router;

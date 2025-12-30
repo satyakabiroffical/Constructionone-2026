@@ -17,6 +17,8 @@ import addressRoutes from "./address.routes.js";
 import review from "./review.routes.js";
 import cart from "./cart.routes.js";
 import reviewlikes from "./reviewlikes.routes.js";
+import orderRoutes from "./order.routes.js";
+import socialMediaPhotoUrl from "./socialmedia.routes.js";
 
 const router = Router();
 // Mount routes
@@ -34,9 +36,11 @@ router.use("/v1", contectRoutes);
 router.use("/v1", homeRoutes);
 router.use("/v1", admin);
 router.use("/v1", auth);
+router.use("/v1", socialMediaPhotoUrl);
 router.use("/v1", addressRoutes);
 router.use("/v1", review);
 router.use("/v1", reviewlikes);
+router.use("/v1", orderRoutes);
 router.use("/v1", cart);
 
 export default router;

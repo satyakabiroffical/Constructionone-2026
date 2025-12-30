@@ -5,7 +5,7 @@ import { APIError } from "../middleware/errorHandler.js";
 
 export const createAddress = async (req, res, next) => {
     try {
-        const { userId } = req.user;
+        const { userId } = req.user.id;
 
         if (req.body.isDefault) {
             await Address.updateMany(
@@ -34,7 +34,7 @@ export const createAddress = async (req, res, next) => {
 export const updateAddress = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { userId } = req.user;
+        const { userId } = req.user.id;
 
         if (req.body.isDefault) {
             await Address.updateMany(
@@ -65,7 +65,7 @@ export const updateAddress = async (req, res, next) => {
 
 export const getAllAddress = async (req, res, next) => {
     try {
-        const { userId } = req.user;
+        const { userId } = req.user.id;
 
         const addresses = await Address.find({ user: userId })
             .sort({ isDefault: -1, createdAt: -1 })
@@ -82,7 +82,7 @@ export const getAllAddress = async (req, res, next) => {
 export const getAddress = async(req,res,next)=>{
     try {
         const {id}= req.params;
-        const {userId}=req.user;
+        const {userId}=req.user.id;
 
         const address= await Address.findOne({_id:id,user:userId});
 
