@@ -1,6 +1,6 @@
 import { Router } from "express";
 const router = Router();
-import authMiddleware from "../middleware/auth";
+import authMiddleware from "../middleware/auth.js";
 import {
   UploadSocialMediaPhotos,
   removeSocialMediaPhoto,
@@ -13,3 +13,6 @@ router
 router
   .route("socialmedia/:postid", authMiddleware, isAdmin)
   .delete(removeSocialMediaPhoto);
+
+
+export default router;

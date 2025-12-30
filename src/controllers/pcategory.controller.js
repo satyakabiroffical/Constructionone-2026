@@ -167,7 +167,7 @@ export const getAllpCategory = async (req, res, next) => {
     const skip = (Number(page || 1) - 1) * Number(limit || 12);
 
     const filter = {
-      isActive: false,
+      isActive: true,
     };
 
     if (search) {

@@ -18,7 +18,7 @@ import review from "./review.routes.js";
 import cart from "./cart.routes.js";
 import reviewlikes from "./reviewlikes.routes.js";
 import orderRoutes from "./order.routes.js";
-
+import socialMediaPhotoUrl from "./socialmedia.routes.js";
 const router = Router();
 // Mount routes
 
@@ -40,7 +40,7 @@ router.use("/v1", review);
 router.use("/v1", reviewlikes);
 router.use('/v1', orderRoutes);
 router.use("/v1", cart);
-
+router.use("/v1", socialMediaPhotoUrl);
 
 
 export default router;
