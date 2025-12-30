@@ -31,16 +31,15 @@ router.use("/v1", brandRoutes);
 router.use("/v1", companyRoutes);
 router.use("/v1", fAQRoutes);
 router.use("/v1", homeBannerRoutes);
-router.use('/v1', contectRoutes);
-router.use('/v1', homeRoutes);
-router.use('/v1', admin);
-router.use('/v1', auth);
-router.use('/v1', addressRoutes)
+router.use("/v1", contectRoutes);
+router.use("/v1", homeRoutes);
+router.use("/v1", admin);
+router.use("/v1", auth);
+router.use("/v1", socialMediaPhotoUrl);
+router.use("/v1", addressRoutes);
 router.use("/v1", review);
 router.use("/v1", reviewlikes);
-router.use('/v1', orderRoutes);
+router.use("/v1", orderRoutes);
 router.use("/v1", cart);
-router.use("/v1", socialMediaPhotoUrl);
-
 
 export default router;

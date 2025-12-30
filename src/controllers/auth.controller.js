@@ -5,7 +5,6 @@ const MAX_OTP_ATTEMPTS = 5;
 
 export const authController = async (req, res, next) => {
   try {
-
     // const { error } = UserValidator.registerLoginUserSchema.validate(req.body);
     // if (error) {
     //     return res.status(400).json({
@@ -30,12 +29,10 @@ export const authController = async (req, res, next) => {
           const waitTime = Math.ceil(
             (cooldownPeriod - timeSinceLastOtp) / 1000
           );
-          return res
-            .status(429)
-            .json({
-              success: false,
-              error: `Please wait ${waitTime} seconds before requesting another OTP`,
-            });
+          return res.status(429).json({
+            success: false,
+            error: `Please wait ${waitTime} seconds before requesting another OTP`,
+          });
         }
       }
 
@@ -45,12 +42,10 @@ export const authController = async (req, res, next) => {
           (now - lastAttemptDate) / (1000 * 60 * 60);
 
         if (hoursSinceLastAttempt < 24) {
-          return res
-            .status(429)
-            .json({
-              success: false,
-              error: `Daily OTP limit reached. Please try again after 24 hours`,
-            });
+          return res.status(429).json({
+            success: false,
+            error: `Daily OTP limit reached. Please try again after 24 hours`,
+          });
         } else {
           attempts = 0;
         }
@@ -94,7 +89,6 @@ export const authController = async (req, res, next) => {
       message: "Successfully sent OTP to phone number",
       otp: otp,
     });
-    
   } catch (e) {
     return res.status(500).json({ success: false, error: e.message });
   }
@@ -114,23 +108,19 @@ export const verifyOtp = async (req, res) => {
     }
 
     if (!user.phoneOtp || !user.phoneOtp.codeHash) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "No OTP is pending verification for this user",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "No OTP is pending verification for this user",
+      });
     }
 
     const { codeHash, expiresAt, attempts = 0 } = user.phoneOtp;
 
     if (expiresAt && new Date(expiresAt) < new Date()) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "OTP has expired. Please request a new OTP",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "OTP has expired. Please request a new OTP",
+      });
     }
     if (attempts >= MAX_OTP_ATTEMPTS) {
       throw new Error(
@@ -194,5 +184,46 @@ export const verifyOtp = async (req, res) => {
     });
   } catch (e) {
     return res.status(500).json({ success: false, error: e.message });
+  }
+};
+
+// Only name & email update
+export const updateProfile = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const { name, email } = req.body;
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+
+    const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, {
+      new: true,
+      runValidators: true,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: updatedUser,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getProfile = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const userProfile = await UserModel.findById(userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Profile get successfully",
+      data: userProfile,
+    });
+  } catch (err) {
+    next(err);
   }
 };

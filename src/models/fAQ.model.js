@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const fAQSchema = new mongoose.Schema({
-  qestion: {
+  question: {
     type: String,
     trim: true,
   },

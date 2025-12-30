@@ -2,9 +2,8 @@ import { connect } from "mongoose";
 import Product from "../models/product.model.js";
 import { generateSlug } from "../utils/slug.js";
 import { APIError } from "../middleware/errorHandler.js";
-// import  Category  from "../models/category.model.js";
-// import Cart from "../models/cart.model.js";
-
+import Category from "../models/category.model.js";
+import Cart from "../models/cart.model.js";
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
 
@@ -42,7 +41,6 @@ export const createProduct = async (req, res, next) => {
 // UPDATE PRODUCT
 export const updateProduct = async (req, res, next) => {
   try {
-
     const { salePrice, price } = req.body;
     if (req.files?.images?.length) {
       req.body.images = req.files.images.map((file) => file.location);
@@ -187,7 +185,6 @@ export const getAllProducts = async (req, res, next) => {
   }
 };
 
-
 // PRODUCT GET BY PCATEGORY
 
 export const getByPCategory = async (req, res, next) => {
@@ -201,69 +198,107 @@ export const getByPCategory = async (req, res, next) => {
     // const categoryIds= categories.map((cat)=>cat._id );
     const products = await Product.find({
       // category:{$in:categoryIds},
-      pCategory:id ,
+      pCategory: id,
       isActive: true,
-    }).populate("pCategory")
+    }).populate("pCategory");
 
     return res.status(200).json({
       success: true,
       count: products.length,
-      products
+      products,
     });
-
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
-// PRODUCT GET BY CATEGORY 
+// PRODUCT GET BY CATEGORY
 
 export const getByCategory = async (req, res, next) => {
   try {
     const { id } = req.params;
 
     const products = await Product.find({
-      category: id ,
+      category: id,
       isActive: true,
     }).populate("category");
 
     return res.status(200).json({
       success: true,
       count: products.length,
-      products
-    })
+      products,
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
-
+};
 
 // PRODUCT  getByBrands
 
-export const getByBrands =async (req,res,next)=>{
+export const getByBrands = async (req, res, next) => {
   try {
-    const {id}=req.params;
+    const { id } = req.params;
 
-    const products = await Product.find(({
-      brand :id,
-      isActive:true,
-    })).populate('brand');
-   return res.status(200).json({
+    const products = await Product.find({
+      brand: id,
+      isActive: true,
+    }).populate("brand");
+    return res.status(200).json({
       success: true,
       count: products.length,
-      products
-    })
+      products,
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
+// getsimilar products
 
+export const getSimilarProducts = async (req, res, next) => {
+  try {
+    const { id } = req.params;
 
+    const currentProduct = await Product.findById(id);
 
+    if (!currentProduct) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
 
+    const minPrice = currentProduct.price * 0.8;
+    const maxPrice = currentProduct.price * 1.2;
 
+    const similarQuery = {
+      _id: { $ne: currentProduct._id },
+      status: "ACTIVE",
+      isActive: true,
+      category: currentProduct.category,
+      price: { $gte: minPrice, $lte: maxPrice },
+    };
 
+    if (currentProduct.subCategory) {
+      similarQuery.subCategory = currentProduct.subCategory;
+    }
 
+    if (currentProduct.brand) {
+      similarQuery.brand = currentProduct.brand;
+    }
 
+    // 4️⃣ Fetch similar products
 
+    const similarProducts = await Product.find(similarQuery)
+      .limit(6)
+      .select("title slug price salePrice images avgRating stock")
+      .sort({ soldCount: -1 }); // popular first
+
+    res.status(200).json({
+      message: "Similar products fetched successfully",
+      total: similarProducts.length,
+      data: similarProducts,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

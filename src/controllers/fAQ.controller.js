@@ -1,13 +1,39 @@
 import fAQModel from "../models/fAQ.model.js";
 import mongoose from "mongoose";
 
-export const createfAQ = async (req, res, next) => {
+export const createFAQ = async (req, res, next) => {
   try {
-    const fAQ = await fAQModel.create(req.body);
-    res.status(200).json({
+    const { question, answer, isActive = true } = req.body;
+
+    if (!question || !answer) {
+      return res.status(400).json({
+        success: false,
+        message: "Question and Answer are required",
+      });
+    }
+
+    const existQuestion = await fAQModel.findOne({
+      question: question.trim(),
+    });
+
+    if (existQuestion) {
+      return res.status(409).json({
+        success: false,
+        message: "This question already exists",
+      });
+    }
+
+    const faq = await fAQModel.create({
+      question: question.trim(),
+      answer: answer.trim(),
+      isActive,
+      createdBy: req.user?.id || null,
+    });
+
+    res.status(201).json({
       success: true,
-      message: "Question and Answer created successfully ",
-      data: fAQ,
+      message: "FAQ created successfully",
+      data: faq,
     });
   } catch (error) {
     next(error);
@@ -16,7 +42,9 @@ export const createfAQ = async (req, res, next) => {
 
 export const getAllfAQ = async (req, res, next) => {
   try {
-    const faqs = await fAQModel.find({ isActive:true}).sort({ createdAt: -1 });
+    const faqs = await fAQModel
+      .find({ isActive: true })
+      .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -120,26 +148,24 @@ export const getfAQById = async (req, res, next) => {
   }
 };
 
-
-
 export const toggle = async (req, res, next) => {
-    try {
-        const { faqId } = req.params;
+  try {
+    const { faqId } = req.params;
 
-        const faq = await fAQModel.findById(faqId);
+    const faq = await fAQModel.findById(faqId);
 
-        if (!faq) {
-            throw new APIError(404, "Faq not found");
-        }
-
-        faq.isActive = !faq.isActive
-        await faq.save();
-
-        res.status(200).json({
-            success: true,
-            message: `Faq ${brand.isActive ? "enabled" : "disabled"}`
-        })
-    } catch (error) {
-        next(error)
+    if (!faq) {
+      throw new APIError(404, "Faq not found");
     }
-}
+
+    faq.isActive = !faq.isActive;
+    await faq.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Faq ${faq.isActive ? "enabled" : "disabled"}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
