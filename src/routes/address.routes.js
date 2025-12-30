@@ -9,7 +9,7 @@ router.route('/address')
     .get(authMiddleware,getAllAddress)
 
 router.route('/address/:id')
-    .post(authMiddleware,updateAddress)
+    .put(authMiddleware,updateAddress)
     .get(authMiddleware,getAddress)
 
 
