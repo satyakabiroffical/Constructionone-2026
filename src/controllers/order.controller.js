@@ -56,11 +56,12 @@ export const updateOrder = async (req, res, next) => {
     if (Object.keys(updateData).length === 0) {
       throw new APIError(400, "No valid fields provided for update");
     }
-
+    console.log(updateData);
     const order = await Order.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
     });
+    console.log(order);
 
     if (!order) {
       throw new APIError(400, "Order not found");
@@ -74,6 +75,21 @@ export const updateOrder = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+
+  const order = await Order.findByIdAndUpdate(id, updateData, {
+    new: true,
+    runValidators: true,
+  });
+
+  if (!order) {
+    throw new APIError(400, "Order not found");
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Order updated successfully",
+    order,
+  });
 };
 
 // GET ALL ORDER

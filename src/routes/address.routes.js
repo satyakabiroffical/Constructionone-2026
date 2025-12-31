@@ -9,10 +9,16 @@ import {
 import authMiddleware from "../middleware/auth.js";
 
 const router = Router();
+
 router
   .route("/address")
   .post(authMiddleware, createAddress)
   .get(authMiddleware, getAllAddress);
+
+router
+  .route("/address/:id")
+  .put(authMiddleware, updateAddress)
+  .get(authMiddleware, getAddress);
 
 router
   .route("/address/:id")

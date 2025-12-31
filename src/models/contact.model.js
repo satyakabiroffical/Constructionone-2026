@@ -46,8 +46,8 @@ const contactSchema = new mongoose.Schema(
 );
 
 contactSchema.pre("save", function (next) {
-  if (this.isModified("name")) this.name = this.name.trim();
-  if (this.isModified("email")) this.email = this.email.trim().toLowerCase();
+  if (this.isModified("name") && this.name) this.name = this.name.trim();
+  if (this.isModified("email")&& this.email) this.email = this.email.trim().toLowerCase();
   next();
 });
 

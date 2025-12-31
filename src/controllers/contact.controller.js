@@ -5,17 +5,10 @@ export const createContact = async (req, res, next) => {
   try {
     const { name, email, phone, message } = req.body;
 
-    const contact = await Contact.create(
-      { name, email, phone, message },
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
-
+    const contact = await Contact.create({ name, email, phone, message });
     res.status(201).json({
       status: "success",
-      message: "Thank you for contact us",
+      message: "Thank you for contacting us",
       data: contact,
     });
   } catch (error) {
@@ -88,7 +81,7 @@ export const toggle = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const contact = await contact.findById(id);
+    const contact = await Contact.findById(id);
 
     if (!contact) {
       throw new APIError(404, "Brand not found");

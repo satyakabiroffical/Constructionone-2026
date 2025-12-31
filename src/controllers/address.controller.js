@@ -26,6 +26,17 @@ export const createAddress = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+
+  const address = await Address.create({
+    ...req.body,
+    user: userId,
+  });
+  console.log(address);
+  res.status(201).json({
+    success: true,
+    message: "Address added successfully",
+    address,
+  });
 };
 
 export const updateAddress = async (req, res, next) => {

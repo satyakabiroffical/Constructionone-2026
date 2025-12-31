@@ -5,7 +5,8 @@ const addressSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      index: true,
+      // required: [true, "User is required"],
+      index: true
     },
 
     fullName: {
