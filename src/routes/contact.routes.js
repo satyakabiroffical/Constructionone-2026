@@ -2,22 +2,22 @@ import { Router } from "express";
 const router = Router();
 
 import {
-  createContect,
-  getAllContect,
+  createContact,
+  getAllContact,
   getById,
   toggle,
-} from "../controllers/contect.controller.js";
+} from "../controllers/contact.controller.js";
 
 import authMiddleware from "../middleware/auth.js";
 import { isAdmin } from "../middleware/role.js";
 
 router
-  .route("/contect")
-  .post(createContect)
-  .get(authMiddleware, isAdmin, getAllContect);
+  .route("/contact")
+  .post(createContact)
+  .get(authMiddleware, isAdmin, getAllContact);
 
 router
-  .route("/contect/:id")
+  .route("/contact/:id")
   .get(authMiddleware, isAdmin, getById)
   .patch(authMiddleware, isAdmin, toggle);
 

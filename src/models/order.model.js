@@ -19,7 +19,7 @@ const orderSchema = new mongoose.Schema({
     },
     orderStatus: {
         type: String,
-        enum: ["PLACED", "PANDING", "SHIPPED","OUT_OF _DELIVERY", "DELIVERED", "CANCELLED","REQUESTED", "APPROVED", "REJECTED", "PICKED", "RETURNED"],
+        enum: ["PLACED", "PENDING", "SHIPPED","OUT_OF_DELIVERY", "DELIVERED", "CANCELLED","REQUESTED", "APPROVED", "REJECTED", "PICKED", "RETURNED"],
         default: "PANDING",
     },
     placedAt:{
@@ -93,7 +93,7 @@ orderSchema.pre('save',function(next){
 })
 
 orderSchema.pre('findOneAndUpdate',function(next){
-    const update = this.getUpdate;
+    const update = this.getUpdate();
     if(update.orderStatus){
         const dateField  = STATUS_DATE_MAP[update.orderStatus]
         if(dateField ){

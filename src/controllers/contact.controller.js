@@ -1,26 +1,22 @@
-import Contect from "../models/contect.model.js";
+import Contact from "../models/contact.model.js";
 import { APIError } from "../middleware/errorHandler.js";
 
-export const createContect = async (req, res, next) => {
+export const createContact = async (req, res, next) => {
   try {
     const { name, email, phone, message } = req.body;
 
-    const contect = await Contect.create({ name, email, phone, message },{
-        new:true,
-        runValidators: true
-    });
-
+    const contact = await Contact.create({ name, email, phone, message });
     res.status(201).json({
       status: "success",
-      message: "Thank you for contect us",
-      data:contect,
+      message: "Thank you for contacting us",
+      data:contact,
     });
   } catch (error) {
     next(error);
   }
 };
 
-export const getAllContect = async (req,res,next)=>{
+export const getAllContact = async (req,res,next)=>{
     try {
 
         const queryObj = {...req.query};
@@ -46,11 +42,11 @@ export const getAllContect = async (req,res,next)=>{
         }
         
         
-        const contect = await Contect.find(filter)
+        const contact = await Contact.find(filter)
                         .sort({[sortBy]:sortOrder})
                         .limit(limit)
                         .skip(skip)
-        const total = contect.length;
+        const total = contact.length;
 
         res.status(200).json({
             success: true,
@@ -58,7 +54,7 @@ export const getAllContect = async (req,res,next)=>{
             limit,
             total,
             totalPages: Math.ceil(total / limit),
-            data:contect
+            data:contact
         });
     } catch (error) {
         next(error)
@@ -69,14 +65,14 @@ export const getById = async (req, res , next)=>{
     try {
         const {id} = req.params;
         
-        const contect = await Contect.findById(id);
+        const contact = await Contact.findById(id);
 
-        if(!contect){
+        if(!contact){
              throw new APIError(404, "Brand not found");
         }
           res.status(200).json({
             success: true,
-            data: contect
+            data: contact
         });
 
 
@@ -90,18 +86,18 @@ export const toggle = async (req, res, next) => {
     try {
         const { id } = req.params;
 
-        const contect = await Contect.findById(id);
+        const contact = await Contact.findById(id);
 
-        if (!contect) {
+        if (!contact) {
             throw new APIError(404, "Brand not found");
         }
 
-        contect.isActive = !contect.isActive
-        await contect.save();
+        contact.isActive = !contact.isActive
+        await contact.save();
 
         res.status(200).json({
             success: true,
-            message: `Contect ${contect.isActive ? "enabled" : "disabled"}`
+            message: `contact ${contact.isActive ? "enabled" : "disabled"}`
         })
     } catch (error) {
         next(error)
