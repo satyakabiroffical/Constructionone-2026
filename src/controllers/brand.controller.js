@@ -145,7 +145,6 @@ export const getAllBrands = async (req, res, next) => {
 export const getBySlug = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    // console.log(slug);
 
     const brand = await Brand.findOne({ slug: slug });
 
