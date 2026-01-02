@@ -16,13 +16,7 @@ const pcategorySchema = new mongoose.Schema(
       required: [true, "Category type is required"],
       enum: {
         values: [
-          "MAKEUP",
-          "SPA",
-          "PERFUME",
-          "NAILS",
-          "SKINCARE",
-          "HAIR",
-          "CARE",
+          "MAKEUP","SPA","PERFUME","NAILS","SKINCARE","HAIR","CARE",
         ],
         message: "Invalid parent category type",
       },
@@ -63,7 +57,6 @@ const pcategorySchema = new mongoose.Schema(
 pcategorySchema.index({ name: 1 });
 pcategorySchema.index({ type: 1, isActive: 1 });
 
-
 pcategorySchema.pre("save", function (next) {
   if (this.isModified("name")) {
     this.name = this.name.trim();
@@ -74,7 +67,6 @@ pcategorySchema.pre("save", function (next) {
   next();
 });
 
-
 pcategorySchema.pre(/^find/, function (next) {
   if (this.getFilter().isActive === undefined) {
     this.find({ isActive: true });
@@ -82,23 +74,20 @@ pcategorySchema.pre(/^find/, function (next) {
   next();
 });
 
-
 pcategorySchema.virtual("hasMedia").get(function () {
   return Boolean(this.icon || this.image);
 });
-
 
 pcategorySchema.post("save", function (error, doc, next) {
   if (error.code === 11000) {
     next(new APIError(400, "Parent category slug must be unique", true));
   } else if (error.name === "ValidationError") {
-    const messages = Object.values(error.errors).map(e => e.message);
+    const messages = Object.values(error.errors).map((e) => e.message);
     next(new APIError(400, messages.join(". "), true));
   } else {
     next(error);
   }
 });
-
 
 const pcategoryModel = mongoose.model("Pcategory", pcategorySchema);
 export default pcategoryModel;
