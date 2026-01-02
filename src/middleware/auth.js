@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
+import userModel from "../models/user.model.js";
 
 const authMiddleware = async (req, res, next) => {
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -8,14 +10,18 @@ const authMiddleware = async (req, res, next) => {
   }
 
   const token = authHeader.split(" ")[1];
+  // console.log("Token:", token);
+  
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = await jwt.verify(token, process.env.JWT_SECRET);
     // attach user to request
 
-   console.log(decoded.id);
+  //  console.log(decoded,decoded.id);
 
     const user = await userModel.findById(decoded.id);
+
+    // console.log(user);
 
     if (!user) {
       return res.status(404).send({
