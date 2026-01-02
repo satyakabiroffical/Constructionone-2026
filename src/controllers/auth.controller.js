@@ -217,7 +217,15 @@ export const getProfile = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const userProfile = await UserModel.findById(userId);
+     
+    if (!userProfile) {
+        return res.status(404).json({
+          success: false,
+          error: "User not found",
+        });
+      }
 
+   
     res.status(200).json({
       success: true,
       message: "Profile get successfully",
@@ -227,3 +235,5 @@ export const getProfile = async (req, res, next) => {
     next(err);
   }
 };
+
+

@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -13,18 +13,34 @@ const authMiddleware = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     // attach user to request
 
-    req.user = {
+   console.log(decoded.id);
+
+    const user = await userModel.findById(decoded.id);
+
+    if (!user) {
+      return res.status(404).send({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (user.disable === true) {
+      return res.status(403).send({
+        success: false,
+        message: "Your account has been disabled. Contact admin.",
+      });
+    }
+      req.user = {
       id: decoded.id,
       role: decoded.role,
     };
-
     next();
   } catch (error) {
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
 
-const adminMiddleware = (req, res, nest) => {
+const adminMiddleware = async (req, res, nest) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Not authenticated" });
@@ -40,6 +56,7 @@ const adminMiddleware = (req, res, nest) => {
       id: decoded.id,
       role: decoded.role,
     };
+   
 
     next();
   } catch (error) {
