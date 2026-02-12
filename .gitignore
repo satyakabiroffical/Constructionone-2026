@@ -1,77 +1,42 @@
-# ===============================
-# Node Modules
-# ===============================
+# Dependencies
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
 
-# ===============================
-# Environment Variables
-# ===============================
+# Environment variables
 .env
 .env.local
-.env.dev
-.env.prod
+.env.development.local
+.env.test.local
+.env.production.local
 
-# ===============================
-# Build / Dist
-# ===============================
-dist/
-build/
-
-# ===============================
 # Logs
-# ===============================
 logs/
 *.log
 
-# ===============================
-# OS Generated Files
-# ===============================
+# OS files
 .DS_Store
 Thumbs.db
 
-# ===============================
-# IDE / Editor
-# ===============================
+# IDE
 .vscode/
 .idea/
 *.swp
+*.swo
+*~
 
-# ===============================
-# Multer Local Uploads (if any)
-# ===============================
-uploads/
-Upload/
-temp/
-tmp/
-
-# ===============================
-# AWS / Cloud Credentials
-# ===============================
-.aws/
-aws-credentials.json
-
-# ===============================
-# Coverage / Testing
-# ===============================
+# Build outputs
+dist/
+build/
 coverage/
 
-# ===============================
-# Runtime Data
-# ===============================
-*.pid
-*.seed
-*.pid.lock
+# Temporary files
+tmp/
+temp/
+*.tmp
 
-# ===============================
-# Cache
-# ===============================
-.cache/
-
-# ===============================
-# Optional
-# ===============================
-package-lock.json
-yarn.lock
+# Uploads (if any)
+uploads/
+public/uploads/

@@ -14,7 +14,7 @@ export const getExamples = async (req, res, next) => {
     if (cache.has(cacheKey)) {
       const cached = cache.get(cacheKey);
       if (Date.now() - cached.timestamp < CACHE_TTL) {
-        return res.json(cached.data);
+        return res.json(cached.data); 
       }
     }
 

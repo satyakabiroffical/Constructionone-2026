@@ -47,6 +47,9 @@ export const generateFileName = (file) => {
 export const s3Uploader = () =>
   multer({
     fileFilter: multerFilter,
+     limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB max (video case)
+    },
     storage: multerS3({
       s3,
       bucket,

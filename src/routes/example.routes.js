@@ -12,13 +12,18 @@ const router = Router();
 
 // All routes are mounted at /api/v1/examples
 
-router.route('/examples')
-  .get(getExamples)
-  .post(createExample);
+router.get('/examples',getExamples)
+router.post('/examples',createExample);
 
-router.route('/examples/:id')
-  .get(getExample)
-  .patch(updateExample)
-  .delete(deleteExample);
+router.get('/examples/:id',getExample)
+router.patch('/examples/:id',updateExample)
+router.delete('/examples/:id',deleteExample);
+
+//   router.get("/cluster-check", (req, res) => {
+//   res.json({
+//     message: "Cluster working",
+//     pid: process.pid
+//   });
+// });
 
 export default router;
