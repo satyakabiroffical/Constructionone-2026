@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "prod": "pm2 start src/server.js -i max --name beshope-api",
     "test": "jest"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "express-validator": "^7.3.1",
     "helmet": "^6.0.1",
     "hpp": "^0.2.3",
+    "ioredis": "^5.9.3",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^7.0.3",
     "morgan": "^1.10.0",
