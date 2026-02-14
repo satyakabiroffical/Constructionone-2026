@@ -13,7 +13,11 @@ redisConnection.on('connect', () => {
 });
 
 redisConnection.on('error', (err) => {
-    console.error('Corezap Redis error:', err);
+    if (err.code === 'ECONNREFUSED') {
+        console.warn('⚠️  Redis connection failed: Redis server not valid (Is it running?). Caching will be skipped.');
+    } else {
+        console.error('Redis error:', err);
+    }
 });
 
 export default redisConnection

@@ -55,7 +55,6 @@ exampleSchema.index({ status: 1, priority: -1 });
 
 // Document middleware: runs before .save() and .create()
 exampleSchema.pre("save", function (next) {
-  // Example of document middleware
   if (this.isModified("name")) {
     this.name = this.name.trim();
   }
@@ -72,7 +71,6 @@ exampleSchema.pre(/^find/, function (next) {
 });
 
 // Static method example
-// Example: const stats = await Example.calculateStats();
 exampleSchema.statics.calculateStats = async function () {
   const stats = await this.aggregate([
     {
@@ -88,7 +86,6 @@ exampleSchema.statics.calculateStats = async function () {
 };
 
 // Instance method example
-// Example: await example.getSimilarExamples();
 exampleSchema.methods.getSimilarExamples = function () {
   return this.constructor.find({
     _id: { $ne: this._id },

@@ -8,14 +8,14 @@ export const getExamples = async (req, res, next) => {
   try {
     const cacheKey = `examples:${JSON.stringify(req.query)}`;
 
-    // 1️⃣ Check Redis
+    // Check Redis
     const cachedData = await redis.get(cacheKey);
 
     if (cachedData) {
       return res.json(JSON.parse(cachedData));
     }
 
-    // 2️⃣ Build Query
+    // Build Query
     const query = { ...req.query };
     const excludeFields = ['page', 'sort', 'limit', 'fields'];
     excludeFields.forEach(el => delete query[el]);
@@ -31,11 +31,71 @@ export const getExamples = async (req, res, next) => {
       data: { examples }
     };
 
-    // 3️⃣ Save to Redis (5 min expiry)
+    // Save to Redis (5 min expiry)
     await redis.set(cacheKey, JSON.stringify(result), 'EX', 300);
 
     res.json(result);
 
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createExample = async (req, res, next) => {
+  try {
+    const example = await Example.create(req.body);
+    res.status(201).json({
+      status: 'success',
+      data: { example }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getExample = async (req, res, next) => {
+  try {
+    const example = await Example.findById(req.params.id);
+    if (!example) {
+      return next(new APIError('No example found with that ID', 404));
+    }
+    res.json({
+      status: 'success',
+      data: { example }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateExample = async (req, res, next) => {
+  try {
+    const example = await Example.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true
+    });
+    if (!example) {
+      return next(new APIError('No example found with that ID', 404));
+    }
+    res.json({
+      status: 'success',
+      data: { example }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteExample = async (req, res, next) => {
+  try {
+    const example = await Example.findByIdAndDelete(req.params.id);
+    if (!example) {
+      return next(new APIError('No example found with that ID', 404));
+    }
+    res.status(204).json({
+      status: 'success',
+      data: null
+    });
   } catch (error) {
     next(error);
   }

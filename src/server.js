@@ -32,10 +32,6 @@ const limiter = rateLimit({
   message: "Too many requests from this IP, please try again after 15 minutes",
 });
 
-// cluster check endpoint
-
-
-
 app.use("/api", limiter);
 
 // Routes
@@ -48,7 +44,6 @@ app.use(errorHandler);
 // Start Server
 const PORT = process.env.PORT || 3000;
 
-// Debug comment
 const startServer = async () => {
   try {
     await connectDB();
