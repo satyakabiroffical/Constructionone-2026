@@ -3,6 +3,7 @@
 const mongoose = require("mongoose");
 const razorpay = require("../config/razorpay");
 const transactionModel = require("../../models/user/transaction.model");
+const APIError = require("../../middleware/errorHandler");
 
 
 
@@ -14,13 +15,13 @@ exports.createWalletTopup = async (req, res) => {
     const userId = req.user._id;
 
     if (!amount) {
-      return res.status(400).json({ message: "Amount required" });
+      throw new APIError(400, "Amount required");
     }
 
     const company = await companyModel.findOne();
 
     if (!company) {
-      return res.status(404).json({ message: "Company config not found" });
+      throw new APIError(404, "Company config not found");
     }
 
     const isValidAmount = company.walletTopupAmounts.includes(amount);
