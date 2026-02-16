@@ -1,8 +1,7 @@
 import jwt from "jsonwebtoken";
-import userModel from "../models/user.model.js";
+import userModel from "../models/user/user.model.js";
 
-const authMiddleware = async (req, res, next) => {
-
+export const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -11,13 +10,12 @@ const authMiddleware = async (req, res, next) => {
 
   const token = authHeader.split(" ")[1];
   // console.log("Token:", token);
-  
 
   try {
     const decoded = await jwt.verify(token, process.env.JWT_SECRET);
     // attach user to request
 
-  //  console.log(decoded,decoded.id);
+    //  console.log(decoded,decoded.id);
 
     const user = await userModel.findById(decoded.id);
 
@@ -36,7 +34,7 @@ const authMiddleware = async (req, res, next) => {
         message: "Your account has been disabled. Contact admin.",
       });
     }
-      req.user = {
+    req.user = {
       id: decoded.id,
       role: decoded.role,
     };
@@ -46,7 +44,7 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-const adminMiddleware = async (req, res, nest) => {
+export const adminMiddleware = async (req, res, nest) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Not authenticated" });
@@ -62,12 +60,9 @@ const adminMiddleware = async (req, res, nest) => {
       id: decoded.id,
       role: decoded.role,
     };
-   
 
     next();
   } catch (error) {
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
-
-export default authMiddleware;

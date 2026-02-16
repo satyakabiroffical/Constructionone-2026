@@ -9,15 +9,11 @@ const redisConnection = new IORedis({
 });
 
 redisConnection.on('connect', () => {
-    console.log('Corezap Redis client connected');
+    console.log('Redis client connected');
 });
 
 redisConnection.on('error', (err) => {
-    if (err.code === 'ECONNREFUSED') {
-        console.warn('⚠️  Redis connection failed: Redis server not valid (Is it running?). Caching will be skipped.');
-    } else {
-        console.error('Redis error:', err);
-    }
+    console.error('Redis error:', err);
 });
 
-export default redisConnection
+export default redisConnection;
