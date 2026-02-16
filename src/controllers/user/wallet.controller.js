@@ -1,17 +1,14 @@
-
 // writen by priyanshu
 const mongoose = require("mongoose");
 const razorpay = require("../config/razorpay");
 const transactionModel = require("../../models/user/transaction.model");
 const APIError = require("../../middleware/errorHandler");
 
-
-
 exports.createWalletTopup = async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
-   const { amount } = req.body;
+    const { amount } = req.body;
     const userId = req.user._id;
 
     if (!amount) {
@@ -28,45 +25,46 @@ exports.createWalletTopup = async (req, res) => {
 
     if (!isValidAmount) {
       return res.status(400).json({
-        message: "Invalid top-up amount"
+        message: "Invalid top-up amount",
       });
     }
-
 
     const order = await razorpay.orders.create({
       amount: amount * 100,
       currency: "INR",
-      receipt: `wallet_${Date.now()}`
+      receipt: `wallet_${Date.now()}`,
     });
 
-    const transaction = await transactionModel.create([{
-      userId,
-      amount,
-      currency: "INR",
-      paymentGateway: "RAZORPAY",
-      razorpayOrderId: order.id,
-      status: "PENDING",
-      payType: "CREDIT",
-      walletPurpose: "TOPUP"
-    }],{session});
+    const transaction = await transactionModel.create(
+      [
+        {
+          userId,
+          amount,
+          currency: "INR",
+          paymentGateway: "RAZORPAY",
+          razorpayOrderId: order.id,
+          status: "PENDING",
+          payType: "CREDIT",
+          walletPurpose: "TOPUP",
+        },
+      ],
+      { session },
+    );
 
-     await session.commitTransaction();
+    await session.commitTransaction();
     session.endSession();
 
     return res.status(200).json({
       success: true,
       order,
-      transaction
+      transaction,
     });
-   
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-     next(error);
+    next(error);
   }
 };
-
-
 
 const crypto = require("crypto");
 const walletModel = require("../models/wallet.model");
@@ -76,11 +74,8 @@ exports.verifyWalletTopup = async (req, res) => {
   session.startTransaction();
 
   try {
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+      req.body;
 
     const userId = req.user._id;
 
@@ -95,10 +90,12 @@ exports.verifyWalletTopup = async (req, res) => {
       throw new Error("Invalid signature");
     }
 
-    const transaction = await transactionModel.findOne({
-      razorpayOrderId: razorpay_order_id,
-      userId
-    }).session(session);
+    const transaction = await transactionModel
+      .findOne({
+        razorpayOrderId: razorpay_order_id,
+        userId,
+      })
+      .session(session);
 
     if (!transaction) {
       throw new Error("Transaction not found");
@@ -112,10 +109,7 @@ exports.verifyWalletTopup = async (req, res) => {
     let wallet = await walletModel.findOne({ userId }).session(session);
 
     if (!wallet) {
-      wallet = await walletModel.create(
-        [{ userId, balance: 0 }],
-        { session }
-      );
+      wallet = await walletModel.create([{ userId, balance: 0 }], { session });
       wallet = wallet[0];
     }
 
@@ -123,7 +117,7 @@ exports.verifyWalletTopup = async (req, res) => {
     await walletModel.findByIdAndUpdate(
       wallet._id,
       { $inc: { balance: transaction.amount } },
-      { new: true, session }
+      { new: true, session },
     );
 
     // 5️⃣ Update Transaction Status
@@ -139,16 +133,15 @@ exports.verifyWalletTopup = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Wallet credited successfully"
+      message: "Wallet credited successfully",
     });
-
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
 
     return res.status(400).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
