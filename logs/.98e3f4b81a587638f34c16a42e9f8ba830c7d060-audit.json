@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\Users\\HP\\Downloads\\constructionsOne\\constructionsOne\\logs\\.98e3f4b81a587638f34c16a42e9f8ba830c7d060-audit.json",
+    "files": [
+        {
+            "date": 1771219676569,
+            "name": "C:\\Users\\HP\\Downloads\\constructionsOne\\constructionsOne\\logs\\combined-2026-02-16.log",
+            "hash": "0689eefa74b06f78bcf4937151f9fc84fa673fe83f2bc86241c5798aea60c23d"
+        }
+    ],
+    "hashType": "sha256"
+}

@@ -9,11 +9,11 @@ const redisConnection = new IORedis({
 });
 
 redisConnection.on('connect', () => {
-    console.log('Corezap Redis client connected');
+    console.log('Redis client connected');
 });
 
 redisConnection.on('error', (err) => {
-    console.error('Corezap Redis error:', err);
+    console.error('Redis error:', err);
 });
 
-export default redisConnection
+export default redisConnection;

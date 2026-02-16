@@ -10,6 +10,7 @@ export const getExamples = async (req, res, next) => {
 
     // 1️⃣ Check Redis
     const cachedData = await redis.get(cacheKey);
+    console.log("cachedData",cachedData);
 
     if (cachedData) {
       return res.json(JSON.parse(cachedData));
