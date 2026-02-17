@@ -8,6 +8,8 @@ import rentalRoutes from "./rental/index.js";
 import serviceProviderRoutes from "./serviceProvider/index.js";
 import vendorRoutes from "./vendor/index.js";
 import adminRoutes from "./admin/index.js";
+import exampleRoutes from "./example.routes.js";
+import notificationRoutes from "./notification.routes.js";
 
 const router = Router();
 
@@ -20,5 +22,7 @@ router.use("/v1", rentalRoutes);
 router.use("/v1", serviceProviderRoutes);
 router.use("/v1", vendorRoutes);
 router.use("/v1", adminRoutes);
+router.use("/v1", exampleRoutes);
+router.use("/v1", notificationRoutes);
 
 export default router;
