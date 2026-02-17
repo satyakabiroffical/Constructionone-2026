@@ -1,6 +1,6 @@
 // src/controllers/example.controller.js
 import Example from '../models/example.model.js';
-import { APIError } from '../middleware/errorHandler.js';
+import { APIError } from '../middlewares/errorHandler.js';
 import redis from '../config/redis.config.js';
 
 // Cache 
