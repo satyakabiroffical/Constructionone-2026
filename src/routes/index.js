@@ -1,13 +1,27 @@
 import { Router } from "express";
+
+// Import Module Gateways
+import authRoutes from "./auth/index.js";
+import userRoutes from "./user/index.js";
+import marketplaceRoutes from "./marketplace/index.js";
+import rentalRoutes from "./rental/index.js";
+import serviceProviderRoutes from "./serviceProvider/index.js";
+import vendorRoutes from "./vendor/index.js";
+import adminRoutes from "./admin/index.js";
 import exampleRoutes from "./example.routes.js";
 import notificationRoutes from "./notification.routes.js";
-import userRoutes from "./user/index.js";
-import walletRoutes from "./user/wallet.routes.js";
 const router = Router();
 
+// global route gateway
+// Mount all modules under /v1 (modules themselves handle their specific prefixes like /auth, /users)
+router.use("/v1", authRoutes);
+router.use("/v1", userRoutes);
+router.use("/v1", marketplaceRoutes);
+router.use("/v1", rentalRoutes);
+router.use("/v1", serviceProviderRoutes);
+router.use("/v1", vendorRoutes);
+router.use("/v1", adminRoutes);
 router.use("/v1", exampleRoutes);
 router.use("/v1", notificationRoutes);
-router.use("/v1", userRoutes);
-router.use("/v1", walletRoutes);
 
 export default router;

@@ -5,7 +5,7 @@ import razorpay from "../../config/razorpay.conifg.js";
 import transactionModel from "../../models/user/transaction.model.js";
 import walletModel from "../../models/user/wallet.model.js";
 // import companyModel from "../../models/company.model.js";
-import { APIError } from "../../middleware/errorHandler.js";
+import { APIError } from "../../middlewares/errorHandler.js";
 import crypto from "crypto";
 import redis from "../../config/redis.config.js";
 
