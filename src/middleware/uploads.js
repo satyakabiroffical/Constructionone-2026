@@ -1,4 +1,8 @@
-import { S3Client, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
 import multer from "multer";
 import multerS3 from "multer-s3";
 import fs from "fs";
@@ -6,8 +10,8 @@ import path from "path";
 import { Readable } from "stream";
 import createError from "http-errors";
 import dotenv from "dotenv";
-dotenv.config(); 
-          
+dotenv.config();
+
 const s3 = new S3Client({
   region: process.env.LINODE_OBJECT_STORAGE_REGION,
   endpoint: process.env.LINODE_OBJECT_STORAGE_ENDPOINT,
@@ -23,7 +27,10 @@ const folderPath = process.env.BUCKET_FOLDER_PATH || "";
 const localUploadPath = path.join(process.cwd(), "uploads");
 
 export const multerFilter = (req, file, cb) => {
-  if (file.fieldname === "effectOfAr" && file.mimetype !== "application/octet-stream") {
+  if (
+    file.fieldname === "effectOfAr" &&
+    file.mimetype !== "application/octet-stream"
+  ) {
     return cb(createError(400, "Only .deeper format allowed!"), false);
   }
 
@@ -32,7 +39,10 @@ export const multerFilter = (req, file, cb) => {
   }
 
   if (file.fieldname === "bannerImg" && !file.mimetype.startsWith("image/")) {
-    return cb(createError(400, "Only image files are allowed for bannerImg"), false);
+    return cb(
+      createError(400, "Only image files are allowed for bannerImg"),
+      false,
+    );
   }
 
   cb(null, true);
@@ -47,7 +57,7 @@ export const generateFileName = (file) => {
 export const s3Uploader = () =>
   multer({
     fileFilter: multerFilter,
-     limits: {
+    limits: {
       fileSize: 50 * 1024 * 1024, // 50MB max (video case)
     },
     storage: multerS3({
