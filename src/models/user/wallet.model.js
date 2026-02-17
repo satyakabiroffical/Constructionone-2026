@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const walletSchema = new mongoose.Schema({
   userId: {
@@ -16,12 +16,6 @@ const walletSchema = new mongoose.Schema({
     default: "INR",
     enum: ["INR", "USD"]
   },
-  walletType:{
-    type: String,
-    enum: ["autoAdd", "addOnce", null],
-    default: null,
-  },
-
   isActive: {
     type: Boolean,
     default: true
@@ -36,4 +30,4 @@ walletSchema.index({ isActive: 1 });
 
 walletSchema.index({ userId: 1, isActive: 1 });
 
-module.exports = mongoose.model("walletModel", walletSchema);
+export default mongoose.model("walletModel", walletSchema);

@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const transactionSchema = new mongoose.Schema(
   {
@@ -51,7 +51,11 @@ const transactionSchema = new mongoose.Schema(
       enum: ["CREDIT", "DEBIT", null],
       default: null,
     },
-
+    walletType:{
+    type: String,
+    enum: ["autoAdd", "addOnce", null],
+    default: null,
+  },
     walletPurpose: {
       type: String,
       enum: ["TOPUP", "ORDER_PAYMENT", "BOOKING_PAYMENT", "REFUND", null],   
@@ -68,4 +72,4 @@ transactionSchema.index(
 );
 
 
-module.exports = mongoose.model("transactionModel", transactionSchema);
+export default mongoose.model("transactionModel", transactionSchema);

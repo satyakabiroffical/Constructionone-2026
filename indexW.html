@@ -64,11 +64,10 @@ async function addMoney() {
   try {
 
     // 1️⃣ Call backend to create order
-    const response = await fetch("http://localhost:2000/api/v1/wallet/create-topup", {
+    const response = await fetch("http://localhost:3000/api/v1/create-topup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer YOUR_JWT_TOKEN"
       },
       body: JSON.stringify({ amount })
     });
@@ -81,7 +80,7 @@ async function addMoney() {
     }
 
     const options = {
-      key: "YOUR_RAZORPAY_KEY_ID", // Public Key Only
+      key: "rzp_test_Rfx6rVjyohb2Su", // Public Key Only
       amount: data.order.amount,
       currency: "INR",
       name: "Your Company",
@@ -91,11 +90,10 @@ async function addMoney() {
       handler: async function (response) {
 
         // 2️⃣ Verify Payment
-        const verifyRes = await fetch("http://localhost:2000/api/v1/wallet/verify-topup", {
+        const verifyRes = await fetch("http://localhost:3000/api/v1/verify-topup", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": "Bearer YOUR_JWT_TOKEN"
           },
           body: JSON.stringify({
             razorpay_order_id: response.razorpay_order_id,
@@ -103,12 +101,21 @@ async function addMoney() {
             razorpay_signature: response.razorpay_signature
           })
         });
-
+           
+            if (!verifyRes.ok) {
+      const errorText = await verifyRes.text();
+      console.error("Backend HTTP Error:", verifyRes.status);
+      console.error("Error Response:", errorText);
+      alert("Server Error! Check console.");
+      return;
+    }
         const verifyData = await verifyRes.json();
 
         if (verifyData.success) {
+          console.log("✅ Payment Verified:", verifyData);
           alert("Wallet credited successfully!");
         } else {
+          console.error("❌ Verification Failed:", verifyData);
           alert("Payment verification failed");
         }
       },

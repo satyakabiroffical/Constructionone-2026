@@ -1,10 +1,10 @@
 // written by priyanshu (ES Module version with Redis caching)
 
 import mongoose from "mongoose";
-import razorpay from "../../config/razorpay.config.js";
+import razorpay from "../../config/razorpay.conifg.js";
 import transactionModel from "../../models/user/transaction.model.js";
 import walletModel from "../../models/user/wallet.model.js";
-import companyModel from "../../models/company.model.js";
+// import companyModel from "../../models/company.model.js";
 import { APIError } from "../../middleware/errorHandler.js";
 import crypto from "crypto";
 import redis from "../../config/redis.config.js";
@@ -30,6 +30,7 @@ const getOrCreateWallet = async (userId, session = null) => {
 export const getMyWallet = async (req, res, next) => {
   try {
     const userId = req.user._id.toString();
+    // const userId = "6992ebf155e45f668bce5b09";
     const cacheKey = `wallet:${userId}`;
 
     const cachedWallet = await redis.get(cacheKey);
@@ -46,9 +47,7 @@ export const getMyWallet = async (req, res, next) => {
       data: wallet
     };
 
-    await redis.set(cacheKey, JSON.stringify(result), {
-      EX: 300
-    });
+    await redis.set(cacheKey, JSON.stringify(result), "EX", 300);
 
     return res.status(200).json(result);
 
@@ -66,27 +65,28 @@ export const createWalletTopup = async (req, res, next) => {
   session.startTransaction();
 
   try {
-    const { amount  } = req.body;
+    const { amount ,walletType } = req.body;
     const userId = req.user._id;
+    // const userId = "6992ebf155e45f668bce5b09";
 
     if (!amount) {
       throw new APIError(400, "Amount required");
     }
 
-    const company = await companyModel.findOne();
+    // const company = await companyModel.findOne();
 
-    if (!company) {
-      throw new APIError(404, "Company config not found");
-    }
+    // if (!company) {
+    //   throw new APIError(404, "Company config not found");
+    // }
 
-    if (!company.walletTopupAmounts.includes(amount)) {
-      throw new APIError(400, "Invalid top-up amount");
-    }
+    // if (!company.walletTopupAmounts.includes(amount)) {
+    //   throw new APIError(400, "Invalid top-up amount");
+    // }
 
     const order = await razorpay.orders.create({
       amount: amount * 100,
       currency: "INR",
-      receipt: `wallet_${Date.now()}`
+      receipt: `wallet_${Date.now()}`,
     });
 
     const [transaction] = await transactionModel.create(
@@ -109,9 +109,8 @@ export const createWalletTopup = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       order,
-      transaction
+      transaction,
     });
-
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
@@ -121,22 +120,17 @@ export const createWalletTopup = async (req, res, next) => {
 
 
 
-// ======================================================
-// 3️⃣ VERIFY WALLET TOPUP
-// ======================================================
 
 export const verifyWalletTopup = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature
-    } = req.body;
-
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+      req.body;
+     console.log(req.body);
     const userId = req.user._id;
+    // const userId = "6992ebf155e45f668bce5b09";
 
     const body = razorpay_order_id + "|" + razorpay_payment_id;
 
@@ -149,10 +143,14 @@ export const verifyWalletTopup = async (req, res) => {
       throw new Error("Invalid signature");
     }
 
-    const transaction = await transactionModel.findOne({
-      razorpayOrderId: razorpay_order_id,
-      userId
-    }).session(session);
+    const transaction = await transactionModel
+      .findOne({
+        razorpayOrderId: razorpay_order_id,
+        userId,
+      })
+      .session(session);
+
+      // console.log(transaction);
 
     if (!transaction) {
       throw new Error("Transaction not found");
@@ -163,11 +161,10 @@ export const verifyWalletTopup = async (req, res) => {
     }
 
     const wallet = await getOrCreateWallet(userId, session);
-
     await walletModel.findByIdAndUpdate(
       wallet._id,
       { $inc: { balance: transaction.amount } },
-      { new: true, session }
+      { new: true, session },
     );
 
     transaction.status = "SUCCESS";
@@ -185,16 +182,15 @@ export const verifyWalletTopup = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Wallet credited successfully"
+      message: "Wallet credited successfully",
     });
-
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
 
     return res.status(400).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -204,7 +200,8 @@ export const getWalletHistory = async (req,res,next)=>{
 
   try{
     
-    const userId = req.user._id;
+    // const userId = req.user._id;
+    const userId = "6992ebf155e45f668bce5b09"
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -219,9 +216,10 @@ export const getWalletHistory = async (req,res,next)=>{
     const filter = {
       userId,
       status:{ $in: ["SUCCESS", "FAILED", "REFUNDED","CREATED"] },
-      paymentMethod:"WALLET",
-      walletPurpose:"TOPUP"
-      }
+      walletPurpose:"TOPUP",
+      paymentGateway:"RAZORPAY"
+    }
+
     const [wallet ,history] = await Promise.all([
       walletModel.findOne({userId}),
       transactionModel.find(filter).sort({createdAt:-1}).skip(skip).limit(limit)
@@ -229,11 +227,15 @@ export const getWalletHistory = async (req,res,next)=>{
     const result = {
       success:true,
       wallet,
-      history
+      history,
+      pagination:{
+        page,
+        limit,
+        total:history.length
+      }
     }
-    await redis.set(cacheKey, JSON.stringify(result), {
-      EX: 300
-    });
+   await redis.set(cacheKey, JSON.stringify(result), "EX", 120);
+
     return res.status(200).json(result);
 
   }catch(error){
