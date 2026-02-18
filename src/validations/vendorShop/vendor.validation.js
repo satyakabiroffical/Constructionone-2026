@@ -1,351 +1,465 @@
-import Joi from "joi";
-const requiredMsg = (field) => `${field} is required`;
+import { body } from "express-validator";
 
-export const vendorValidationSchema = Joi.object({
-  email: Joi.string()
-    .trim()
-    .required()
-    .messages({
-      "any.required": requiredMsg("Email"),
-      "string.empty": "Email cannot be empty",
-    }),
-  businessName: Joi.string()
-    .trim()
-    .required()
-    .messages({
-      "any.required": requiredMsg("Business name"),
-      "string.empty": "Business name cannot be empty",
-    }),
+export const vendorValidation = {
+  createVendor: [
+    /* =====================
+       BASIC BUSINESS INFO
+    ====================== */
+    body("businessName")
+      .trim()
+      .notEmpty()
+      .withMessage("Business name is required")
+      .escape()
+      .isLength({ max: 100 })
+      .withMessage("Business name cannot exceed 100 characters"),
 
-  businessEntityType: Joi.string()
-    .valid(
-      "Proprietorship",
-      "Partnership",
-      "LLP",
-      "Private Limited Company",
-      "Other",
-    )
-    .required()
-    .messages({
-      "any.only": "Invalid business entity type",
-      "any.required": requiredMsg("Business entity type"),
-    }),
+    body("businessEntityType")
+      .isIn([
+        "Proprietorship",
+        "Partnership",
+        "LLP",
+        "Private Limited Company",
+        "Other",
+      ])
+      .withMessage("Invalid business entity type"),
 
-  yearEstablished: Joi.number()
-    .integer()
-    .min(1900)
-    .max(new Date().getFullYear())
-    .required()
-    .messages({
-      "number.base": "Year established must be a number",
-      "number.min": "Year established is too old",
-      "number.max": "Year established cannot be in the future",
-      "any.required": requiredMsg("Year established"),
-    }),
+    body("yearEstablished")
+      .isInt({ min: 1900, max: new Date().getFullYear() })
+      .withMessage("Year established must be a valid year"),
 
-  ownerName: Joi.string()
-    .required()
-    .messages({
-      "any.required": requiredMsg("Owner name"),
-      "string.empty": "Owner name cannot be empty",
-    }),
+    body("ownerName")
+      .notEmpty()
+      .withMessage("Owner name is required")
+      .trim()
+      .escape(),
 
-  primaryContactPerson: Joi.string()
-    .required()
-    .messages({
-      "any.required": requiredMsg("Primary contact person"),
-    }),
+    body("primaryContactPerson")
+      .notEmpty()
+      .withMessage("Primary contact person is required")
+      .trim()
+      .escape(),
 
-  phoneNumber: Joi.string()
-    .pattern(/^[0-9]{10}$/)
-    .required()
-    .messages({
-      "string.pattern.base": "Phone number must be a 10-digit number",
-      "any.required": requiredMsg("Phone number"),
-    }),
+    body("phoneNumber")
+      .matches(/^[0-9]{10}$/)
+      .withMessage("Phone number must be a 10-digit number"),
 
-  email: Joi.string()
-    .email()
-    .required()
-    .messages({
-      "string.email": "Invalid email address",
-      "any.required": requiredMsg("Email"),
-    }),
+    body("email")
+      .isEmail()
+      .withMessage("Invalid email address")
+      .normalizeEmail(),
 
-  website: Joi.string().uri().allow(null, "").messages({
-    "string.uri": "Website must be a valid URL",
-  }),
+    body("password").trim().notEmpty().withMessage("Password is required"),
 
-  role: Joi.string()
-    .required()
-    .messages({
-      "any.required": requiredMsg("Business role"),
-    }),
+    body("website")
+      .optional({ nullable: true })
+      .isURL()
+      .withMessage("Website must be a valid URL"),
 
-  gstNumber: Joi.string()
-    .pattern(/^[0-9A-Z]{15}$/)
-    .required()
-    .messages({
-      "string.pattern.base": "Invalid GST number format",
-      "any.required": requiredMsg("GST number"),
+    body("role").notEmpty().withMessage("Business role is required"),
+
+    body("gstNumber")
+      .matches(/^[0-9A-Z]{15}$/)
+      .withMessage("Invalid GST number format"),
+
+    body("panNumber")
+      .matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/)
+      .withMessage("Invalid PAN number format"),
+
+    body("tradeLicenseNumber")
+      .notEmpty()
+      .withMessage("Trade license number is required"),
+
+    body("registeredAddress.fullAddress")
+      .notEmpty()
+      .withMessage("Address is required"),
+
+    body("registeredAddress").custom((addr) => {
+      if (!addr) return true;
+
+      const lat = addr.latitude;
+      const lng = addr.longitude;
+
+      if ((lat && !lng) || (!lat && lng)) {
+        throw new Error("Latitude and longitude must be provided together");
+      }
+      return true;
     }),
 
-  panNumber: Joi.string()
-    .pattern(/^[A-Z]{5}[0-9]{4}[A-Z]$/)
-    .required()
-    .messages({
-      "string.pattern.base": "Invalid PAN number format",
-      "any.required": requiredMsg("PAN number"),
-    }),
+    body("registeredAddress.placeId").optional().isString(),
 
-  tradeLicenseNumber: Joi.string()
-    .required()
-    .messages({
-      "any.required": requiredMsg("Trade license number"),
-    }),
+    body("storageAddress").optional({ nullable: true }).trim(),
+    /* =====================
+       PRODUCT & CATEGORY
+    ====================== */
+    body("supplyCategories")
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
+      })
+      .withMessage("Select at least one supply category"),
 
-  registeredAddress: Joi.string()
-    .required()
-    .messages({
-      "any.required": requiredMsg("Registered business address"),
-    }),
+    body("primaryCategory")
+      .notEmpty()
+      .withMessage("Primary category is required"),
 
-  storageAddress: Joi.string().allow(null, ""),
-
-  documents: Joi.object({
-    storefrontPhotos: Joi.array().items(Joi.string().uri()).min(1).messages({
-      "array.min": "At least one storefront photo is required",
-    }),
-
-    gstCertificate: Joi.string().uri().required().messages({
-      "any.required": "GST certificate is required",
-      "string.uri": "GST certificate must be a valid URL",
-    }),
-
-    panCard: Joi.string().uri().required().messages({
-      "any.required": "PAN card document is required",
-    }),
-
-    tradeLicense: Joi.string().uri().required().messages({
-      "any.required": "Trade license document is required",
-    }),
-
-    isoCertificate: Joi.string().uri().allow(null, ""),
-  }).required(),
-
-  /* =====================
-     PRODUCT & CATEGORY
-  ====================== */
-  supplyCategories: Joi.array().items(Joi.string()).min(1).required().messages({
-    "array.min": "Select at least one supply category",
-    "any.required": "Supply category is required",
-  }),
-
-  primaryCategory: Joi.string().required().messages({
-    "any.required": "Primary category is required",
-  }),
-
-  authorizedBrands: Joi.array().items(Joi.string()),
-
-  skuRange: Joi.string().required().messages({
-    "any.required": "SKU range is required",
-  }),
-
-  catalogManagementMethod: Joi.string().required().messages({
-    "any.required": "Catalog management method is required",
-  }),
-
-  fastMovingProducts: Joi.string().required().messages({
-    "any.required": "Fast moving products are required",
-  }),
-
-  brandedProductsOnly: Joi.string().required().messages({
-    "any.required": "Branded products selection is required",
-  }),
-
-  technicalDocsAvailable: Joi.string().required().messages({
-    "any.required": "Technical document availability is required",
-  }),
-
-  testCertificatesAvailable: Joi.string().required().messages({
-    "any.required": "Test certificate availability is required",
-  }),
-
-  /* =====================
-     QUALITY & OPERATIONS
-  ====================== */
-  internalQualityCheckRating: Joi.number().min(1).max(5).required().messages({
-    "number.min": "Quality rating must be at least 1",
-    "number.max": "Quality rating cannot exceed 5",
-    "any.required": "Internal quality check rating is required",
-  }),
-
-  dailyDispatchCapacity: Joi.string().required().messages({
-    "any.required": "Daily dispatch capacity is required",
-  }),
-
-  truckDeliveryAvailable: Joi.string().required().messages({
-    "any.required": "Truck delivery option is required",
-  }),
-
-  largestOrderHandled: Joi.string().required().messages({
-    "any.required": "Largest order handled is required",
-  }),
-
-  safetyStock: Joi.string().required().messages({
-    "any.required": "Safety stock selection is required",
-  }),
-
-  stockUpdateFrequency: Joi.string().required().messages({
-    "any.required": "Stock update frequency is required",
-  }),
-
-  /* =====================
-     DELIVERY & LOGISTICS
-  ====================== */
-  ownDeliveryVehicles: Joi.string().required().messages({
-    "any.required": "Delivery vehicle information is required",
-  }),
-
-  deliveryRadius: Joi.string().required().messages({
-    "any.required": "Delivery radius is required",
-  }),
-
-  averageDeliveryTime: Joi.string().required().messages({
-    "any.required": "Average delivery time is required",
-  }),
-
-  maxOrderValuePerDelivery: Joi.string().required().messages({
-    "any.required": "Maximum order value per delivery is required",
-  }),
-
-  operatingHours: Joi.string().required().messages({
-    "any.required": "Business operating hours are required",
-  }),
-
-  deliveryNotes: Joi.string().allow(null, ""),
-
-  vehicleTypes: Joi.array().items(Joi.string()).min(1).required().messages({
-    "array.min": "Select at least one vehicle type",
-    "any.required": "Vehicle types are required",
-  }),
-
-  loadingFacilityAvailable: Joi.boolean().required().messages({
-    "any.required": "Loading/unloading facility info is required",
-  }),
-
-  siteDeliveryAvailable: Joi.string().required().messages({
-    "any.required": "Construction site delivery option is required",
-  }),
-
-  serviceablePincodes: Joi.array()
-    .items(Joi.string().pattern(/^[0-9]{6}$/))
-    .min(1)
-    .required()
-    .messages({
-      "array.min": "At least one serviceable pincode is required",
-      "string.pattern.base": "Invalid pincode format",
-    }),
-
-  catalogUploadCapability: Joi.string().required().messages({
-    "any.required": "Catalog upload capability is required",
-  }),
-
-  productImagesAvailable: Joi.string().required().messages({
-    "any.required": "Product image availability is required",
-  }),
-
-  productGenuinenessGuarantee: Joi.boolean().required().messages({
-    "any.required": "Product genuineness confirmation is required",
-  }),
-
-  returnPolicy: Joi.string().required().messages({
-    "any.required": "Return policy is required",
-  }),
-
-  realTimeInventorySystem: Joi.boolean().required().messages({
-    "any.required": "Inventory system information is required",
-  }),
-
-  orderProcessingStaffCount: Joi.string().required().messages({
-    "any.required": "Order processing staff count is required",
-  }),
-
-  experienceYears: Joi.string().required().messages({
-    "any.required": "Experience in construction business is required",
-  }),
-
-  maxOrderProcessingTime: Joi.string().required().messages({
-    "any.required": "Maximum order processing time is required",
-  }),
-
-  sameDayDispatchAgreement: Joi.boolean().required().messages({
-    "any.required": "Same-day dispatch agreement is required",
-  }),
-
-  /* =====================
-     BANK & PAYMENTS
-  ====================== */
-  bankDetails: Joi.object({
-    accountHolderName: Joi.string().required().messages({
-      "any.required": "Account holder name is required",
-    }),
-    accountNumber: Joi.string().required().messages({
-      "any.required": "Bank account number is required",
-    }),
-    bankName: Joi.string().required().messages({
-      "any.required": "Bank name is required",
-    }),
-    ifscCode: Joi.string()
-      .pattern(/^[A-Z]{4}0[A-Z0-9]{6}$/)
-      .required()
-      .messages({
-        "string.pattern.base": "Invalid IFSC code format",
-        "any.required": "IFSC code is required",
+    body("authorizedBrands")
+      .optional()
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
       }),
-    accountType: Joi.string().valid("Savings", "Current").required().messages({
-      "any.only": "Account type must be Savings or Current",
-    }),
-    cancelledCheque: Joi.string().uri().required().messages({
-      "any.required": "Cancelled cheque is required",
-    }),
-    paymentCycle: Joi.string().required().messages({
-      "any.required": "Payment cycle is required",
-    }),
-  }).required(),
 
-  /* =====================
-     COMPLIANCE & CONSENT
-  ====================== */
-  pastQualityDisputes: Joi.boolean().required().messages({
-    "any.required": "Quality dispute history is required",
-  }),
+    body("skuRange").notEmpty().withMessage("SKU range is required"),
 
-  disputeDetails: Joi.when("pastQualityDisputes", {
-    is: true,
-    then: Joi.string().required().messages({
-      "any.required": "Please provide dispute details",
-    }),
-    otherwise: Joi.string().allow(null, ""),
-  }),
+    body("catalogManagementMethod")
+      .notEmpty()
+      .withMessage("Catalog management method is required"),
 
-  auditAgreements: Joi.array().items(Joi.string()).min(1).required().messages({
-    "array.min": "At least one audit agreement must be accepted",
-  }),
+    body("fastMovingProducts")
+      .notEmpty()
+      .withMessage("Fast moving products are required"),
 
-  referralSource: Joi.string().required().messages({
-    "any.required": "Referral source is required",
-  }),
+    body("brandedProductsOnly")
+      .notEmpty()
+      .withMessage("Branded products selection is required"),
 
-  additionalNotes: Joi.string().allow(null, ""),
+    body("technicalDocsAvailable")
+      .notEmpty()
+      .withMessage("Technical document availability is required"),
 
-  vendorAgreementAccepted: Joi.boolean().valid(true).required().messages({
-    "any.only": "Vendor agreement must be accepted",
-  }),
+    body("testCertificatesAvailable")
+      .notEmpty()
+      .withMessage("Test certificate availability is required"),
 
-  privacyPolicyAccepted: Joi.boolean().valid(true).required().messages({
-    "any.only": "Privacy policy must be accepted",
-  }),
+    /* =====================
+       QUALITY & OPERATIONS
+    ====================== */
+    body("internalQualityCheckRating")
+      .isInt({ min: 1, max: 5 })
+      .withMessage("Quality rating must be between 1 and 5"),
 
-  marketingConsent: Joi.boolean().default(false),
-});
+    body("dailyDispatchCapacity")
+      .notEmpty()
+      .withMessage("Daily dispatch capacity is required"),
+
+    body("truckDeliveryAvailable")
+      .notEmpty()
+      .withMessage("Truck delivery option is required"),
+
+    body("largestOrderHandled")
+      .notEmpty()
+      .withMessage("Largest order handled is required"),
+
+    body("safetyStock")
+      .notEmpty()
+      .withMessage("Safety stock selection is required"),
+
+    body("stockUpdateFrequency")
+      .notEmpty()
+      .withMessage("Stock update frequency is required"),
+
+    /* =====================
+       DELIVERY & LOGISTICS
+    ====================== */
+    body("ownDeliveryVehicles")
+      .notEmpty()
+      .withMessage("Delivery vehicle information is required"),
+
+    body("deliveryRadius")
+      .notEmpty()
+      .withMessage("Delivery radius is required"),
+
+    body("averageDeliveryTime")
+      .notEmpty()
+      .withMessage("Average delivery time is required"),
+
+    body("maxOrderValuePerDelivery")
+      .notEmpty()
+      .withMessage("Maximum order value per delivery is required"),
+
+    body("operatingHours")
+      .notEmpty()
+      .withMessage("Business operating hours are required"),
+
+    body("vehicleTypes")
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
+      })
+      .withMessage("Select at least one vehicle type"),
+
+    body("loadingFacilityAvailable")
+      .isBoolean()
+      .withMessage("Loading/unloading facility info is required"),
+
+    body("siteDeliveryAvailable")
+      .notEmpty()
+      .withMessage("Construction site delivery option is required"),
+
+    body("serviceablePincodes")
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
+      })
+      .withMessage("At least one serviceable pincode is required"),
+
+    body("serviceablePincodes.*")
+      .matches(/^[0-9]{6}$/)
+      .withMessage("Invalid pincode format"),
+
+    /* =====================
+       BANK DETAILS
+    ====================== */
+    body("bankDetails.accountHolderName")
+      .notEmpty()
+      .withMessage("Account holder name is required"),
+
+    body("bankDetails.accountNumber")
+      .notEmpty()
+      .withMessage("Bank account number is required"),
+
+    body("bankDetails.bankName")
+      .notEmpty()
+      .withMessage("Bank name is required"),
+
+    body("bankDetails.ifscCode")
+      .matches(/^[A-Z]{4}0[A-Z0-9]{6}$/)
+      .withMessage("Invalid IFSC code format"),
+
+    body("bankDetails.accountType")
+      .isIn(["Savings", "Current"])
+      .withMessage("Account type must be Savings or Current"),
+
+    // body("bankDetails.cancelledCheque")
+    //   .isURL()
+    //   .withMessage("Cancelled cheque must be a valid URL"),
+
+    /* =====================
+       COMPLIANCE & CONSENT
+    ====================== */
+    body("pastQualityDisputes")
+      .isBoolean()
+      .withMessage("Quality dispute history is required"),
+
+    body("disputeDetails")
+      .if(body("pastQualityDisputes").equals("true"))
+      .notEmpty()
+      .withMessage("Please provide dispute details"),
+
+    body("auditAgreements")
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
+      })
+      .withMessage("At least one audit agreement must be accepted"),
+
+    body("vendorAgreementAccepted")
+      .equals("true")
+      .withMessage("Vendor agreement must be accepted"),
+
+    body("privacyPolicyAccepted")
+      .equals("true")
+      .withMessage("Privacy policy must be accepted"),
+  ],
+  updateVendor: [
+    /* =====================
+       BASIC BUSINESS INFO
+    ====================== */
+    body("businessName")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("Business name cannot be empty")
+      .escape()
+      .isLength({ max: 100 })
+      .withMessage("Business name cannot exceed 100 characters"),
+
+    body("businessEntityType")
+      .optional()
+      .isIn([
+        "Proprietorship",
+        "Partnership",
+        "LLP",
+        "Private Limited Company",
+        "Other",
+      ])
+      .withMessage("Invalid business entity type"),
+
+    body("yearEstablished")
+      .optional()
+      .isInt({ min: 1900, max: new Date().getFullYear() })
+      .withMessage("Year established must be a valid year"),
+
+    body("ownerName").optional().trim().escape(),
+
+    body("primaryContactPerson").optional().trim().escape(),
+
+    body("phoneNumber")
+      .optional()
+      .matches(/^[0-9]{10}$/)
+      .withMessage("Phone number must be a 10-digit number"),
+
+    body("email")
+      .optional()
+      .isEmail()
+      .withMessage("Invalid email address")
+      .normalizeEmail(),
+
+    body("password").optional().trim().notEmpty(),
+
+    body("website")
+      .optional({ nullable: true })
+      .isURL()
+      .withMessage("Website must be a valid URL"),
+
+    body("role").optional().notEmpty(),
+
+    body("gstNumber")
+      .optional()
+      .matches(/^[0-9A-Z]{15}$/)
+      .withMessage("Invalid GST number format"),
+
+    body("panNumber")
+      .optional()
+      .matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/)
+      .withMessage("Invalid PAN number format"),
+
+    body("tradeLicenseNumber").optional().notEmpty(),
+
+    body("registeredAddress.fullAddress").optional().notEmpty(),
+
+    body("registeredAddress")
+      .optional()
+      .custom((addr) => {
+        if (!addr) return true;
+        const { latitude, longitude } = addr;
+        if ((latitude && !longitude) || (!latitude && longitude)) {
+          throw new Error("Latitude and longitude must be provided together");
+        }
+        return true;
+      }),
+
+    body("registeredAddress.placeId").optional().isString(),
+
+    body("storageAddress").optional({ nullable: true }).trim(),
+
+    /* =====================
+       PRODUCT & CATEGORY
+    ====================== */
+    body("supplyCategories")
+      .optional()
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
+      })
+      .withMessage("Select at least one supply category"),
+
+    body("primaryCategory").optional().notEmpty(),
+
+    body("authorizedBrands")
+      .optional()
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
+      }),
+
+    body("skuRange").optional().notEmpty(),
+    body("catalogManagementMethod").optional().notEmpty(),
+    body("fastMovingProducts").optional().notEmpty(),
+    body("brandedProductsOnly").optional().notEmpty(),
+    body("technicalDocsAvailable").optional().notEmpty(),
+    body("testCertificatesAvailable").optional().notEmpty(),
+
+    /* =====================
+       QUALITY & OPERATIONS
+    ====================== */
+    body("internalQualityCheckRating")
+      .optional()
+      .isInt({ min: 1, max: 5 })
+      .withMessage("Quality rating must be between 1 and 5"),
+
+    body("dailyDispatchCapacity").optional().notEmpty(),
+    body("truckDeliveryAvailable").optional().notEmpty(),
+    body("largestOrderHandled").optional().notEmpty(),
+    body("safetyStock").optional().notEmpty(),
+    body("stockUpdateFrequency").optional().notEmpty(),
+
+    /* =====================
+       DELIVERY & LOGISTICS
+    ====================== */
+    body("ownDeliveryVehicles").optional().notEmpty(),
+    body("deliveryRadius").optional().notEmpty(),
+    body("averageDeliveryTime").optional().notEmpty(),
+    body("maxOrderValuePerDelivery").optional().notEmpty(),
+    body("operatingHours").optional().notEmpty(),
+
+    body("vehicleTypes")
+      .optional()
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
+      })
+      .withMessage("Select at least one vehicle type"),
+
+    body("loadingFacilityAvailable")
+      .optional()
+      .isBoolean()
+      .withMessage("Loading/unloading facility info is required"),
+
+    body("siteDeliveryAvailable").optional().notEmpty(),
+
+    body("serviceablePincodes")
+      .optional()
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
+      })
+      .withMessage("At least one serviceable pincode is required"),
+
+    body("serviceablePincodes.*")
+      .optional()
+      .matches(/^[0-9]{6}$/)
+      .withMessage("Invalid pincode format"),
+
+    /* =====================
+       BANK DETAILS
+    ====================== */
+    body("bankDetails.accountHolderName").optional().notEmpty(),
+    body("bankDetails.accountNumber").optional().notEmpty(),
+    body("bankDetails.bankName").optional().notEmpty(),
+
+    body("bankDetails.ifscCode")
+      .optional()
+      .matches(/^[A-Z]{4}0[A-Z0-9]{6}$/)
+      .withMessage("Invalid IFSC code format"),
+
+    body("bankDetails.accountType")
+      .optional()
+      .isIn(["Savings", "Current"])
+      .withMessage("Account type must be Savings or Current"),
+
+    /* =====================
+       COMPLIANCE & CONSENT
+    ====================== */
+    body("pastQualityDisputes")
+      .optional()
+      .isBoolean()
+      .withMessage("Quality dispute history is required"),
+
+    body("disputeDetails")
+      .optional()
+      .if(body("pastQualityDisputes").equals("true"))
+      .notEmpty()
+      .withMessage("Please provide dispute details"),
+
+    body("auditAgreements")
+      .optional()
+      .custom((value) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return typeof value === "string" && value.length > 0;
+      }),
+
+    body("vendorAgreementAccepted").optional().equals("true"),
+    body("privacyPolicyAccepted").optional().equals("true"),
+  ],
+};

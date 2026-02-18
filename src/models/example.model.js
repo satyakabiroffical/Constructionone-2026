@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import validator from "validator";
-import { APIError } from "../middleware/errorHandler.js";
+import { APIError } from "../middlewares/errorHandler.js";
 
 const exampleSchema = new mongoose.Schema(
   {

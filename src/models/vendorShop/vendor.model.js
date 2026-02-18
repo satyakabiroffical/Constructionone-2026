@@ -78,10 +78,26 @@ const vendorSchema = new mongoose.Schema(
       required: true,
     },
 
+    // registeredAddress: {
+    //   type: String,
+    //   required: true,
+    // },
+
     registeredAddress: {
-      type: String,
-      required: true,
+      fullAddress: { type: String, required: true },
+      location: {
+        type: {
+          type: String,
+          enum: ["Point"],
+          default: "Point",
+        },
+        coordinates: {
+          type: [Number], // [lng, lat]
+        },
+      },
+      placeId: String,
     },
+
     storageAddress: {
       type: String,
       default: null,
@@ -277,7 +293,6 @@ const vendorSchema = new mongoose.Schema(
     },
     referralSource: {
       type: String,
-      required: true,
     },
     additionalNotes: {
       type: String,
@@ -316,6 +331,18 @@ const vendorSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    disable: {
+      type: Boolean,
+      default: false,
+    },
+    totalOrders: {
+      type: Number,
+      default: 0,
+    },
+    avgRating: {
+      type: Number,
+      default: 0,
     },
   },
   { timestamps: true },
