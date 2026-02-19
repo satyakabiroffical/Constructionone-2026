@@ -6,7 +6,7 @@ import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import hpp from "hpp";
 import { connectDB } from "./config/database.js";
-import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { errorHandler, notFoundHandler } from "./middlewares/errorHandler.js";
 import apiRoutes from "./routes/index.js";
 import dotenv from "dotenv";
 dotenv.config();

@@ -2,6 +2,7 @@
 import mongoose from 'mongoose';
 import logger from '../utils/logger.js';
 
+
 // Connection options
 const connectionOptions = {
   useNewUrlParser: true,
@@ -58,7 +59,7 @@ export const connectDB = async () => {
 
     logger.info('🔌 Attempting to connect to MongoDB...');
 
-    const conn = await mongoose.connect(process.env.MONGODB_URI, connectionOptions);
+    const conn = await mongoose.connect(process.env.MONGODB_URI || "mongodb+srv://sanvisoni8998_db_user:qgKtEFuAvd0tW9J8@construction-one.dhxrhes.mongodb.net/", connectionOptions);
     
     // Setup event handlers
     setupMongoEventHandlers(mongoose.connection);

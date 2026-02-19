@@ -5,23 +5,25 @@ import {
   getUserNotifications,
   markNotificationRead,
 } from "../controllers/notification.controller.js";
-import { authMiddleware, adminMiddleware } from "../middleware/auth.js";
+import { requireAuth } from "../middlewares/auth.middleware.js";
+import { requireRole } from "../middlewares/role.middleware.js";
+
 const router = express.Router();
 
 router.post(
   "/notification/send",
-  authMiddleware,
-  adminMiddleware,
+  requireAuth,
+  requireRole("ADMIN"),
   notifySingleUser,
 );
 router.post(
   "/notification/send-all",
-  authMiddleware,
-  adminMiddleware,
+  requireAuth,
+  requireRole("ADMIN"),
   notifyAllUsers,
 );
 
-router.patch("/notification/:id", authMiddleware, markNotificationRead);
-router.get("/user-notifications", authMiddleware, getUserNotifications);
+router.patch("/notification/:id", requireAuth, markNotificationRead);
+router.get("/user-notifications", requireAuth, getUserNotifications);
 
 export default router;

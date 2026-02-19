@@ -6,6 +6,7 @@ export const sendPushNotification = async ({
   title,
   body,
   type = "system",
+  bookingId = null,
 }) => {
   try {
     const user = await User.findById(userId);

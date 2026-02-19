@@ -1,5 +1,5 @@
 import Brand from "../../models/vendorShop/brand.model.js";
-import { APIError } from "../../middleware/errorHandler.js";
+import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
 
 class BrandController {

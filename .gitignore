@@ -4,3 +4,9 @@ logs
 .gitignore
 package-lock.json
 package.json
+server_error.log
+server_final_check.log
+server_output_check.log
+
+REDIS_SETUP.md
+POSTMAN_COPY_PASTE_GUIDE.md

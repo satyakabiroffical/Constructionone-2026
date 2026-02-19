@@ -1,9 +1,9 @@
 import { body, param } from "express-validator";
-import { validateObjectId } from "../middleware/validation.js";
+import { validateObjectId } from "../middlewares/validation.js";
 
 export const exampleValidation = {
   // Validation for creating an example
-  
+
   createExample: [
     body("name")
       .trim()
