@@ -1,3 +1,4 @@
+// priyanshu
 import mongoose from "mongoose";
 
 const cartSchema = new mongoose.Schema({
@@ -8,14 +9,22 @@ const cartSchema = new mongoose.Schema({
   
   items: [
     {
-      product: {
+      variant: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Product",
+        ref: "Variant",
       },
       quantity: {
         type: Number,
         required: true,
         default: 1,
+      },
+      unitPrice: {
+        type: Number,
+        required: true,
+      },
+      totalPrice: {
+        type: Number,
+        required: true,
       },
     },
   ],
@@ -26,4 +35,3 @@ const cartSchema = new mongoose.Schema({
 });
 
 export default mongoose.model("Cart", cartSchema);
-//asgr

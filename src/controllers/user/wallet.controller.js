@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import razorpay from "../../config/razorpay.conifg.js";
 import transactionModel from "../../models/user/transaction.model.js";
 import walletModel from "../../models/user/wallet.model.js";
-// import companyModel from "../../models/company.model.js";
+import companyModel from "../../models/admin/company.model.js";
 import { APIError } from "../../middlewares/errorHandler.js";
 import crypto from "crypto";
 import redis from "../../config/redis.config.js";
@@ -65,7 +65,7 @@ export const createWalletTopup = async (req, res, next) => {
   session.startTransaction();
 
   try {
-    const { amount ,walletType } = req.body;
+    const { amount, walletType } = req.body;
     const userId = req.user._id;
     // const userId = "6992ebf155e45f668bce5b09";
 
@@ -73,16 +73,18 @@ export const createWalletTopup = async (req, res, next) => {
       throw new APIError(400, "Amount required");
     }
 
-    // const company = await companyModel.findOne();
+    if (walletType === "addOnce") {
+      const company = await companyModel.findOne();
 
-    // if (!company) {
-    //   throw new APIError(404, "Company config not found");
-    // }
+      if (!company) {
+        throw new APIError(404, "Company config not found");
+      }
 
-    // if (!company.walletTopupAmounts.includes(amount)) {
-    //   throw new APIError(400, "Invalid top-up amount");
-    // }
-
+      if (!company.walletTopupAmounts.includes(amount)) {
+        throw new APIError(400, "Invalid top-up amount");
+      }
+    }
+    
     const order = await razorpay.orders.create({
       amount: amount * 100,
       currency: "INR",
@@ -99,6 +101,7 @@ export const createWalletTopup = async (req, res, next) => {
         status: "PENDING",
         payType: "CREDIT",
         walletPurpose: "TOPUP",
+        walletType,
       }],
       { session }
     );
@@ -128,7 +131,7 @@ export const verifyWalletTopup = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
       req.body;
-     console.log(req.body);
+    console.log(req.body);
     const userId = req.user._id;
     // const userId = "6992ebf155e45f668bce5b09";
 
@@ -150,7 +153,7 @@ export const verifyWalletTopup = async (req, res) => {
       })
       .session(session);
 
-      // console.log(transaction);
+    // console.log(transaction);
 
     if (!transaction) {
       throw new Error("Transaction not found");
@@ -196,10 +199,10 @@ export const verifyWalletTopup = async (req, res) => {
 };
 
 
-export const getWalletHistory = async (req,res,next)=>{
+export const getWalletHistory = async (req, res, next) => {
 
-  try{
-    
+  try {
+
     // const userId = req.user._id;
     const userId = "6992ebf155e45f668bce5b09"
 
@@ -210,35 +213,35 @@ export const getWalletHistory = async (req,res,next)=>{
     const cacheKey = `wallet:history:${userId}:${page}:${limit}`;
 
     const cachedData = await redis.get(cacheKey);
-    if(cachedData){
+    if (cachedData) {
       return res.status(200).json(JSON.parse(cachedData));
     }
     const filter = {
       userId,
-      status:{ $in: ["SUCCESS", "FAILED", "REFUNDED","CREATED"] },
-      walletPurpose:"TOPUP",
-      paymentGateway:"RAZORPAY"
+      status: { $in: ["SUCCESS", "FAILED", "REFUNDED", "CREATED"] },
+      walletPurpose: "TOPUP",
+      paymentGateway: "RAZORPAY"
     }
 
-    const [wallet ,history] = await Promise.all([
-      walletModel.findOne({userId}),
-      transactionModel.find(filter).sort({createdAt:-1}).skip(skip).limit(limit)
+    const [wallet, history] = await Promise.all([
+      walletModel.findOne({ userId }),
+      transactionModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit)
     ])
     const result = {
-      success:true,
+      success: true,
       wallet,
       history,
-      pagination:{
+      pagination: {
         page,
         limit,
-        total:history.length
+        total: history.length
       }
     }
-   await redis.set(cacheKey, JSON.stringify(result), "EX", 120);
+    await redis.set(cacheKey, JSON.stringify(result), "EX", 120);
 
     return res.status(200).json(result);
 
-  }catch(error){
+  } catch (error) {
     next(error);
   }
 }

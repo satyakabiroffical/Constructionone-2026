@@ -7,13 +7,15 @@ const addressSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
-
+    userName:{
+      type:String,
+      
+    },
     label: {
       type: String,
-      enum: ['home', 'office', 'other'],
-      default: 'home'
+      enum: ['HOME', 'OFFICE', 'OTHER'],
+      default: 'HOME'
     },
-
     addressLine: String,
     city: String,
     country: String,
@@ -21,6 +23,10 @@ const addressSchema = new mongoose.Schema(
     location: {
       lat: Number,
       lng: Number
+    },
+    landMark:{
+      type:String,
+      default:null
     }
   },
   { timestamps: true }

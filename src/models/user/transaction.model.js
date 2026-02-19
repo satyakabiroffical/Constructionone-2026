@@ -70,6 +70,13 @@ transactionSchema.index(
   { razorpayOrderId: 1 },
   { sparse: true }
 );
+transactionSchema.index(
+  { userId: 1 },
+  { sparse: true }
+);
+transactionSchema.index({ status: 1 });
+transactionSchema.index({ createdAt: -1 });
+transactionSchema.index({ paymentGateway: 1 });
 
 
 export default mongoose.model("transactionModel", transactionSchema);
