@@ -6,8 +6,8 @@ import path from "path";
 import { Readable } from "stream";
 import createError from "http-errors";
 import dotenv from "dotenv";
-dotenv.config(); 
-          
+dotenv.config();
+
 const s3 = new S3Client({
   region: process.env.LINODE_OBJECT_STORAGE_REGION,
   endpoint: process.env.LINODE_OBJECT_STORAGE_ENDPOINT,
@@ -47,7 +47,7 @@ export const generateFileName = (file) => {
 export const s3Uploader = () =>
   multer({
     fileFilter: multerFilter,
-     limits: {
+    limits: {
       fileSize: 50 * 1024 * 1024, // 50MB max (video case)
     },
     storage: multerS3({
@@ -103,4 +103,36 @@ export const getBuffer = async (bucketName, key) => {
   }
 
   return response.Body;
+};
+
+// ============================================
+// CATEGORY UPLOAD MIDDLEWARE (Production-Ready)
+// ============================================
+
+/**
+ * Category Image Upload Middleware
+ * Handles optional single image upload for categories
+ * Uses multer.fields() for proper form-data parsing
+ */
+export const categoryUpload = (() => {
+  const upload = s3Uploader();
+
+  // Define field configuration for category image upload
+  // maxCount: 1 means only one image file allowed
+  return upload.fields([
+    { name: 'image', maxCount: 1 }
+  ]);
+})();
+
+/**
+ * Process uploaded category image
+ * Extracts single file from req.files array and sets to req.file
+ * Call this AFTER categoryUpload middleware in routes
+ */
+export const processCategoryUpload = (req, res, next) => {
+  // Extract image from req.files if uploaded
+  if (req.files && req.files.image && req.files.image.length > 0) {
+    req.file = req.files.image[0];
+  }
+  next();
 };
