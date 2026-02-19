@@ -1,6 +1,8 @@
 // priyanshu
 import Cart from "../../models/user/cart.model.js";
-
+import calculateBillSummary from "../../services/calculateBillSummary.js";
+// import Variant from "../../models/marketPlace/variant.model.js";
+ 
 export const addToCart = async (req, res, next) => {
   try {
     const { variantId, quantity } = req.body;
