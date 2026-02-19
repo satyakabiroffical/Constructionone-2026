@@ -5,7 +5,7 @@ import { APIError } from './errorHandler.js';
  * Middleware to validate request data against schema
  */
 export const validateRequest = (validations) => {
-  
+
   return async (req, res, next) => {
     // Run all validations
     await Promise.all(validations.map(validation => validation.run(req)));
@@ -43,16 +43,16 @@ export const validateObjectId = (id) => {
  */
 export const sanitize = (data) => {
   if (!data) return data;
-  
+
   if (typeof data === 'string') {
     // Remove potentially malicious characters
     return data.replace(/[${}()\[\]\";'<>]/g, '');
   }
-  
+
   if (Array.isArray(data)) {
     return data.map(item => sanitize(item));
   }
-  
+
   if (typeof data === 'object' && data !== null) {
     const sanitized = {};
     for (const key in data) {
@@ -62,7 +62,7 @@ export const sanitize = (data) => {
     }
     return sanitized;
   }
-  
+
   return data;
 };
 
