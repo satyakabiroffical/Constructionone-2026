@@ -11,6 +11,10 @@ import serviceProviderRoutes from "./serviceProvider/index.js";
 import adminRoutes from "./admin/index.js";
 import exampleRoutes from "./example.routes.js";
 import notificationRoutes from "./notification.routes.js";
+import brandRoutes from "./vendorShop/brand.routes.js";
+import productRoutes from "./vendorShop/product.routes.js";
+import variantRoutes from "./vendorShop/variant.routes.js";
+
 const router = Router();
 
 // global route gateway
@@ -25,5 +29,9 @@ router.use("/v1", serviceProviderRoutes);
 router.use("/v1", adminRoutes);
 router.use("/v1", exampleRoutes);
 router.use("/v1", notificationRoutes);
+
+router.use("/v1/material", brandRoutes);
+router.use("/v1/material", productRoutes);
+router.use("/v1/material", variantRoutes);
 
 export default router;
