@@ -10,18 +10,23 @@ import platformModuleRoutes from './platformModule.routes.js';
 import pcategoryRoutes from './pcategory.routes.js';
 import categoryRoutes from './category.routes.js';
 import subCategoryRoutes from './subCategory.routes.js';
+import bannerRoutes from './banner.routes.js';
 
 const router = Router();
 
-// All admin routes are protected — auth + ADMIN role enforced here at the gateway
+// Public admin route (login) — mounted BEFORE the auth gateway
+// admin.routes.js manages its own auth internally (login is public, rest requires ADMIN)
+router.use('/admin', adminRoutes);
+
+// All routes below are fully protected — requireAuth + ADMIN role enforced here
 router.use(requireAuth, requireRole('ADMIN'));
 
 router.use('/admin/platform-modules', platformModuleRoutes);
 router.use('/admin/pcategories', pcategoryRoutes);
 router.use('/admin/categories', categoryRoutes);
 router.use('/admin/sub-categories', subCategoryRoutes);
-router.use('/admin/companies', companyRoutes);
+router.use('/company', companyRoutes);
 router.use('/admin/faqs', faqRoutes);
-router.use('/admin', adminRoutes);
+router.use('/admin/banners', bannerRoutes);
 
 export default router;
