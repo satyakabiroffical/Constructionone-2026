@@ -3,26 +3,57 @@ import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
 
 class BrandController {
+  // ✅ GET ALL
   static async getBrands(req, res, next) {
     try {
       const cacheKey = `brands:${JSON.stringify(req.query)}`;
       const cached = await RedisCache.get(cacheKey);
       if (cached) return res.json(cached);
 
-      const { page = 1, limit = 20, sort = "-createdAt" } = req.query;
+      const {
+        page = 1,
+        limit = 20,
+        sort = "-createdAt",
+        status,
+        moduleId,
+        categoryId,
+        subcategoryId,
+        pcategoryId,
+        search,
+      } = req.query;
 
-      const query = { ...req.query };
-      ["page", "limit", "sort"].forEach((f) => delete query[f]);
+      const filter = {};
 
-      const brands = await Brand.find(query)
-        .sort(sort)
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit));
+      if (status) filter.status = status;
+      if (moduleId) filter.moduleId = moduleId;
+      if (pcategoryId) filter.pcategoryId = pcategoryId;
+      if (categoryId) filter.categoryId = categoryId;
+      if (subcategoryId) filter.subcategoryId = subcategoryId;
+
+      // 🔍 search by name
+      if (search) {
+        filter.name = { $regex: search, $options: "i" };
+      }
+
+      const skip = (page - 1) * limit;
+
+      const [brands, total] = await Promise.all([
+        Brand.find(filter)
+          .sort(sort)
+          .skip(skip)
+          .limit(parseInt(limit)),
+        Brand.countDocuments(filter),
+      ]);
 
       const result = {
         status: "success",
         message: "Brands retrieved successfully",
         results: brands.length,
+        pagination: {
+          total,
+          page: Number(page),
+          pages: Math.ceil(total / limit),
+        },
         data: { brands },
       };
 
@@ -33,6 +64,7 @@ class BrandController {
     }
   }
 
+  // ✅ GET ONE
   static async getBrand(req, res, next) {
     try {
       const cacheKey = `brand:${req.params.id}`;
@@ -55,6 +87,7 @@ class BrandController {
     }
   }
 
+  // ✅ CREATE
   static async createBrand(req, res, next) {
     try {
       const brand = await Brand.create({
@@ -62,7 +95,7 @@ class BrandController {
         createdBy: req.user?.id,
       });
 
-      await RedisCache.delete("brands:");
+      await RedisCache.deletePattern("brands:*");
 
       res.status(201).json({
         status: "success",
@@ -74,6 +107,7 @@ class BrandController {
     }
   }
 
+  // ✅ UPDATE
   static async updateBrand(req, res, next) {
     try {
       const brand = await Brand.findByIdAndUpdate(
@@ -84,7 +118,7 @@ class BrandController {
 
       if (!brand) throw new APIError(404, "Brand not found");
 
-      await RedisCache.delete("brands:");
+      await RedisCache.deletePattern("brands:*");
       await RedisCache.delete(`brand:${req.params.id}`);
 
       res.json({
@@ -97,18 +131,43 @@ class BrandController {
     }
   }
 
+  // ✅ DELETE (hard delete — change to soft if needed)
   static async deleteBrand(req, res, next) {
     try {
       const brand = await Brand.findByIdAndDelete(req.params.id);
       if (!brand) throw new APIError(404, "Brand not found");
 
-      await RedisCache.delete("brands:");
+      await RedisCache.deletePattern("brands:*");
       await RedisCache.delete(`brand:${req.params.id}`);
 
       res.json({
         status: "success",
         message: "Brand deleted successfully",
         data: null,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // ✅ ⭐ TOGGLE STATUS
+  static async toggleBrandStatus(req, res, next) {
+    try {
+      const brand = await Brand.findById(req.params.id);
+      if (!brand) throw new APIError(404, "Brand not found");
+
+      brand.status = brand.status === "active" ? "inactive" : "active";
+      await brand.save();
+
+      await RedisCache.deletePattern("brands:*");
+      await RedisCache.delete(`brand:${req.params.id}`);
+
+      res.json({
+        status: "success",
+        message: `Brand ${
+          brand.status === "active" ? "enabled" : "disabled"
+        } successfully`,
+        data: { brand },
       });
     } catch (err) {
       next(err);

@@ -25,6 +25,38 @@ router.post(
   ProductController.createProduct,
 );
 
+router.put(
+  "/updateProduct/:id",
+  requireAuth,
+  s3Uploader().fields([
+    { name: "images", maxCount: 5 },
+    { name: "thumbnail", maxCount: 1 },
+  ]),
+  ProductController.updateProduct
+);
+
+
+router.get(
+  "/product/:id",
+  requireAuth,
+  ProductController.getProductById
+);
+
+router.get(
+  "/product/:id",
+  requireAuth,
+  ProductController.getProductById
+);
+
+
+router.patch(
+  "/disableProduct/:id",
+  requireAuth,
+  ProductController.disableProduct
+);
+
+
+
 
 
 
