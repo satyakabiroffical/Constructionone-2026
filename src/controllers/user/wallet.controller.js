@@ -29,7 +29,7 @@ const getOrCreateWallet = async (userId, session = null) => {
 
 export const getMyWallet = async (req, res, next) => {
   try {
-    const userId = req.user._id.toString();
+    const userId = req.user.id;
     // const userId = "6992ebf155e45f668bce5b09";
     const cacheKey = `wallet:${userId}`;
 
@@ -66,8 +66,8 @@ export const createWalletTopup = async (req, res, next) => {
 
   try {
     const { amount, walletType } = req.body;
-    const userId = req.user._id;
-    // const userId = "6992ebf155e45f668bce5b09";
+    const userId = req.user.id;
+    // console.log(userId);
 
     if (!amount) {
       throw new APIError(400, "Amount required");
@@ -80,7 +80,7 @@ export const createWalletTopup = async (req, res, next) => {
         throw new APIError(404, "Company config not found");
       }
 
-      if (!company.walletTopupAmounts.includes(amount)) {
+      if (!company.walletTopupAmounts.includes(Number(amount))) {
         throw new APIError(400, "Invalid top-up amount");
       }
     }
@@ -203,8 +203,7 @@ export const getWalletHistory = async (req, res, next) => {
 
   try {
 
-    // const userId = req.user._id;
-    const userId = "6992ebf155e45f668bce5b09"
+    const userId = req.user._id;
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -219,14 +218,19 @@ export const getWalletHistory = async (req, res, next) => {
     const filter = {
       userId,
       status: { $in: ["SUCCESS", "FAILED", "REFUNDED", "CREATED"] },
-      walletPurpose: "TOPUP",
-      paymentGateway: "RAZORPAY"
+      walletPurpose: {$in: ["TOPUP", "ORDER_PAYMENT", "BOOKING_PAYMENT", "REFUND"]},
+      $or:[
+        {paymentGateway: "RAZORPAY" },
+        {paymentMethod: "WALLET" }
+      ]
+      
     }
 
     const [wallet, history] = await Promise.all([
       walletModel.findOne({ userId }),
       transactionModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit)
     ])
+    
     const result = {
       success: true,
       wallet,

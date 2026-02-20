@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Razorpay Order Verify Test</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+
+<h2>Razorpay Payment Test</h2>
+
+<label>Razorpay Order ID:</label>
+<input type="text" id="razorpay_order_id" placeholder="Enter Razorpay Order ID" />
+<br><br>
+
+<label>Amount (in ₹):</label>
+<input type="number" id="amount" placeholder="Enter Amount" />
+<br><br>
+
+<label>User JWT Token:</label>
+<input type="text" id="token" placeholder="Paste User Token Here" />
+<br><br>
+
+<button onclick="payNow()">Pay Now</button>
+
+<script>
+function payNow() {
+  const razorpayOrderId = document.getElementById("razorpay_order_id").value;
+  const amount = document.getElementById("amount").value;
+  const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTZhMTA3M2Y2OTBkMjFjYjkwOWNlMyIsInJvbGUiOiJVU0VSIiwiZW1haWwiOiJwcmFkZWVwQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcxNTc4NDc2LCJleHAiOjE3NzQxNzA0NzZ9.HbfjwyfdiQqwuEgNaRfne5qO0x09V2xLX1G4LDa2Aco";
+
+  const options = {
+    key: "rzp_test_Rfx6rVjyohb2Su", // 🔥 Replace with your Razorpay Key
+    amount: amount * 100,
+    currency: "INR",
+    name: "Construction One",
+    description: "Order Payment",
+    order_id: razorpayOrderId,
+    handler: function (response) {
+
+      console.log("Payment Success:", response);
+
+      // 🔥 Call your verifyPayment API
+      
+      fetch("http://localhost:3000/api/v1/order/verify-payment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        console.log("Verify Response:", data);
+        alert("Payment Verified & Order Confirmed");
+      })
+      .catch(err => {
+        console.error("Verification Error:", err);
+        alert("Verification Failed");
+      });
+    },
+    theme: {
+      color: "#3399cc"
+    }
+  };
+
+  const rzp = new Razorpay(options);
+  rzp.open();
+}
+</script>
+
+</body>
+</html>

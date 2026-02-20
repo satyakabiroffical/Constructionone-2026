@@ -1,5 +1,6 @@
 // priyanshu
 import Company from "../models/admin/company.model.js";
+import redis from "../config/redis.config.js";
 
 const calculateBillSummary = async (cartItems) => {
 
@@ -7,7 +8,17 @@ const calculateBillSummary = async (cartItems) => {
         throw new Error("Cart is empty");
     }
 
-    const company = await Company.findOne();
+    let company;
+    const cachedCompany = await redis.get("company_settings");
+
+    if (cachedCompany) {
+        company = JSON.parse(cachedCompany);
+    } else {
+        company = await Company.findOne();
+        if (company) {
+            await redis.set("company_settings", JSON.stringify(company), "EX", 3600);
+        }
+    }
 
     if (!company) {
         throw new Error("Company settings not found");
@@ -19,9 +30,10 @@ const calculateBillSummary = async (cartItems) => {
     const handlingCharge = company.delivery?.adminCharge || 0;
 
     const itemsTotal = cartItems.reduce((total, item) => {
-        return total + (item.price * item.quantity);
+        return total + (item.unitPrice * item.quantity);
     }, 0);
-
+     
+    // const netAmount = itemsTotal;
     const finalDeliveryCharge =
         itemsTotal >= minDeliveryAmount ? 0 : deliveryCharge;
 
