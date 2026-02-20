@@ -1,129 +1,73 @@
-import {
-    createCategoryService,
-    getCategoriesService,
-    getCategoryByIdService,
-    updateCategoryService,
-    toggleCategoryStatusService,
-    deleteCategoryService,
-} from '../../services/category.service.js';
+import * as subCategoryService from '../../services/subCategory.service.js';
+import { catchAsync } from '../../middlewares/errorHandler.js';
 import { ApiResponse } from '../../utils/ApiResponse.js';
+import RedisCache from '../../utils/redisCache.js';
 
-/**
- * Create Sub Category
- */
-export const createSubCategory = async (req, res, next) => {
-    try {
-        const { title, order, brandId, parentId } = req.body;
-        const image = req.file ? req.file.location : null;
+const CACHE_PREFIX = 'subcategories:';
+const SINGLE_PREFIX = 'subcategory:';
+const CACHE_TTL = 300; // 5 minutes
 
-        if (!parentId) {
-            return res.status(400).json(new ApiResponse(400, null, 'parentId is required for sub-category'));
-        }
+export const createSubCategory = catchAsync(async (req, res) => {
+    if (req.file) req.body.image = req.file.location;
+    const subCategory = await subCategoryService.create(req.body, req.user._id);
 
-        const category = await createCategoryService({
-            title,
-            image,
-            order,
-            brandId,
-            parentId,
-            type: 'SUBCATEGORY',
-            createdBy: req.user._id,
-        });
+    await RedisCache.delete(CACHE_PREFIX);
 
-        return res.status(201).json(new ApiResponse(201, category, 'Sub-category created successfully'));
-    } catch (error) {
-        next(error);
-    }
-};
+    res.status(201).json(new ApiResponse(201, subCategory, 'SubCategory created successfully'));
+});
 
-/**
- * Get All Sub Categories
- */
-export const getSubCategories = async (req, res, next) => {
-    try {
-        const { search, page, limit, sortBy, sortOrder, isActive, parentId } = req.query;
+export const getAllSubCategories = catchAsync(async (req, res) => {
+    const cacheKey = `${CACHE_PREFIX}${JSON.stringify(req.query)}`;
+    const cached = await RedisCache.get(cacheKey);
+    if (cached) return res.status(200).json(new ApiResponse(200, cached, 'SubCategories fetched successfully (cached)'));
 
-        const result = await getCategoriesService({
-            type: 'SUBCATEGORY',
-            search,
-            page,
-            limit,
-            sortBy,
-            sortOrder,
-            isActive,
-            parentId,
-        });
+    const result = await subCategoryService.getAll(req.query);
+    await RedisCache.set(cacheKey, result, CACHE_TTL);
 
-        return res.status(200).json(
-            new ApiResponse(200, result.data, 'Sub-categories fetched successfully', result.pagination)
-        );
-    } catch (error) {
-        next(error);
-    }
-};
+    res.status(200).json(new ApiResponse(200, result, 'SubCategories fetched successfully'));
+});
 
-/**
- * Get Single Sub Category
- */
-export const getSubCategoryById = async (req, res, next) => {
-    try {
-        const category = await getCategoryByIdService(req.params.id);
+export const getSubCategoryById = catchAsync(async (req, res) => {
+    const cacheKey = `${SINGLE_PREFIX}${req.params.id}`;
+    const cached = await RedisCache.get(cacheKey);
+    if (cached) return res.status(200).json(new ApiResponse(200, cached, 'SubCategory details fetched successfully (cached)'));
 
-        if (category.type !== 'SUBCATEGORY') {
-            return res.status(400).json(new ApiResponse(400, null, 'Not a sub-category'));
-        }
+    const subCategory = await subCategoryService.getById(req.params.id);
+    await RedisCache.set(cacheKey, subCategory, CACHE_TTL);
 
-        return res.status(200).json(new ApiResponse(200, category, 'Sub-category fetched successfully'));
-    } catch (error) {
-        next(error);
-    }
-};
+    res.status(200).json(new ApiResponse(200, subCategory, 'SubCategory details fetched successfully'));
+});
 
-/**
- * Update Sub Category
- */
-export const updateSubCategory = async (req, res, next) => {
-    try {
-        const { title, order, brandId, parentId } = req.body;
-        const updateData = { title, order, brandId, parentId };
+export const updateSubCategory = catchAsync(async (req, res) => {
+    if (req.file) req.body.image = req.file.location;
+    const subCategory = await subCategoryService.update(req.params.id, req.body);
 
-        // If new image uploaded, add to update data
-        if (req.file) {
-            updateData.image = req.file.location;
-        }
+    await Promise.all([
+        RedisCache.delete(CACHE_PREFIX),
+        RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
+    ]);
 
-        const category = await updateCategoryService(req.params.id, updateData);
+    res.status(200).json(new ApiResponse(200, subCategory, 'SubCategory updated successfully'));
+});
 
-        return res.status(200).json(new ApiResponse(200, category, 'Sub-category updated successfully'));
-    } catch (error) {
-        next(error);
-    }
-};
+export const deleteSubCategory = catchAsync(async (req, res) => {
+    await subCategoryService.remove(req.params.id);
 
-/**
- * Toggle Sub Category Status
- */
-export const toggleSubCategory = async (req, res, next) => {
-    try {
-        const category = await toggleCategoryStatusService(req.params.id);
+    await Promise.all([
+        RedisCache.delete(CACHE_PREFIX),
+        RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
+    ]);
 
-        return res.status(200).json(
-            new ApiResponse(200, category, `Sub-category ${category.isActive ? 'activated' : 'deactivated'} successfully`)
-        );
-    } catch (error) {
-        next(error);
-    }
-};
+    res.status(200).json(new ApiResponse(200, null, 'SubCategory deleted successfully'));
+});
 
-/**
- * Delete Sub Category
- */
-export const deleteSubCategory = async (req, res, next) => {
-    try {
-        const result = await deleteCategoryService(req.params.id);
+export const toggleSubCategory = catchAsync(async (req, res) => {
+    const subCategory = await subCategoryService.toggle(req.params.id);
 
-        return res.status(200).json(new ApiResponse(200, null, result.message));
-    } catch (error) {
-        next(error);
-    }
-};
+    await Promise.all([
+        RedisCache.delete(CACHE_PREFIX),
+        RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
+    ]);
+
+    res.status(200).json(new ApiResponse(200, { isActive: subCategory.isActive }, `SubCategory is now ${subCategory.isActive ? 'active' : 'inactive'}`));
+});
