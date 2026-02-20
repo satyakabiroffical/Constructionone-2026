@@ -38,10 +38,12 @@ const categorySchema = new mongoose.Schema(
         order: {
             type: Number,
             default: 0,
+            index: true,
         },
         isActive: {
             type: Boolean,
             default: true,
+            index: true,
         },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
@@ -51,11 +53,19 @@ const categorySchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        toJSON: {
+            transform(doc, ret) {
+                delete ret.__v;
+                return ret;
+            },
+        },
     }
 );
 
-// Compound index to ensure name uniqueness per pcategory
+// Uniqueness: name unique per pcategory
 categorySchema.index({ pcategoryId: 1, name: 1 }, { unique: true });
+// Performance: optimizes filtered list queries by pcategoryId + isActive + order
+categorySchema.index({ pcategoryId: 1, isActive: 1, order: 1 });
 
 categorySchema.pre('save', function (next) {
     if (this.isModified('name')) {

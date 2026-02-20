@@ -54,11 +54,11 @@ export const errorHandler = (err, req, res, next) => {
     };
   }
 
-  // Log the error (uncomment if needed)
-  // logger.error({
-  //   ...errorResponse,
-  //   user: req.user?.id || 'anonymous'
-  // });
+  // Log all errors to the logger
+  logger.error({
+    ...errorResponse,
+    user: req.user?.id || 'anonymous',
+  });
 
   // Handle Mongoose operational errors
   if (err.name === 'CastError') {

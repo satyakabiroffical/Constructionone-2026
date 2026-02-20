@@ -7,11 +7,13 @@ const subCategorySchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'PlatformModule',
             required: [true, 'Module ID is required'],
+            index: true,
         },
         pcategoryId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Pcategory',
             required: [true, 'Parent Category ID is required'],
+            index: true,
         },
         categoryId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -42,10 +44,12 @@ const subCategorySchema = new mongoose.Schema(
         order: {
             type: Number,
             default: 0,
+            index: true,
         },
         isActive: {
             type: Boolean,
             default: true,
+            index: true,
         },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
@@ -55,11 +59,19 @@ const subCategorySchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        toJSON: {
+            transform(doc, ret) {
+                delete ret.__v;
+                return ret;
+            },
+        },
     }
 );
 
-// Compound index to ensure name uniqueness per category
+// Uniqueness: name unique per category
 subCategorySchema.index({ categoryId: 1, name: 1 }, { unique: true });
+// Performance: optimizes filtered list queries by categoryId + isActive + order
+subCategorySchema.index({ categoryId: 1, isActive: 1, order: 1 });
 
 subCategorySchema.pre('save', function (next) {
     if (this.isModified('name')) {

@@ -42,11 +42,19 @@ const pcategorySchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        toJSON: {
+            transform(doc, ret) {
+                delete ret.__v;
+                return ret;
+            },
+        },
     }
 );
 
-// Compound index to ensure name uniqueness per module
+// Uniqueness: name unique per module
 pcategorySchema.index({ moduleId: 1, name: 1 }, { unique: true });
+// Performance: optimizes filtered list queries by moduleId + isActive + order
+pcategorySchema.index({ moduleId: 1, isActive: 1, order: 1 });
 
 pcategorySchema.pre('save', function (next) {
     if (this.isModified('name')) {
