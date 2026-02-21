@@ -209,7 +209,7 @@ export const getWalletHistory = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const cacheKey = `wallet:history:${userId}:${page}:${limit}`;
+    const cacheKey = `wallet:history:${userId}:*`;
 
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
@@ -218,11 +218,11 @@ export const getWalletHistory = async (req, res, next) => {
     const filter = {
       userId,
       status: { $in: ["SUCCESS", "FAILED", "REFUNDED", "CREATED"] },
-      walletPurpose: {$in: ["TOPUP", "ORDER_PAYMENT", "BOOKING_PAYMENT", "REFUND"]},
-      $or:[
-        {paymentGateway: "RAZORPAY" },
-        {paymentMethod: "WALLET" }
-      ]
+      walletPurpose: {$in: ["TOPUP", "ORDER_PAYMENT", "BOOKING_PAYMENT", "REFUND" ,"ORDER_REFUND"]},
+      // $or:[
+      //   {paymentGateway: "RAZORPAY" },
+      //   {paymentMethod: "WALLET" }
+      // ]
       
     }
 

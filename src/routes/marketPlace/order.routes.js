@@ -1,10 +1,17 @@
 import { Router } from "express";
-import { createOrder, verifyPayment } from "../../controllers/marketPlace/order.controller.js";
+import { createOrder, verifyPayment, getAllOrders, getOrdersByVendor, cancelOrder, vendorUpdateOrder, getOrderById } from "../../controllers/marketPlace/order.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
+import { requireRole } from "../../middlewares/role.middleware.js";
 
 const router = Router();
 
 router.post("/create", requireAuth, createOrder);
 router.post("/verify-payment", requireAuth, verifyPayment);
+router.get("/my-orders", requireAuth, getAllOrders);
+router.get("/vendor-orders/:vendorId", requireAuth, getOrdersByVendor);
+router.put("/:orderId/cancel", requireAuth, cancelOrder);
+router.put("/vendor/sub-order/:subOrderId", vendorUpdateOrder);
+router.get("/:orderId", requireAuth, getOrderById);
 
 export default router;
+

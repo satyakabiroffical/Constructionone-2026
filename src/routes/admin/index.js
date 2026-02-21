@@ -6,6 +6,7 @@ import mainCategoryRoutes from './mainCategory.routes.js';
 import categoryRoutes from './category.routes.js';
 import subCategoryRoutes from './subCategory.routes.js';
 import taxRoutes from './tax.routes.js';
+import adminOrderRoutes from './order.routes.js';
 
 const router = Router();
 
@@ -16,6 +17,7 @@ router.use('/admin', mainCategoryRoutes);
 router.use('/admin', categoryRoutes);
 router.use('/admin', subCategoryRoutes);
 router.use('/tax', taxRoutes);
+router.use('/admin/order', adminOrderRoutes);
 
 export default router;
 

@@ -25,7 +25,7 @@ const orderSchema = new mongoose.Schema(
                 },
                 status: {
                     type: String,
-                    enum: ["PENDING", "CONFIRMED", "SHIPPED", "VENDOR_CONGIRMED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "RETURNED"],
+                    enum: ["PENDING", "CONFIRMED", "SHIPPED", "VENDOR_CONFIRMED", "VENDOR_CANCELLED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "RETURNED"],
                     default: "PENDING",
                 },
                 indexStatus: Number,
@@ -58,10 +58,10 @@ const orderSchema = new mongoose.Schema(
         netAmount: {
             type: Number,
         },
-        shippingAddress: {},
+        shippingAddress: {},            
         status: {
             type: String,
-            enum: ["PENDING", "CONFIRMED", "SHIPPED", "VENDOR_CONGIRMED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "RETURNED"],
+            enum: ["PENDING", "CONFIRMED", "SHIPPED", "VENDOR_CONFIRMED", "VENDOR_CANCELLED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "RETURNED", "MULTI_STATE"],
             default: "PENDING",
         },
 
@@ -94,5 +94,8 @@ const orderSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+orderSchema.index({ parentId: 1, orderType: 1 });
+orderSchema.index({ vandorId: 1, orderType: 1 });
+orderSchema.index({ status: 1 });
 
 export default mongoose.model("orderModel", orderSchema);
