@@ -67,7 +67,7 @@ export const vendorMiddleware = async (req, res, next) => {
   }
 };
 
-export const adminMiddleware = async (req, res, nest) => {
+export const adminMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Not authenticated" });
