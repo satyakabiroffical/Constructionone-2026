@@ -75,6 +75,7 @@ const vendorCompany = new mongoose.Schema(
     serviceArea: {
       selectedStates: [String],
       selectedCities: [String],
+      PinCodes: [String],
     },
     companyRegistrationNumber: { type: String },
     businessAddress: {
