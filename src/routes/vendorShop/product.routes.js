@@ -56,8 +56,11 @@ router.patch(
 );
 
 
-
-
+router.patch(
+  "/verifyProduct/:id",
+  requireAuth,
+  ProductController.verifyProduct
+);
 
 
 export default router;

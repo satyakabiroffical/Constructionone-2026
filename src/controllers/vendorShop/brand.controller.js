@@ -3,7 +3,7 @@ import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
 
 class BrandController {
-  // ✅ GET ALL
+  //  GET ALL
   static async getBrands(req, res, next) {
     try {
       const cacheKey = `brands:${JSON.stringify(req.query)}`;
@@ -30,7 +30,7 @@ class BrandController {
       if (categoryId) filter.categoryId = categoryId;
       if (subcategoryId) filter.subcategoryId = subcategoryId;
 
-      // 🔍 search by name
+      // search by name
       if (search) {
         filter.name = { $regex: search, $options: "i" };
       }
@@ -38,10 +38,7 @@ class BrandController {
       const skip = (page - 1) * limit;
 
       const [brands, total] = await Promise.all([
-        Brand.find(filter)
-          .sort(sort)
-          .skip(skip)
-          .limit(parseInt(limit)),
+        Brand.find(filter).sort(sort).skip(skip).limit(parseInt(limit)),
         Brand.countDocuments(filter),
       ]);
 
@@ -64,7 +61,7 @@ class BrandController {
     }
   }
 
-  // ✅ GET ONE
+  //  GET ONE
   static async getBrand(req, res, next) {
     try {
       const cacheKey = `brand:${req.params.id}`;
@@ -87,7 +84,7 @@ class BrandController {
     }
   }
 
-  // ✅ CREATE
+  //  CREATE
   static async createBrand(req, res, next) {
     try {
       const brand = await Brand.create({
@@ -107,18 +104,17 @@ class BrandController {
     }
   }
 
-  // ✅ UPDATE
+  //  UPDATE
   static async updateBrand(req, res, next) {
     try {
-      const brand = await Brand.findByIdAndUpdate(
-        req.params.id,
-        req.body,
-        { new: true, runValidators: true }
-      );
+      const brand = await Brand.findByIdAndUpdate(req.params.id, req.body, {
+        new: true,
+        runValidators: true,
+      });
 
       if (!brand) throw new APIError(404, "Brand not found");
 
-      await RedisCache.deletePattern("brands:*");
+      await RedisCache.delete("brands:");
       await RedisCache.delete(`brand:${req.params.id}`);
 
       res.json({
@@ -131,13 +127,13 @@ class BrandController {
     }
   }
 
-  // ✅ DELETE (hard delete — change to soft if needed)
+  //  DELETE (hard delete — change to soft if needed)
   static async deleteBrand(req, res, next) {
     try {
       const brand = await Brand.findByIdAndDelete(req.params.id);
       if (!brand) throw new APIError(404, "Brand not found");
 
-      await RedisCache.deletePattern("brands:*");
+      await RedisCache.delete("brands:");
       await RedisCache.delete(`brand:${req.params.id}`);
 
       res.json({
@@ -150,7 +146,7 @@ class BrandController {
     }
   }
 
-  // ✅ ⭐ TOGGLE STATUS
+  //   TOGGLE STATUS
   static async toggleBrandStatus(req, res, next) {
     try {
       const brand = await Brand.findById(req.params.id);
@@ -159,7 +155,7 @@ class BrandController {
       brand.status = brand.status === "active" ? "inactive" : "active";
       await brand.save();
 
-      await RedisCache.deletePattern("brands:*");
+      await RedisCache.delete("brands:");
       await RedisCache.delete(`brand:${req.params.id}`);
 
       res.json({

@@ -74,6 +74,16 @@ const productSchema = new mongoose.Schema(
       type: Number,
     },
 
+    ratingSum: {
+      type: Number,
+      default: 0,
+    },
+
+    reviewCount: {
+      type: Number,
+      default: 0,
+    },
+
     measurementUnit: {
       type: String,
       enum: [
