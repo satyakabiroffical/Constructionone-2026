@@ -1,6 +1,9 @@
 import jwt from "jsonwebtoken";
 import userModel from "../models/user/user.model.js";
-import vendorModel from "../models/vendorShop/vendor.model.js";
+import {
+  VendorProfile,
+  VendorCompany,
+} from "../models/vendorShop/vendor.model.js";
 
 export const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -47,10 +50,8 @@ export const vendorMiddleware = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const user = await vendorModel.findById(decoded.id);
+    const user = await VendorProfile.findById(decoded.id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -80,12 +81,10 @@ export const adminMiddleware = async (req, res, nest) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     // attach user to request
-
     req.user = {
       id: decoded.id,
       role: decoded.role,
     };
-
     next();
   } catch (error) {
     return res.status(401).json({ message: "Invalid or expired token" });
