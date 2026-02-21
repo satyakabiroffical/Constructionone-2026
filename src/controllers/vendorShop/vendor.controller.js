@@ -8,6 +8,7 @@ import otpGenerator from "otp-generator";
 import https from "https";
 const MAX_OTP_ATTEMPTS = 3;
 const COOLDOWN_PERIOD = 50 * 1000;
+import { APIError } from "../../middlewares/errorHandler.js";
 
 export const getVendorProfile = async (req, res, next) => {
   try {
@@ -36,6 +37,7 @@ export const getVendorProfile = async (req, res, next) => {
   }
 };
 const assignAutoBadges = async (vendor) => {
+  
   const badges = new Set(vendor.badges || []);
   if (vendor.totalOrders >= 500) badges.add("MOST_SOLD");
   if (vendor.averageDeliveryTime <= 24) badges.add("FAST_DELIVERY");
@@ -54,53 +56,67 @@ const assignAutoBadges = async (vendor) => {
 };
 
 // ------------admin ------------
-export const getAllVendors = async (req, res, next) => {
+export const getAllVendors = async (req, res) => {
   try {
+    // ---------------- Pagination ----------------
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
     const skip = (page - 1) * limit;
 
     const { search, isAdminVerified, sort } = req.query;
+    const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const safeSearch = search ? escapeRegex(search) : null;
+
+    // ---------------- Vendor (User) Search ----------------
     const vendorUserQuery = {};
-    if (search) {
+    if (safeSearch) {
       vendorUserQuery.$or = [
-        { firstName: { $regex: search, $options: "i" } },
-        { lastName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phoneNumber: { $regex: search, $options: "i" } },
+        { firstName: { $regex: safeSearch, $options: "i" } },
+        { lastName: { $regex: safeSearch, $options: "i" } },
+        { email: { $regex: safeSearch, $options: "i" } },
+        { phoneNumber: { $regex: safeSearch, $options: "i" } },
       ];
     }
 
     if (isAdminVerified !== undefined) {
       vendorUserQuery.isAdminVerified = isAdminVerified === "true";
     }
-    const query = {};
+    // ---------------- Fetch matching Vendor IDs ----------------
+    let vendorIds = [];
     if (Object.keys(vendorUserQuery).length > 0) {
-      const matchingVendors = await Vendor.find(vendorUserQuery).select("_id");
-      const vendorIds = matchingVendors.map((v) => v._id);
-      query.vendorId = { $in: vendorIds };
+      const vendors = await VendorProfile.find(vendorUserQuery).select("_id");
+      vendorIds = vendors.map((v) => v._id);
     }
-    if (search) {
-      const companyNameMatch = {
-        companyName: { $regex: search, $options: "i" },
-      };
+    const query = {};
+    if (safeSearch) {
+      query.$or = [{ companyName: { $regex: safeSearch, $options: "i" } }];
 
-      if (query.vendorId) {
-        query.$or = [
-          { companyName: companyNameMatch.companyName },
-          { vendorId: query.vendorId },
-        ];
-        delete query.vendorId;
-      } else {
-        query.companyName = companyNameMatch.companyName;
+      if (vendorIds.length > 0) {
+        query.$or.push({ vendorId: { $in: vendorIds } });
       }
+    } else if (vendorIds.length > 0) {
+      query.vendorId = { $in: vendorIds };
+    } else if (isAdminVerified !== undefined) {
+      return res.status(200).json({
+        success: true,
+        pagination: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+        data: [],
+      });
     }
 
+    // ---------------- Sorting ----------------
     let sortQuery = { createdAt: -1 };
     if (sort === "oldest") {
       sortQuery = { createdAt: 1 };
     }
 
+    // ---------------- DB Queries ----------------
     const [vendors, total] = await Promise.all([
       VendorCompany.find(query)
         .populate({
@@ -113,6 +129,7 @@ export const getAllVendors = async (req, res, next) => {
       VendorCompany.countDocuments(query),
     ]);
 
+    // ---------------- Response ----------------
     return res.status(200).json({
       success: true,
       pagination: {
@@ -153,31 +170,45 @@ export const getVendorById = async (req, res) => {
     });
   }
 };
-
-export const updateVendorVerificationStatus = async (req, res, next) => {
+export const verifyVendorByAdmin = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { isVerified } = req.body;
+    const { vendorId } = req.params;
 
-    const vendor = await VendorProfile.findById(id);
-    if (!vendor) {
-      return res.status(404).json({
+    if (!vendorId) {
+      return res.status(400).json({
         success: false,
-        message: "Vendor not found",
+        message: "vendorId is required",
       });
     }
 
-    vendor.isVerified = isVerified;
-    await vendor.save();
+    // Check vendor exists
+    const vendor = await VendorProfile.findById(vendorId);
 
+    if (!vendor) {
+      return next(APIError(403, "Vendor is not admin verified"));
+    }
+
+    // Already verified
+    if (vendor.isAdminVerified === true) {
+      return res.status(200).json({
+        success: true,
+        message: "Vendor already admin verified",
+      });
+    }
+
+    // Update admin verification
+    vendor.isAdminVerified = true;
+    await vendor.save();
     return res.status(200).json({
       success: true,
-      message: "Vendor verification status updated successfully",
-      data: vendor,
+      message: "Vendor admin verified successfully",
+      data: {
+        vendorId: vendor._id,
+        isAdminVerified: vendor.isAdminVerified,
+      },
     });
   } catch (error) {
-    console.error("Vendor verification update error:", error);
-    throw error;
+    next(APIError(500, error.message));
   }
 };
 export const addMultipleBadgesByAdmin = async (req, res, next) => {
@@ -256,10 +287,12 @@ export const removeMultipleBadgesByAdmin = async (req, res, next) => {
     next(error);
   }
 };
-export const toggleVendorStatus = async (req, res, next) => {
+//disable / eneble
+export const disableVendorStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const vendor = await VendorProfile.findById(id);
+
     if (!vendor) {
       return res.status(404).json({
         success: false,
