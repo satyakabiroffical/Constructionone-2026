@@ -77,7 +77,11 @@ export const adminMiddleware = async (req, res, nest) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // attach user to request
+    const user = await userModel.findById(decoded.id);
+    if (user.role !== "ADMIN" && user.role !== "SUB_ADMIN") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     req.user = {
       id: decoded.id,
       role: decoded.role,
