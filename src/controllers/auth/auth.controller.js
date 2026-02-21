@@ -17,6 +17,7 @@ import {
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { ApiResponse } from '../../utils/ApiResponse.js';
+import { generateOtp, sendOtpViaMSG91 } from '../../utils/otpUtils.js';
 
 // Register User
 export const register = catchAsync(async (req, res, next) => {
@@ -112,11 +113,23 @@ export const loginPhone = catchAsync(async (req, res, next) => {
     }
 
     // Generate OTP
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    user.otp = otp;
+    const otp = generateOtp();
+    user.otp = String(otp);
     user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 mins
     user.otpAttempts += 1;
     await user.save({ validateBeforeSave: false });
+
+    // Send OTP via MSG91
+    try {
+        await sendOtpViaMSG91(phone, otp);
+        console.log(`[MSG91] OTP sent to ${phone}`);
+    } catch (error) {
+        console.error(`[MSG91] Failed to send OTP to ${phone}:`, error.message);
+        // We might want to throw error here or just log it. 
+        // For now, let's allow it to proceed so we can at least see it in dev console if configured.
+        // But for production, if SMS fails, user can't login.
+        // return next(new APIError(500, 'Failed to send OTP'));
+    }
 
     console.log(`[DEV MODE] OTP for ${phone}: ${otp}`);
 

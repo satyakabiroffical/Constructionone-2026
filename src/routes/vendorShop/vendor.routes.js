@@ -14,7 +14,6 @@ import {
   getAllVendors,
 } from "../../controllers/vendorShop/vendor.controller.js";
 import { adminMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
-import { isAdmin } from "../../middlewares/role.js";
 import { validateRequest } from "../../middlewares/validation.js";
 import {
   vendorProfileValidation,

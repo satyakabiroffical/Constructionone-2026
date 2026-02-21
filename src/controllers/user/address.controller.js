@@ -1,4 +1,4 @@
-import Address from "../../models/user/address.model.js";
+import Address from "../../models/user/address.model.js"; // priyanshu
 
 export const createAddress = async (req, res, next) => {
   try {
@@ -13,7 +13,7 @@ export const getAddressesByUser = async (req, res, next) => {
   try {
     const { userId } = req.params;
     const addresses = await Address.find({ userId });
-    res.json(addresses);
+    res.status(200).json(addresses);
   } catch (error) {
     next(error);
   }
@@ -24,7 +24,7 @@ export const updateAddress = async (req, res, next) => {
     const address = await Address.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
     });
-    res.json(address);
+    res.status(200).json(address);
   } catch (error) {
     next(error);
   }
@@ -33,10 +33,9 @@ export const updateAddress = async (req, res, next) => {
 export const deleteAddress = async (req, res, next) => {
   try {
     await Address.findByIdAndDelete(req.params.id);
-    res.json({ message: "Address deleted" });
+    res.status(200).json({ message: "Address deleted" });
   } catch (error) {
     next(error);
   }
 };
 
-//asgr

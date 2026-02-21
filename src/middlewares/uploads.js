@@ -1,8 +1,4 @@
-import {
-  S3Client,
-  DeleteObjectCommand,
-  GetObjectCommand,
-} from "@aws-sdk/client-s3";
+import { S3Client, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";   // priyanshu
 import multer from "multer";
 import multerS3 from "multer-s3";
 import fs from "fs";
@@ -38,11 +34,8 @@ export const multerFilter = (req, file, cb) => {
     return cb(createError(400, "Only .obj format allowed!"), false);
   }
 
-  if (file.fieldname === "bannerImg" && !file.mimetype.startsWith("image/")) {
-    return cb(
-      createError(400, "Only image files are allowed for bannerImg"),
-      false,
-    );
+  if (file.mimetype.startsWith("image/")) {
+    return cb(null, true);
   }
 
   cb(null, true);
@@ -113,4 +106,36 @@ export const getBuffer = async (bucketName, key) => {
   }
 
   return response.Body;
+};
+
+// ============================================
+// CATEGORY UPLOAD MIDDLEWARE (Production-Ready)
+// ============================================
+
+/**
+ * Category Image Upload Middleware
+ * Handles optional single image upload for categories
+ * Uses multer.fields() for proper form-data parsing
+ */
+export const categoryUpload = (() => {
+  const upload = s3Uploader();
+
+  // Define field configuration for category image upload
+  // maxCount: 1 means only one image file allowed
+  return upload.fields([
+    { name: 'image', maxCount: 1 }
+  ]);
+})();
+
+/**
+ * Process uploaded category image
+ * Extracts single file from req.files array and sets to req.file
+ * Call this AFTER categoryUpload middleware in routes
+ */
+export const processCategoryUpload = (req, res, next) => {
+  // Extract image from req.files if uploaded
+  if (req.files && req.files.image && req.files.image.length > 0) {
+    req.file = req.files.image[0];
+  }
+  next();
 };

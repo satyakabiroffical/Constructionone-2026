@@ -1,5 +1,5 @@
 // src/middleware/errorHandler.js
-import logger from "../utils/logger.js";
+import logger from '../utils/logger.js'; // priyanshu
 
 // Custom error class with additional context
 export class APIError extends Error {
@@ -20,15 +20,15 @@ export class APIError extends Error {
     return new APIError(400, message, true, details);
   }
 
-  static unauthorized(message = "Unauthorized") {
+  static unauthorized(message = 'Unauthorized') {
     return new APIError(401, message);
   }
 
-  static notFound(message = "Resource not found") {
+  static notFound(message = 'Resource not found') {
     return new APIError(404, message);
   }
 
-  static internal(message = "Internal Server Error", details = null) {
+  static internal(message = 'Internal Server Error', details = null) {
     return new APIError(500, message, false, details);
   }
 }
@@ -54,11 +54,38 @@ export const errorHandler = (err, req, res, next) => {
     };
   }
 
-  // Log the error (uncomment if needed)
-  // logger.error({
-  //   ...errorResponse,
-  //   user: req.user?.id || 'anonymous'
-  // });
+  // Log all errors to the logger
+  logger.error({
+    ...errorResponse,
+    user: req.user?.id || 'anonymous',
+  });
+
+  // Handle Mongoose operational errors
+  if (err.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      status: 'fail',
+      message: `Invalid ${err.path}: ${err.value}`,
+    });
+  }
+
+  if (err.code === 11000) {
+    const value = err.errmsg ? err.errmsg.match(/(["'])(\\?.)*?\1/)[0] : 'Duplicate field';
+    return res.status(400).json({
+      success: false,
+      status: 'fail',
+      message: `Duplicate field value: ${value}. Please use another value!`,
+    });
+  }
+
+  if (err.name === 'ValidationError') {
+    const errors = Object.values(err.errors).map(el => el.message);
+    return res.status(400).json({
+      success: false,
+      status: 'fail',
+      message: `Invalid input data. ${errors.join('. ')}`,
+    });
+  }
 
   // Send response
   res.status(err.statusCode || 500).json(errorResponse);

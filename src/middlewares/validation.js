@@ -1,4 +1,4 @@
-import { validationResult } from "express-validator";
+import { validationResult } from "express-validator"; //priyanshu
 import { APIError } from "./errorHandler.js";
 
 export const validateRequest = (validations) => {
@@ -33,6 +33,7 @@ export const sanitize = (data) => {
   if (!data) return data;
 
   if (typeof data === "string") {
+    // Remove potentially malicious characters
     return data.replace(/[${}()\[\]\";'<>]/g, "");
   }
 

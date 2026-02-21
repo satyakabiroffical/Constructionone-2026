@@ -159,7 +159,7 @@ userSchema.methods.generateAccessToken = function () {
     {
       id: this._id,
       role: this.role,
-      email: this.email,
+      // email: this.email
     },
     process.env.JWT_SECRET,
     { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "1d" },
