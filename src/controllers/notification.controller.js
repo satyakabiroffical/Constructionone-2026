@@ -1,4 +1,4 @@
-import User from "../models/user/user.model.js";
+import User from "../models/user/user.model.js";  // priyanshu
 import Notification from "../models/notification.model.js";
 import { notifyUser } from "../utils/notifyUser.js";
 
@@ -111,3 +111,37 @@ export const getUserNotifications = async (req, res) => {
 };
 
 //asgr
+
+
+//priyanshu
+
+// Internal helper — NOT an HTTP handler. Call this after order creation.
+export const sendOrderNotificationToUser = async (order, status) => {
+  try {
+    const statusMessages = {
+      CONFIRMED: "Your order has been confirmed! 🎉",
+      PENDING: "Your order is pending payment.",
+      CANCELLED: "Your order has been cancelled.",
+      OUT_FOR_DELIVERY: "Your order is out for delivery! 🚚",
+      DELIVERED: "Your order has been delivered. Enjoy! 📦",
+      VENDOR_CONFIRMED: "Your order has been accepted by the vendor.",
+      VENDOR_CANCELLED: "Your order was rejected by the vendor.",
+    };
+
+    const message =
+      statusMessages[status] ||
+      `Your order status has been updated to: ${status}`;
+
+    await notifyUser({
+      userId: order.userId,
+      title: "Order Update",
+      message,
+      type: "ORDER",
+    });
+  } catch (err) {
+    // Never crash the main flow — just log silently
+    console.error("sendOrderNotificationToUser failed:", err.message);
+  }
+};
+
+

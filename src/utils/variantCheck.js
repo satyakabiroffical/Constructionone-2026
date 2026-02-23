@@ -1,3 +1,5 @@
+import Variant from "../models/vendorShop/variant.model.js";
+
 export const checkVariantExists = async ({
   productId,
   size,

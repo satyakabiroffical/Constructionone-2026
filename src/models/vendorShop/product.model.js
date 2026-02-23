@@ -74,6 +74,93 @@ const productSchema = new mongoose.Schema(
       type: Number,
     },
 
+    ratingSum: {
+      type: Number,
+      default: 0,
+    },
+
+    reviewCount: {
+      type: Number,
+      default: 0,
+    },
+
+    measurementUnit: {
+      type: String,
+      enum: [
+        "piece",
+        "kg",
+        "liter",
+        "meter",
+        "box",
+        "supermeter",
+        "cubicmeter",
+        "set",
+        "roll",
+      ],
+    },
+    leadTime: {
+      type: String,
+    },
+
+    city: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "City",
+      },
+    ],
+
+    state: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "State",
+      },
+    ],
+    deliveryCharges: {
+      type: String,
+      enum: ["free", "fixedCharge", "distanceAndWeightBased", "customerPickup"],
+      trim: true,
+    },
+    shippingCharges: {
+      fixed: { type: Number },
+      distancePerKm: { type: Number },
+      weightPerKg: { type: Number },
+    },
+    returnPolicy: {
+      type: String,
+      enum: ["noReturn", "7day", "15day", "13day", "defectiveReplacement"],
+      trim: true,
+    },
+    warrantyPeriod: {
+      type: String,
+      enum: ["no-warranty", "6month", "1year", "2year", "5year", "lifetime"],
+      trim: true,
+    },
+
+    defaultVariantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Variant",
+    },
+
+    preferredPayementMethod: {
+      type: String,
+      enum: [
+        "100advance",
+        "50-advance-50-on-delivery",
+        "30-days-credit",
+        "cod",
+        "as-per-purchase-order",
+      ],
+    },
+    safetyInstructions: {
+      type: String,
+      trim: true,
+    },
+
+    varified: {
+      type: Boolean,
+      default: false,
+    },
+
     metaData: {
       title: { type: String, default: "Product" },
       description: { type: String, default: "Product" },
@@ -105,7 +192,8 @@ const productSchema = new mongoose.Schema(
     },
     vendorId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "VendorProfile",
+      ref: "vendorProfile",
+      index: true,
     },
   },
   { timestamps: true },

@@ -14,15 +14,17 @@ import bannerRoutes from "./banner.routes.js";
 import taxRoutes from "./tax.routes.js";
 import adminOrderRoutes from "./order.routes.js";
 
+
 const router = Router();
 
 // Public admin route (login) — mounted BEFORE the auth gateway
 // admin.routes.js manages its own auth internally (login is public, rest requires ADMIN)
-
 router.use("/admin", adminRoutes);
 
 // All routes below are fully protected — requireAuth + ADMIN role enforced here
 // router.use(requireAuth, requireRole('ADMIN'));
+
+router.use("/admin", requireAuth, requireRole("ADMIN"));
 
 router.use("/admin/platform-modules", platformModuleRoutes);
 router.use("/admin/pcategories", pcategoryRoutes);

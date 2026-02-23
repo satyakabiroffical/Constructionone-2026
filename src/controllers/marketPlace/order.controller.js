@@ -11,6 +11,7 @@ import razorpayInstance from "../../config/razorpay.conifg.js";
 import { APIError } from "../../middlewares/errorHandler.js";
 import crypto from "crypto";
 import redis from "../../config/redis.config.js";
+import { sendOrderNotificationToUser } from "../notification.controller.js";
 
 
 const calculateVendorSplit = async (cartItems) => {
@@ -270,6 +271,9 @@ export const createOrder = async (req, res, next) => {
         // Invalidate this user's order cache so next GET fetches fresh data
         await redis.del(...(await redis.keys(`orders:user:${userId}:*`)).concat(["_placeholder_"])).catch(() => { });
 
+        // Send notification to user (fire-and-forget, won't crash the response)
+        await sendOrderNotificationToUser(masterOrder[0], "CONFIRMED");
+
         res.status(201).json({
             success: true,
             message: "Order created successfully",
@@ -376,6 +380,9 @@ export const verifyPayment = async (req, res, next) => {
         // Invalidate the buyer's order cache after payment verification
         const buyerKeys = await redis.keys(`orders:user:${userId}:*`);
         if (buyerKeys.length) await redis.del(buyerKeys);
+
+        // Send notification to user after online payment confirmation
+        await sendOrderNotificationToUser(masterOrder, "CONFIRMED");
 
         res.json({
             success: true,
@@ -986,7 +993,7 @@ export const updateSingleProductStatus = async (req, res, next) => {
             }
         );
 
-        
+
         const updatedSubOrder = await Order.findById(subOrderId, { items: 1, parentId: 1, userId: 1 }).session(session);
         const itemStatuses = [...new Set(updatedSubOrder.items.map((it) => it.status))];
         const newSubStatus = itemStatuses.length === 1 ? itemStatuses[0] : "MULTI_STATE";
@@ -1070,83 +1077,81 @@ export const updateSingleProductStatus = async (req, res, next) => {
 };
 
 export const updateAllProductsStatus = async (req, res, next) => {
-        const session = await mongoose.startSession();
-        session.startTransaction();
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-        try {
-            const { subOrderId, status } = req.body;
-            const vendorId = req.user._id;
+    try {
+        const { subOrderId, status } = req.body;
+        const vendorId = req.user._id;
 
-            if (!subOrderId || !status) {
-                throw new APIError(400, "subOrderId and status are required");
-            }
-            if (!ITEM_VALID_STATUSES.includes(status)) {
-                throw new APIError(400, `Invalid status. Allowed: ${ITEM_VALID_STATUSES.join(", ")}`);
-            }
-
-            const subOrder = await Order.findOne({
-                _id: subOrderId,
-                orderType: "SUB",
-                vandorId: vendorId,
-            }, { parentId: 1, items: 1 }).session(session);
-
-            if (!subOrder) {
-                throw new APIError(404, "Sub-order not found or you do not have access to it");
-            }
-
-
-            await Order.updateOne(
-                { _id: subOrderId },
-                { $set: { status, "items.$[].status": status } },
-                { session }
-            );
-
-            const masterOrderId = subOrder.parentId;
-            const variantIds = subOrder.items.map((it) => it.variant).filter(Boolean);
-
-            if (variantIds.length > 0) {
-                await Order.updateOne(
-                    { _id: masterOrderId },
-                    { $set: { "items.$[elem].status": status } },
-                    {
-                        session,
-                        arrayFilters: [{ "elem.variant": { $in: variantIds } }],
-                    }
-                );
-            }
-
-            const allSubOrders = await Order.find(
-                { parentId: masterOrderId, orderType: "SUB" },
-                { status: 1 }
-            ).session(session);
-
-            const uniqueStatuses = [
-                ...new Set(allSubOrders.map((s) => (s._id.equals(subOrderId) ? status : s.status))),
-            ];
-            const newMasterStatus = uniqueStatuses.length === 1 ? uniqueStatuses[0] : "MULTI_STATE";
-
-            const masterUpdate = { status: newMasterStatus };
-            if (newMasterStatus === "DELIVERED") masterUpdate.deliveredDate = new Date();
-
-            await Order.updateOne({ _id: masterOrderId }, { $set: masterUpdate }, { session });
-
-            await session.commitTransaction();
-            session.endSession();
-
-            return res.status(200).json({
-                success: true,
-                message: `All ${subOrder.items.length} item(s) in sub-order updated to "${status}"`,
-                data: {
-                    subOrderId,
-                    subOrderStatus: status,
-                    masterOrderId,
-                    masterStatus: newMasterStatus,
-                },
-            });
-        } catch (error) {
-            await session.abortTransaction();
-            session.endSession();
-            next(error);
+        if (!subOrderId || !status) {
+            throw new APIError(400, "subOrderId and status are required");
         }
-    };
+        if (!ITEM_VALID_STATUSES.includes(status)) {
+            throw new APIError(400, `Invalid status. Allowed: ${ITEM_VALID_STATUSES.join(", ")}`);
+        }
+
+        const subOrder = await Order.findOne({
+            _id: subOrderId,
+            orderType: "SUB",
+            vandorId: vendorId,
+        }, { parentId: 1, items: 1 }).session(session);
+
+        if (!subOrder) {
+            throw new APIError(404, "Sub-order not found or you do not have access to it");
+        }
+        await Order.updateOne(
+            { _id: subOrderId },
+            { $set: { status, "items.$[].status": status } },
+            { session }
+        );
+
+        const masterOrderId = subOrder.parentId;
+        const variantIds = subOrder.items.map((it) => it.variant).filter(Boolean);
+
+        if (variantIds.length > 0) {
+            await Order.updateOne(
+                { _id: masterOrderId },
+                { $set: { "items.$[elem].status": status } },
+                {
+                    session,
+                    arrayFilters: [{ "elem.variant": { $in: variantIds } }],
+                }
+            );
+        }
+
+        const allSubOrders = await Order.find(
+            { parentId: masterOrderId, orderType: "SUB" },
+            { status: 1 }
+        ).session(session);
+
+        const uniqueStatuses = [
+            ...new Set(allSubOrders.map((s) => (s._id.equals(subOrderId) ? status : s.status))),
+        ];
+        const newMasterStatus = uniqueStatuses.length === 1 ? uniqueStatuses[0] : "MULTI_STATE";
+
+        const masterUpdate = { status: newMasterStatus };
+        if (newMasterStatus === "DELIVERED") masterUpdate.deliveredDate = new Date();
+
+        await Order.updateOne({ _id: masterOrderId }, { $set: masterUpdate }, { session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(200).json({
+            success: true,
+            message: `All ${subOrder.items.length} item(s) in sub-order updated to "${status}"`,
+            data: {
+                subOrderId,
+                subOrderStatus: status,
+                masterOrderId,
+                masterStatus: newMasterStatus,
+            },
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        next(error);
+    }
+};
 

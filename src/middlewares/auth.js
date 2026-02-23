@@ -86,6 +86,7 @@ export const authMiddleware = async (req, res, next) => {
 
 export const vendorMiddleware = async (req, res, next) => {
   try {
+    console.log("🔥 vendorMiddleware hit");
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Not authenticated" });
