@@ -6,18 +6,18 @@ import RedisCache from "../../utils/redisCache.js";
 import { calculateDiscount } from "../../utils/priceCalculator.js";
 
 class ProductController {
+
+
   static async getProducts(req, res, next) {
     try {
       //  versioned cache key (important)
       const cacheKey = `products:v1:${JSON.stringify(req.query)}`;
-
       const cached = await RedisCache.get(cacheKey);
       if (cached) return res.json(cached);
 
       const { page = 1, limit = 20, sort = "-createdAt" } = req.query;
 
       //  SAFE FILTER BUILD
-
       const query = {};
 
       const allowedFilters = [
@@ -37,7 +37,6 @@ class ProductController {
       });
 
       //  FAST QUERY
-
       const products = await Product.find(query)
         .populate("brandId", "name")
         .populate("defaultVariantId")
@@ -205,7 +204,6 @@ class ProductController {
       }
 
       let variants = req.body.variants;
-
       //  remove variants from product payload (NEW)
       delete productData.variants;
 
@@ -216,7 +214,6 @@ class ProductController {
 
       // HANDLE FILES
       const uploadedImages = req.files?.images?.map((f) => f.location) || [];
-
       const uploadedThumbnail = req.files?.thumbnail?.[0]?.location || null;
 
       if (uploadedImages.length) {
@@ -255,34 +252,19 @@ class ProductController {
         return v;
       });
 
-      // PREPARE VARIANTS
-      const preparedVariants = variants.map((variant) => {
-        const mrp = Number(variant.mrp || 0);
-        const discount = Number(variant.discount || 0);
+      // PREPARE VARIANTS (UNCHANGED)
+      const preparedVariants = variants.map((variant) => ({
+        ...variant,
+        // AUTO INJECT
+        productId: product._id,
+        moduleId: product.moduleId,
+        pcategoryId: product.pcategoryId,
+        categoryId: product.categoryId,
+        subcategoryId: product.subcategoryId,
+        brandId: product.brandId,
+        createdBy: req.user?.id,
+      }));
 
-        //  calculate both values
-        const { price, discountAmount } = calculateDiscount(mrp, discount);
-
-        //  prevent manual price override (PRO)
-        const { price: _p, discountAmount: _d, ...safeVariant } = variant;
-
-        return {
-          ...safeVariant,
-
-          price,
-          discountAmount,
-
-          // AUTO INJECT
-          productId: product._id,
-          moduleId: product.moduleId,
-          pcategoryId: product.pcategoryId,
-          categoryId: product.categoryId,
-          subcategoryId: product.subcategoryId,
-          brandId: product.brandId,
-
-          createdBy: req.user?.id,
-        };
-      });
       // BULK CREATE VARIANTS
       const createdVariants = await Variant.insertMany(preparedVariants, {
         session,
@@ -312,7 +294,7 @@ class ProductController {
       session.endSession();
       next(err);
     }
-  }
+  };
 
   // UPDATE PRODUCT
 
@@ -384,7 +366,7 @@ class ProductController {
     } catch (err) {
       next(err);
     }
-  }
+  };
 
   static async getProductById(req, res, next) {
     try {
@@ -414,7 +396,7 @@ class ProductController {
     } catch (err) {
       next(err);
     }
-  }
+  };
 
   static async disableProduct(req, res, next) {
     try {
@@ -460,7 +442,7 @@ class ProductController {
         throw new APIError("Product not found", 404);
       }
 
-      //  smart cache clear
+      // smart cache clear
       await RedisCache.deletePattern?.("products:*");
       await RedisCache.delete?.(`product:v1:${id}`);
 
@@ -474,64 +456,6 @@ class ProductController {
     }
   }
 
-  static async getProductVariants(req, res, next) {
-    try {
-      const { productId } = req.params;
-
-      const page = Math.max(parseInt(req.query.page) || 1, 1);
-      const limitRaw = parseInt(req.query.limit) || 10;
-      const limit = Math.min(limitRaw, 50);
-      const skip = (page - 1) * limit;
-
-      const cacheKey = `product:v1:${productId}:variants:${page}:${limit}`;
-
-      const cached = await RedisCache.get(cacheKey);
-      if (cached) return res.json(cached);
-
-      const filter = { productId, disable: false };
-
-      const [variants, total] = await Promise.all([
-        Variant.find(filter, {
-          price: 1,
-          mrp: 1,
-          discount: 1,
-          discountAmount: 1,
-          size: 1,
-          stock: 1,
-          Type: 1,
-          sold: 1,
-        })
-          .sort({ price: 1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        Variant.countDocuments(filter),
-      ]);
-
-      const totalPages = Math.ceil(total / limit);
-
-      const result = {
-        status: "success",
-        message: "Product variants fetched successfully",
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1,
-        },
-        results: variants.length,
-        data: { variants },
-      };
-
-      await RedisCache.set(cacheKey, result, 300);
-
-      res.json(result);
-    } catch (err) {
-      next(err);
-    }
-  }
 }
 
 export default ProductController;

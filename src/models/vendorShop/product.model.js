@@ -103,16 +103,9 @@ const productSchema = new mongoose.Schema(
       type: Number,
       min: 0,
     },
-
-    defaultVariantId: {
+    vendorId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Variant",
-      index: true,
-    },
-
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "VendorProfile",
     },
   },
   { timestamps: true },
@@ -133,5 +126,4 @@ productSchema.pre("save", function (next) {
   }
   next();
 });
-
 export default mongoose.model("Product", productSchema);

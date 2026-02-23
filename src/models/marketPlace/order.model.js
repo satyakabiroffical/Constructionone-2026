@@ -90,6 +90,9 @@ const orderSchema = new mongoose.Schema(
             type: String,
             enum: ["COSTOMER", "ADMIN", "VANDOR", "SUB_ADMIN"],
         },
+        deliveryOtp: {
+            type: String,
+        },
         deliveredDate: Date,
     },
     { timestamps: true }

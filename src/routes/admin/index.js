@@ -1,23 +1,36 @@
-import { Router } from 'express';
-import adminRoutes from './admin.routes.js';
-import companyRoutes from './company.routes.js';
-import faqRoutes from './faq.routes.js';
-import mainCategoryRoutes from './mainCategory.routes.js';
-import categoryRoutes from './category.routes.js';
-import subCategoryRoutes from './subCategory.routes.js';
-import taxRoutes from './tax.routes.js';
-import adminOrderRoutes from './order.routes.js';
+// Written by Pradeep
+import { Router } from "express";
+import { requireAuth } from "../../middlewares/auth.middleware.js";
+import { requireRole } from "../../middlewares/role.middleware.js";
+
+import adminRoutes from "./admin.routes.js";
+import companyRoutes from "./company.routes.js";
+import faqRoutes from "./faq.routes.js";
+import platformModuleRoutes from "./platformModule.routes.js";
+import pcategoryRoutes from "./pcategory.routes.js";
+import categoryRoutes from "./category.routes.js";
+import subCategoryRoutes from "./subCategory.routes.js";
+import bannerRoutes from "./banner.routes.js";
+import taxRoutes from "./tax.routes.js";
+import adminOrderRoutes from "./order.routes.js";
 
 const router = Router();
 
-router.use('/admin', adminRoutes);
-router.use('/company', companyRoutes);
-router.use('/faq', faqRoutes);
-router.use('/admin', mainCategoryRoutes);
-router.use('/admin', categoryRoutes);
-router.use('/admin', subCategoryRoutes);
+// Public admin route (login) — mounted BEFORE the auth gateway
+// admin.routes.js manages its own auth internally (login is public, rest requires ADMIN)
+
+router.use("/admin", adminRoutes);
+
+// All routes below are fully protected — requireAuth + ADMIN role enforced here
+// router.use(requireAuth, requireRole('ADMIN'));
+
+router.use("/admin/platform-modules", platformModuleRoutes);
+router.use("/admin/pcategories", pcategoryRoutes);
+router.use("/admin/categories", categoryRoutes);
+router.use("/admin/sub-categories", subCategoryRoutes);
+router.use("/company", companyRoutes);
+router.use("/admin/faqs", faqRoutes);
+router.use("/admin/banners", bannerRoutes);
 router.use('/tax', taxRoutes);
 router.use('/admin/order', adminOrderRoutes);
-
 export default router;
-

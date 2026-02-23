@@ -1,27 +1,32 @@
 import { Router } from 'express';
 import {
     createSubCategory,
-    getSubCategories,
+    getAllSubCategories,
     getSubCategoryById,
     updateSubCategory,
-    toggleSubCategory,
     deleteSubCategory,
+    toggleSubCategory,
 } from '../../controllers/admin/subCategory.controller.js';
 import { requireAuth } from '../../middlewares/auth.middleware.js';
 import { requireRole } from '../../middlewares/role.middleware.js';
-import { categoryUpload, processCategoryUpload } from '../../middlewares/uploads.js';
+import { s3Uploader } from '../../middlewares/uploads.js';
 
 const router = Router();
 
-// All routes require ADMIN role
+// Protect all routes
 router.use(requireAuth, requireRole('ADMIN'));
 
-// Sub Category Routes
-router.post('/sub-categories', categoryUpload, processCategoryUpload, createSubCategory);
-router.get('/sub-categories', getSubCategories);
-router.get('/sub-categories/:id', getSubCategoryById);
-router.put('/sub-categories/:id', categoryUpload, processCategoryUpload, updateSubCategory);
-router.patch('/sub-categories/:id/toggle', toggleSubCategory);
-router.delete('/sub-categories/:id', deleteSubCategory);
+router
+    .route('/')
+    .post(s3Uploader().single('image'), createSubCategory)
+    .get(getAllSubCategories);
+
+router
+    .route('/:id')
+    .get(getSubCategoryById)
+    .put(s3Uploader().single('image'), updateSubCategory)
+    .delete(deleteSubCategory);
+
+router.patch('/:id/toggle', toggleSubCategory);
 
 export default router;

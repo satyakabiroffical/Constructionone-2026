@@ -3,17 +3,14 @@ import ProductController from "../../controllers/vendorShop/product.controller.j
 import validate from "../../middlewares/joiValidation.js";
 import { createProductWithVariantSchema } from "../../validations/product.validation.js";
 import { s3Uploader } from "../../middlewares/uploads.js";
-
-import { requireAuth } from "../../middlewares/auth.middleware.js";
+import { vendorMiddleware } from "../../middlewares/auth.js";
 const router = Router();
 
 // Base: /api/v1/material/products
-
-router.get("/products", requireAuth, ProductController.getProducts);
-
+router.get("/products", vendorMiddleware, ProductController.getProducts);
 router.post(
   "/addProducts",
-  requireAuth,
+  vendorMiddleware,
   s3Uploader().fields([
     { name: "images", maxCount: 5 },
     { name: "thumbnail", maxCount: 1 },
@@ -24,7 +21,7 @@ router.post(
 
 router.put(
   "/updateProduct/:id",
-  requireAuth,
+  vendorMiddleware,
   s3Uploader().fields([
     { name: "images", maxCount: 5 },
     { name: "thumbnail", maxCount: 1 },
@@ -32,25 +29,17 @@ router.put(
   ProductController.updateProduct,
 );
 
-router.get("/product/:id", requireAuth, ProductController.getProductById);
-
-router.get("/product/:id", requireAuth, ProductController.getProductById);
-
-router.get(
-  "/product/:productId/variants",
-  requireAuth,
-  ProductController.getProductVariants,
-);
+router.get("/product/:id", vendorMiddleware, ProductController.getProductById);
 
 router.patch(
   "/disableProduct/:id",
-  requireAuth,
+  vendorMiddleware,
   ProductController.disableProduct,
 );
 
 router.patch(
   "/verifyProduct/:id",
-  requireAuth,
+  vendorMiddleware,
   ProductController.verifyProduct,
 );
 

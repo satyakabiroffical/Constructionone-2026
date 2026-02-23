@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import slugify from 'slugify';
 
-const categorySchema = new mongoose.Schema(
+const subCategorySchema = new mongoose.Schema(
     {
         moduleId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -15,9 +15,15 @@ const categorySchema = new mongoose.Schema(
             required: [true, 'Parent Category ID is required'],
             index: true,
         },
+        categoryId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Category',
+            required: [true, 'Category ID is required'],
+            index: true,
+        },
         name: {
             type: String,
-            required: [true, 'Category name is required'],
+            required: [true, 'SubCategory name is required'],
             trim: true,
         },
         slug: {
@@ -62,16 +68,16 @@ const categorySchema = new mongoose.Schema(
     }
 );
 
-// Uniqueness: name unique per pcategory
-categorySchema.index({ pcategoryId: 1, name: 1 }, { unique: true });
-// Performance: optimizes filtered list queries by pcategoryId + isActive + order
-categorySchema.index({ pcategoryId: 1, isActive: 1, order: 1 });
+// Uniqueness: name unique per category
+subCategorySchema.index({ categoryId: 1, name: 1 }, { unique: true });
+// Performance: optimizes filtered list queries by categoryId + isActive + order
+subCategorySchema.index({ categoryId: 1, isActive: 1, order: 1 });
 
-categorySchema.pre('save', function (next) {
+subCategorySchema.pre('save', function (next) {
     if (this.isModified('name')) {
         this.slug = slugify(this.name, { lower: true, strict: true });
     }
     next();
 });
 
-export default mongoose.model('Category', categorySchema);
+export default mongoose.model('SubCategory', subCategorySchema);

@@ -13,293 +13,6 @@ import crypto from "crypto";
 import redis from "../../config/redis.config.js";
 
 
-// const calculateVendorSplit = async (cartItems) => {
-//     const vendorMap = new Map();
-
-//     for (const item of cartItems) {
-//         const product = item.variant.productId; // populated
-//         const vendorId = product.createdBy.toString();
-
-//         if (!vendorMap.has(vendorId)) {
-//             vendorMap.set(vendorId, []);
-//         }
-//         vendorMap.get(vendorId).push(item);
-//     }
-
-//     const splitdata = [];
-//     let grandTotal = 0;
-
-//     for (const [vendorId, items] of vendorMap) {
-//         const billSummary = await calculateBillSummary(items);
-//         splitdata.push({
-//             vendorId,
-//             items,
-//             billSummary
-//         });
-//         grandTotal += billSummary.grandTotal;
-//     }
-
-//     return { splitdata, grandTotal };
-// };
-
-
-// export const createOrder = async (req, res, next) => {
-//     const session = await mongoose.startSession();
-//     session.startTransaction();
-//     try {
-//         const userId = req.user._id;
-//         const { shippingAddress, paymentMethod } = req.body;
-
-//         if (!shippingAddress || !paymentMethod) {
-//             return next(new APIError(400, "Shipping address and payment method required"));
-//         }
-
-//         // 1. Get Cart
-//         const cart = await Cart.findOne({ userId }).populate({
-//             path: "items.variant",
-//             populate: {
-//                 path: "productId",
-//                 model: "Product"
-//             }
-//         }).session(session);
-
-//         if (!cart || cart.items.length === 0) {
-//             return next(new APIError(400, "Cart is empty"));
-//         };
-//         for (const item of cart.items) {
-//             if (item.quantity > item.variant.stock) {
-//                 return next(new APIError(400, `Out of stock: ${item.variant.productId.name}`));
-//             }
-//         };
-//         const { splitdata, grandTotal } = await calculateVendorSplit(cart.items);
-
-//         let masterOrder;
-//         const subOrders = [];
-//         let transactionId = null;
-
-//         const allItemsSnapshot = cart.items.map(item => ({
-//             product: item.variant.productId._id,
-//             variant: item.variant._id,
-//             price: item.unitPrice,
-//             quantity: item.quantity,
-//         }));
-
-//         if (paymentMethod === "COD") {
-//             masterOrder = new Order({
-//                 userId,
-//                 items: allItemsSnapshot,
-//                 totalAmount: grandTotal,
-//                 netAmount: splitdata.reduce((total, data) => total + data.billSummary.itemsTotal, 0),
-//                 shippingAddress,
-//                 status: "CONFIRMED",
-//                 paymentStatus: "UNPAID",
-//                 paymentMethod: "COD",
-//                 orderType: "MASTER",
-//             });
-//             await masterOrder.save({ session });
-
-//             const transaction = new Transaction({
-//                 userId,
-//                 orderId: masterOrder._id,
-//                 amount: grandTotal,
-//                 paymentMethod: "COD",
-//                 status: "PENDING",
-//                 walletPurpose: "ORDER_PAYMENT"
-//             });
-//             await transaction.save({ session });
-//             transactionId = transaction._id;
-
-//             masterOrder.transactionId = transactionId;
-//             await masterOrder.save({ session });
-
-//             for (const data of splitdata) {
-//                 const order = new Order({
-//                     userId,
-//                     items: data.items.map(item => ({
-//                         product: item.variant.productId._id,
-//                         variant: item.variant._id,
-//                         price: item.unitPrice,
-//                         quantity: item.quantity,
-//                     })),
-//                     vandorId: data.vendorId,
-//                     totalAmount: data.billSummary.grandTotal,
-//                     netAmount: data.billSummary.itemsTotal,
-//                     shippingAddress,
-//                     status: "CONFIRMED",
-//                     paymentStatus: "UNPAID",
-//                     paymentMethod: "COD",
-//                     orderType: "SUB",
-//                     parentId: masterOrder._id,
-//                     transactionId
-//                 });
-//                 await order.save({ session });
-//                 subOrders.push(order);
-
-//                 for (const item of data.items) {
-//                     await Variant.findByIdAndUpdate(item.variant._id, {
-//                         $inc: { stock: -item.quantity, sold: item.quantity }
-//                     }, { session });
-//                     await Product.findByIdAndUpdate(item.variant.productId._id, {
-//                         $inc: { sold: item.quantity }
-//                     }, { session });
-//                 }
-//             }
-
-//         } else if (paymentMethod === "WALLET") {
-//             const wallet = await Wallet.findOne({ userId }).session(session);
-//             console.log(userId);
-//             console.log(wallet);
-//             if (!wallet || wallet.balance < grandTotal) {
-//                 return next(new APIError(400, "Insufficient wallet balance"));
-//             }
-
-//             wallet.balance -= grandTotal;
-//             await wallet.save({ session });
-
-//             masterOrder = new Order({
-//                 userId,
-//                 items: allItemsSnapshot,
-//                 totalAmount: grandTotal,
-//                 netAmount: splitdata.reduce((total, data) => total + data.billSummary.itemsTotal, 0),
-//                 shippingAddress,
-//                 status: "CONFIRMED",
-//                 paymentStatus: "PAID",
-//                 paymentMethod: "WALLET",
-//                 orderType: "MASTER",
-//             });
-//             await masterOrder.save({ session });
-
-//             const transaction = new Transaction({
-//                 userId,
-//                 orderId: masterOrder._id,
-//                 amount: grandTotal,
-//                 paymentMethod: "WALLET",
-//                 status: "SUCCESS",
-//                 payType: "DEBIT",
-//                 walletPurpose: "ORDER_PAYMENT"
-//             });
-//             await transaction.save({ session });
-//             transactionId = transaction._id;
-
-//             masterOrder.transactionId = transactionId;
-//             await masterOrder.save({ session });
-
-//             for (const data of splitdata) {
-//                 const order = new Order({
-//                     userId,
-//                     items: data.items.map(item => ({
-//                         product: item.variant.productId._id,
-//                         variant: item.variant._id,
-//                         price: item.unitPrice,
-//                         quantity: item.quantity,
-//                     })),
-//                     vandorId: data.vendorId,
-//                     totalAmount: data.billSummary.grandTotal,
-//                     shippingAddress,
-//                     status: "CONFIRMED",
-//                     paymentStatus: "PAID",
-//                     paymentMethod: "WALLET",
-//                     transactionId,
-//                     orderType: "SUB",
-//                     parentId: masterOrder._id
-//                 });
-//                 await order.save({ session });
-//                 subOrders.push(order);
-
-//                 for (const item of data.items) {
-//                     await Variant.findByIdAndUpdate(item.variant._id, {
-//                         $inc: { stock: -item.quantity, sold: item.quantity }
-//                     }, { session });
-//                     await Product.findByIdAndUpdate(item.variant.productId._id, {
-//                         $inc: { sold: item.quantity }
-//                     }, { session });
-//                 }
-//             }
-
-//         } else if (paymentMethod === "ONLINE") {
-//             const options = {
-//                 amount: (grandTotal * 100), // paise
-//                 currency: "INR",
-//                 receipt: `receipt_${Date.now()}`
-//             };
-
-//             const razorpayOrder = await razorpayInstance.orders.create(options);
-
-//             masterOrder = new Order({
-//                 userId,
-//                 items: allItemsSnapshot,
-//                 totalAmount: grandTotal,
-//                 netAmount: grandTotal,
-//                 shippingAddress,
-//                 status: "PENDING",
-//                 paymentStatus: "UNPAID",
-//                 paymentMethod: "ONLINE",
-//                 orderType: "MASTER",
-//                 transactionRef: razorpayOrder.id // Store RP Order ID on Master
-//             });
-//             await masterOrder.save({ session });
-
-//             for (const data of splitdata) {
-//                 const order = new Order({
-//                     userId,
-//                     items: data.items.map(item => ({
-//                         product: item.variant.productId._id,
-//                         variant: item.variant._id,
-//                         price: item.unitPrice,
-//                         quantity: item.quantity,
-//                     })),
-//                     vandorId: data.vendorId,
-//                     totalAmount: data.billSummary.grandTotal,
-//                     shippingAddress,
-//                     status: "PENDING",
-//                     paymentStatus: "UNPAID",
-//                     paymentMethod: "ONLINE",
-//                     orderType: "SUB",
-//                     parentId: masterOrder._id,
-//                     transactionRef: razorpayOrder.id
-//                 });
-//                 await order.save({ session });
-//                 subOrders.push(order);
-//             }
-
-//             await session.commitTransaction();
-//             session.endSession();
-
-//             return res.status(200).json({
-//                 success: true,
-//                 message: "Razorpay order created",
-//                 razorpayOrder,
-//                 masterOrderId: masterOrder._id,
-//                 subOrderIds: subOrders.map(o => o._id)
-//             });
-//         } else {
-//             return next(new APIError(400, "Invalid payment method"));
-//         }
-
-//         // Clear Cart for COD/WALLET
-//         if (paymentMethod !== "ONLINE") {
-//             cart.items = [];
-//             cart.totalAmount = 0;
-//             await cart.save({ session });
-//         }
-
-//         await session.commitTransaction();
-//         session.endSession();
-
-//         res.status(201).json({
-//             success: true,
-//             message: "Order created successfully",
-//             masterOrder,
-//             subOrders
-//         });
-
-//     } catch (error) {
-//         await session.abortTransaction();
-//         session.endSession();
-//         next(error);
-//     }
-// };
-
 const calculateVendorSplit = async (cartItems) => {
     const vendorMap = new Map();
 
@@ -568,88 +281,6 @@ export const createOrder = async (req, res, next) => {
         next(error);
     }
 };
-
-
-
-// export const verifyPayment = async (req, res, next) => {
-//     const session = await mongoose.startSession();
-//     session.startTransaction();
-//     try {
-//         const {
-//             razorpay_order_id,
-//             razorpay_payment_id,
-//             razorpay_signature
-//         } = req.body;
-//         const userId = req.user.id;
-
-//         const generated_signature = crypto
-//             .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-//             .update(razorpay_order_id + "|" + razorpay_payment_id)
-//             .digest("hex");
-
-//         if (generated_signature !== razorpay_signature) {
-//             return next(new APIError(400, "Payment verification failed"));
-//         }
-
-//         const masterOrder = await Order.findOne({ transactionRef: razorpay_order_id, orderType: "MASTER" }).session(session);
-
-//         if (!masterOrder) {
-//             return next(new APIError(404, "Master order not found for this payment"));
-//         }
-
-//         const subOrders = await Order.find({ parentId: masterOrder._id }).session(session);
-
-//         const transaction = new Transaction({
-//             userId,
-//             orderId: masterOrder._id,
-//             amount: masterOrder.totalAmount,
-//             paymentMethod: "ONLINE",
-//             status: "SUCCESS",
-//             razorpayOrderId: razorpay_order_id,
-//             razorpayPaymentId: razorpay_payment_id,
-//             razorpaySignature: razorpay_signature,
-//         });
-//         await transaction.save({ session });
-
-//         masterOrder.status = "CONFIRMED";
-//         masterOrder.paymentStatus = "PAID";
-//         masterOrder.transactionId = transaction._id;
-//         await masterOrder.save({ session });
-//         for (const order of subOrders) {
-//             order.status = "CONFIRMED";
-//             order.paymentStatus = "PAID";
-//             order.transactionId = transaction._id;
-//             await order.save({ session });
-
-//             for (const item of order.items) {
-//                 await Variant.findByIdAndUpdate(item.variant, {
-//                     $inc: { stock: -item.quantity, sold: item.quantity }
-//                 }, { session });
-//                 await Product.findByIdAndUpdate(item.product, {
-//                     $inc: { sold: item.quantity }
-//                 }, { session });
-//             }
-//         }
-
-//         await Cart.findOneAndUpdate({ userId }, { items: [], totalAmount: 0 }, { session });
-
-//         await session.commitTransaction();
-//         session.endSession();
-
-//         res.status(200).json({
-//             success: true,
-//             message: "Payment verified and orders placed",
-//             masterOrder,
-//             subOrders
-//         });
-
-//     } catch (error) {
-//         await session.abortTransaction();
-//         session.endSession();
-//         next(error);
-//     }
-// };
-
 
 export const verifyPayment = async (req, res, next) => {
     const session = await mongoose.startSession();
@@ -1038,7 +669,7 @@ export const vendorUpdateOrder = async (req, res, next) => {
     session.startTransaction();
 
     try {
-        const vandorId = "6996b112fc8b2eec3d5e47e5";
+        const vandorId = req.user._id;
         const { subOrderId } = req.params;
         const { action, reason } = req.body;
 
@@ -1291,7 +922,6 @@ export const adminGetAllOrders = async (req, res, next) => {
             }
         };
 
-        // Cache for 2 minutes (shorter than user cache since admin data changes more)
         await redis.set(cacheKey, JSON.stringify(response), "EX", 120);
         res.status(200).json(response);
     } catch (error) {
@@ -1313,12 +943,11 @@ export const updateSingleProductStatus = async (req, res, next) => {
 
     try {
         const { subOrderId, variantId, status } = req.body;
-        // const vendorId = req.user._id;
+        const vendorId = req.user._id;
 
-        const vendorId = "6996b112fc8b2eec3d5e47e5";
+        // const vendorId = "6996b112fc8b2eec3d5e47e5";
         console.log(subOrderId, variantId, status, vendorId);
 
-        // ── 1. Validate input ─────────────────────────────────────────────────
         if (!subOrderId || !variantId || !status) {
             throw new APIError(400, "subOrderId, variantId, and status are all required");
         }
@@ -1329,7 +958,6 @@ export const updateSingleProductStatus = async (req, res, next) => {
             );
         }
 
-        // ── 2. Find the sub-order (must belong to this vendor) ────────────────
         const subOrder = await Order.findOne({
             _id: subOrderId,
             orderType: "SUB",
@@ -1339,8 +967,6 @@ export const updateSingleProductStatus = async (req, res, next) => {
         if (!subOrder) {
             throw new APIError(404, "Sub-order not found or you do not have access to it");
         }
-
-        // ── 3. Verify the item (variant) exists in this sub-order ─────────────
         const variantObjectId = new mongoose.Types.ObjectId(variantId);
         const itemExists = subOrder.items.some((it) => it.variant?.equals(variantObjectId));
 
@@ -1351,7 +977,6 @@ export const updateSingleProductStatus = async (req, res, next) => {
             );
         }
 
-        // ── 4. Update only that item's status inside the sub-order ───────────
         await Order.updateOne(
             { _id: subOrderId },
             { $set: { "items.$[elem].status": status } },
@@ -1361,7 +986,7 @@ export const updateSingleProductStatus = async (req, res, next) => {
             }
         );
 
-        // ── 5. Re-read updated sub-order items → resolve sub-order status ─────
+        
         const updatedSubOrder = await Order.findById(subOrderId, { items: 1, parentId: 1, userId: 1 }).session(session);
         const itemStatuses = [...new Set(updatedSubOrder.items.map((it) => it.status))];
         const newSubStatus = itemStatuses.length === 1 ? itemStatuses[0] : "MULTI_STATE";
@@ -1372,7 +997,6 @@ export const updateSingleProductStatus = async (req, res, next) => {
             { session }
         );
 
-        // ── 6. Re-read ALL sub-orders of parent → resolve master status ───────
         const masterOrderId = updatedSubOrder.parentId;
 
         const allSubOrders = await Order.find(
@@ -1380,7 +1004,6 @@ export const updateSingleProductStatus = async (req, res, next) => {
             { status: 1 }
         ).session(session);
 
-        // Replace the current sub-order's old status with the newly computed one
         const siblingStatuses = [
             ...new Set(
                 allSubOrders.map((s) =>
@@ -1393,7 +1016,6 @@ export const updateSingleProductStatus = async (req, res, next) => {
         const masterUpdate = { status: newMasterStatus };
         if (newMasterStatus === "DELIVERED") masterUpdate.deliveredDate = new Date();
 
-        // Update matching item status inside master order
         await Order.updateOne(
             { _id: masterOrderId },
             { $set: { "items.$[elem].status": status } },

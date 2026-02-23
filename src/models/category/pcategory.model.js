@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import slugify from 'slugify';
 
-const categorySchema = new mongoose.Schema(
+const pcategorySchema = new mongoose.Schema(
     {
         moduleId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -9,15 +9,9 @@ const categorySchema = new mongoose.Schema(
             required: [true, 'Module ID is required'],
             index: true,
         },
-        pcategoryId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Pcategory',
-            required: [true, 'Parent Category ID is required'],
-            index: true,
-        },
         name: {
             type: String,
-            required: [true, 'Category name is required'],
+            required: [true, 'Pcategory name is required'],
             trim: true,
         },
         slug: {
@@ -29,11 +23,6 @@ const categorySchema = new mongoose.Schema(
         image: {
             type: String,
             default: '',
-        },
-        brandId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Brand',
-            default: null,
         },
         order: {
             type: Number,
@@ -62,16 +51,16 @@ const categorySchema = new mongoose.Schema(
     }
 );
 
-// Uniqueness: name unique per pcategory
-categorySchema.index({ pcategoryId: 1, name: 1 }, { unique: true });
-// Performance: optimizes filtered list queries by pcategoryId + isActive + order
-categorySchema.index({ pcategoryId: 1, isActive: 1, order: 1 });
+// Uniqueness: name unique per module
+pcategorySchema.index({ moduleId: 1, name: 1 }, { unique: true });
+// Performance: optimizes filtered list queries by moduleId + isActive + order
+pcategorySchema.index({ moduleId: 1, isActive: 1, order: 1 });
 
-categorySchema.pre('save', function (next) {
+pcategorySchema.pre('save', function (next) {
     if (this.isModified('name')) {
         this.slug = slugify(this.name, { lower: true, strict: true });
     }
     next();
 });
 
-export default mongoose.model('Category', categorySchema);
+export default mongoose.model('Pcategory', pcategorySchema);
