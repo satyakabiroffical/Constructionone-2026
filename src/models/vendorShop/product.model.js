@@ -186,9 +186,9 @@ const productSchema = new mongoose.Schema(
       index: true,
     },
 
-    user: {
+    vendorId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "vendorProfile",
     },
   },
   { timestamps: true },

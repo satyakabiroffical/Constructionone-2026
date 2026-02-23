@@ -6,28 +6,28 @@ export class APIError extends Error {
   constructor(statusCode, message, isOperational = true, details = null) {
     super(message);
     this.statusCode = statusCode;
-    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
+    this.status = `${statusCode}`.startsWith("4") ? "fail" : "error";
     this.isOperational = isOperational;
     this.details = details;
     this.timestamp = new Date().toISOString();
-    
+
     // Capture stack trace
     Error.captureStackTrace(this, this.constructor);
   }
-  
+
   // Static methods for common errors
-  static badRequest(message = 'Bad Request', details = null) {
+  static badRequest(message = "Bad Request", details = null) {
     return new APIError(400, message, true, details);
   }
-  
+
   static unauthorized(message = 'Unauthorized') {
     return new APIError(401, message);
   }
-  
+
   static notFound(message = 'Resource not found') {
     return new APIError(404, message);
   }
-  
+
   static internal(message = 'Internal Server Error', details = null) {
     return new APIError(500, message, false, details);
   }
@@ -38,27 +38,54 @@ export const errorHandler = (err, req, res, next) => {
   // Default error response
   const errorResponse = {
     success: false,
-    status: err.status || 'error',
-    message: err.message || 'Something went wrong',
+    status: err.status || "error",
+    message: err.message || "Something went wrong",
     timestamp: new Date().toISOString(),
     path: req.originalUrl,
-    method: req.method
+    method: req.method,
   };
 
   // Add error details in development
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === "development") {
     errorResponse.error = {
       name: err.name,
       stack: err.stack,
-      details: err.details
+      details: err.details,
     };
   }
 
-  // Log the error (uncomment if needed)
-  // logger.error({
-  //   ...errorResponse,
-  //   user: req.user?.id || 'anonymous'
-  // });
+  // Log all errors to the logger
+  logger.error({
+    ...errorResponse,
+    user: req.user?.id || 'anonymous',
+  });
+
+  // Handle Mongoose operational errors
+  if (err.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      status: 'fail',
+      message: `Invalid ${err.path}: ${err.value}`,
+    });
+  }
+
+  if (err.code === 11000) {
+    const value = err.errmsg ? err.errmsg.match(/(["'])(\\?.)*?\1/)[0] : 'Duplicate field';
+    return res.status(400).json({
+      success: false,
+      status: 'fail',
+      message: `Duplicate field value: ${value}. Please use another value!`,
+    });
+  }
+
+  if (err.name === 'ValidationError') {
+    const errors = Object.values(err.errors).map(el => el.message);
+    return res.status(400).json({
+      success: false,
+      status: 'fail',
+      message: `Invalid input data. ${errors.join('. ')}`,
+    });
+  }
 
   // Send response
   res.status(err.statusCode || 500).json(errorResponse);
@@ -78,5 +105,5 @@ export default {
   APIError,
   errorHandler,
   notFoundHandler,
-  catchAsync
+  catchAsync,
 };

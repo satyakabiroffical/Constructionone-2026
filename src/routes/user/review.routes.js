@@ -1,5 +1,8 @@
 import { Router } from "express";
-import { addReview, getProductReviews } from "../../controllers/user/review.controller.js";
+import {
+  addReview,
+  getProductReviews,
+} from "../../controllers/user/review.controller.js";
 import { reviewValidation } from "../../validations/user/review.validation.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js"; // Assuming auth middleware exists
 import { validateRequest } from "../../middlewares/validation.js"; // Assuming validation result middleware exists

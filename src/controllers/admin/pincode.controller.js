@@ -32,7 +32,7 @@ static async bulkCreatePincodes(req, res, next) {
       throw new APIError("pincodes array is required", 400);
     }
 
-    // ✅ prepare documents automatically
+    // prepare documents automatically
     const docs = pincodes.map((code) => ({
       code,
       countryId,

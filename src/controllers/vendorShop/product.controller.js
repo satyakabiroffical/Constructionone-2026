@@ -9,6 +9,7 @@ class ProductController {
   static async getProducts(req, res, next) {
     try {
       //  versioned cache key (important)
+
       const cacheKey = `products:v1:${JSON.stringify(req.query)}`;
 
       const cached = await RedisCache.get(cacheKey);
@@ -48,7 +49,7 @@ class ProductController {
 
       const result = {
         status: "success",
-        message: "Products retrieved successfully",
+        message: "Products retrieved successfully ",
         results: products.length,
         data: { products },
       };
@@ -186,6 +187,9 @@ class ProductController {
       //  support normal form-data (CHANGED)
       let productData = { ...req.body };
 
+      //  prevent client from spoofing vendor
+      delete productData.vendorId;
+
       // parse shippingCharges from form-data
       if (typeof productData.shippingCharges === "string") {
         try {
@@ -216,7 +220,6 @@ class ProductController {
 
       // HANDLE FILES
       const uploadedImages = req.files?.images?.map((f) => f.location) || [];
-
       const uploadedThumbnail = req.files?.thumbnail?.[0]?.location || null;
 
       if (uploadedImages.length) {
@@ -227,12 +230,13 @@ class ProductController {
         productData.thumbnail = uploadedThumbnail;
       }
 
-      // CREATE PRODUCT
+      // ✅ CREATE PRODUCT (FIXED)
       const productArr = await Product.create(
         [
           {
             ...productData,
-            createdBy: req.user?.id,
+            vendorId: req.user.id,
+            // ✅ correct owner
           },
         ],
         { session },
@@ -280,9 +284,11 @@ class ProductController {
           subcategoryId: product.subcategoryId,
           brandId: product.brandId,
 
-          createdBy: req.user?.id,
+          // ✅ FIXED vendor ownership
+          vendorId: req.user.id,
         };
       });
+
       // BULK CREATE VARIANTS
       const createdVariants = await Variant.insertMany(preparedVariants, {
         session,
@@ -313,7 +319,6 @@ class ProductController {
       next(err);
     }
   }
-
   // UPDATE PRODUCT
 
   static async updateProduct(req, res, next) {

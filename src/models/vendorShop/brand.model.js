@@ -60,10 +60,10 @@ const brandSchema = new mongoose.Schema(
       ref: "User",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-//  compound index for fast filtering
+//compound index for fast filtering
 brandSchema.index({
   moduleId: 1,
   pcategoryId: 1,
