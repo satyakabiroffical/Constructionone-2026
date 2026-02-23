@@ -23,8 +23,9 @@ router.use("/v1", marketplaceRoutes);
 router.use("/v1", rentalRoutes);
 router.use("/v1", serviceProviderRoutes);
 
-//  Public routes MUST be mounted BEFORE adminRoutes
-// adminRoutes has a global requireAuth gate that catches all /v1/* requests
+//Public routes MUST be mounted BEFORE adminRoutes
+//adminRoutes has a global requireAuth gate that catches all /v1/* requests
+
 router.use("/v1/banners", publicBannerRoutes);
 router.use("/v1", adminRoutes);
 router.use("/v1", notificationRoutes);

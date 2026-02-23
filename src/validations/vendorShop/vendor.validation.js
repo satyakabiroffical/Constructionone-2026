@@ -60,20 +60,38 @@ export const vendorCompanyValidation = [
   body("serviceArea.selectedStates")
     .notEmpty()
     .withMessage("Selected states are required")
-    .isArray()
+    .customSanitizer((value) => {
+      if (typeof value === "string") {
+        return value.split(",").map((v) => v.trim());
+      }
+      return value;
+    })
+    .isArray({ min: 1 })
     .withMessage("Selected states must be an array"),
 
   body("serviceArea.selectedCities")
     .notEmpty()
     .withMessage("Selected cities are required")
-    .isArray()
+    .customSanitizer((value) => {
+      if (typeof value === "string") {
+        return value.split(",").map((v) => v.trim());
+      }
+      return value;
+    })
+    .isArray({ min: 1 })
     .withMessage("Selected cities must be an array"),
 
   body("serviceArea.PinCodes")
     .notEmpty()
-    .withMessage("Pin codes are required")
-    .isArray()
-    .withMessage("Pin codes must be an array"),
+    .withMessage("PinCodes are required")
+    .customSanitizer((value) => {
+      if (typeof value === "string") {
+        return value.split(",").map((v) => v.trim());
+      }
+      return value;
+    })
+    .isArray({ min: 1 })
+    .withMessage("PinCodes must be an array"),
 
   body("companyRegistrationNumber")
     .trim()

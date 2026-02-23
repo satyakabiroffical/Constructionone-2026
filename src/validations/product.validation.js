@@ -7,7 +7,7 @@ export const createProductWithVariantSchema = Joi.object({
   stock: Joi.number().optional(),
   sku: Joi.string().allow("", null),
 
-  // ✅ DO NOT require auto-injected fields
+  //  DO NOT require auto-injected fields
   moduleId: Joi.string().optional(),
   pcategoryId: Joi.string().optional(),
   categoryId: Joi.string().optional(),
