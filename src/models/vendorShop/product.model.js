@@ -136,6 +136,11 @@ const productSchema = new mongoose.Schema(
       trim: true,
     },
 
+    defaultVariantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Variant",
+    },
+
     preferredPayementMethod: {
       type: String,
       enum: [
@@ -179,16 +184,10 @@ const productSchema = new mongoose.Schema(
       type: Number,
       min: 0,
     },
-
-    defaultVariantId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Variant",
-      index: true,
-    },
-
     vendorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "vendorProfile",
+      index: true,
     },
   },
   { timestamps: true },

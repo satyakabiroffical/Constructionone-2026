@@ -6,6 +6,8 @@ import RedisCache from "../../utils/redisCache.js";
 import { calculateDiscount } from "../../utils/priceCalculator.js";
 
 class ProductController {
+
+  
   static async getProducts(req, res, next) {
     try {
       //  versioned cache key (important)
@@ -38,7 +40,6 @@ class ProductController {
       });
 
       //  FAST QUERY
-
       const products = await Product.find(query)
         .populate("brandId", "name")
         .populate("defaultVariantId")
@@ -62,6 +63,7 @@ class ProductController {
       next(err);
     }
   }
+
   //  CREATE PRODUCT
 
   //  static async createProduct(req, res, next) {

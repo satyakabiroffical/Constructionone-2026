@@ -11,6 +11,14 @@ import pcategoryRoutes from "./pcategory.routes.js";
 import categoryRoutes from "./category.routes.js";
 import subCategoryRoutes from "./subCategory.routes.js";
 import bannerRoutes from "./banner.routes.js";
+// import adminRoutes from "./admin.routes.js";
+// import companyRoutes from "./company.routes.js";
+// import faqRoutes from "./faq.routes.js";
+// import platformModuleRoutes from "./platformModule.routes.js";
+// import pcategoryRoutes from "./pcategory.routes.js";
+// import categoryRoutes from "./category.routes.js";
+// import subCategoryRoutes from "./subCategory.routes.js";
+// import bannerRoutes from "./banner.routes.js";
 
 const router = Router();
 

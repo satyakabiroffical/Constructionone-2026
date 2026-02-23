@@ -19,6 +19,7 @@ import {
   removeMultipleBadgesByAdmin,
   updateUpsertVendorInfo,
   updateUpsertVendorCompanyInfo,
+  getAllProducts,
 } from "../../controllers/vendorShop/vendor.controller.js";
 import { adminMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
 import { validateRequest } from "../../middlewares/validation.js";
@@ -84,6 +85,8 @@ router.put(
   ]),
   updateUpsertVendorCompanyInfo,
 );
+
+router.get("/products", vendorMiddleware, getAllProducts);
 
 // --------------admin api's---------
 router.get("/all", adminMiddleware, getAllVendors); //with pagination and limit and also search - name / email / phoneNumber / disable / varified filter

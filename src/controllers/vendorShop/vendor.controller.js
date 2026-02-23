@@ -11,6 +11,7 @@ const MAX_OTP_ATTEMPTS = 3;
 const COOLDOWN_PERIOD = 50 * 1000;
 import { APIError } from "../../middlewares/errorHandler.js";
 import productModel from "../../models/vendorShop/product.model.js";
+import RedisCache from "../../utils/redisCache.js";
 //vendor auth
 export const vendorAuth = async (req, res) => {
   try {
@@ -293,11 +294,11 @@ export const verifyAadharOtp = async (req, res) => {
         phoneNumber: vendor.phoneNumber,
         email: vendor.email,
         isAadharVerified: vendor.isAadharVerified,
-        isAdminVerified: vendor.isVerified,
-        uploadId: vendor.uploadId,
+        isAdminVerified: vendor.isAdminVerified,
+        isProfileCompleted: vendor.isProfileCompleted,
         governmentIdNumber: vendor.governmentIdNumber,
-        uploadId: vendor.uploadId,
         governmentIdType: vendor.governmentIdType,
+        uploadId: vendor.uploadId,
       },
     });
   } catch (error) {
@@ -427,6 +428,7 @@ export const upsertVendorInfo = async (req, res) => {
       },
       { new: true },
     );
+
     return res.status(200).json({
       success: true,
       message: "Vendor details saved successfully",
@@ -441,6 +443,10 @@ export const upsertVendorInfo = async (req, res) => {
 };
 export const getVendorProfile = async (req, res, next) => {
   try {
+    const cacheKey = `vendor:v1:${JSON.stringify(req.query)}`;
+    const cached = await RedisCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const vendorProfileId = req.user.id;
     const vendor = await VendorCompany.findOne({ vendorId: vendorProfileId })
       .populate({
@@ -456,7 +462,7 @@ export const getVendorProfile = async (req, res, next) => {
         message: "Vendor not found",
       });
     }
-
+    await RedisCache.set(cacheKey, vendor);
     return res.status(200).json({
       success: true,
       data: vendor,
@@ -488,7 +494,7 @@ export const updateUpsertVendorInfo = async (req, res) => {
     const vendorProfileInfo = await VendorProfile.findByIdAndUpdate(
       vendorProfileId,
       { $set: updateFields },
-      { new: true },
+      { new: true, select: "-aadharOtp -phoneOtp" },
     );
 
     return res.status(200).json({
@@ -600,6 +606,8 @@ export const logoutVendor = async (req, res, next) => {
     // invalidate token
     user.token = null;
     await user.save();
+    const cacheKey = `vendor:v1:${JSON.stringify({})}`;
+    await RedisCache.del(cacheKey);
     res.status(200).json({
       success: true,
       message: "Logout successful",
@@ -609,7 +617,7 @@ export const logoutVendor = async (req, res, next) => {
   }
 };
 
-//vendorShop
+//vendor add Shop details
 export const upsertVendorCompanyInfo = async (req, res) => {
   try {
     const { vendorId, ...companyData } = req.body;
@@ -639,6 +647,7 @@ export const upsertVendorCompanyInfo = async (req, res) => {
     const vendor = await VendorProfile.findById(vendorId);
     vendor.isProfileCompleted = true;
     await vendor.save();
+
     return res.status(200).json({
       success: true,
       message: "Company details saved successfully",
@@ -651,6 +660,7 @@ export const upsertVendorCompanyInfo = async (req, res) => {
     });
   }
 };
+//update Shop details
 export const updateUpsertVendorCompanyInfo = async (req, res) => {
   try {
     const vendorId = req.user.id;
@@ -681,7 +691,8 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
     await VendorProfile.findByIdAndUpdate(vendorId, {
       $set: { isProfileCompleted: true },
     });
-
+    const cacheKey = `vendor:v1:${JSON.stringify({})}`;
+    await RedisCache.del(cacheKey);
     return res.status(200).json({
       success: true,
       message: "Company details saved successfully",
@@ -695,13 +706,112 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
   }
 };
 
-export const getAllProducts = async (req, res) => {
+export const getAllProducts = async (req, res, next) => {
   try {
-    const products = await productModel.findById();
-  } catch (error) {}
+    const vendorId = req.user.id;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const filter = { vendorId };
+
+    if (req.query.search) {
+      filter.name = { $regex: req.query.search, $options: "i" };
+    }
+
+    // Boolean filters
+    if (req.query.varified !== undefined) {
+      filter.varified = req.query.varified === "true";
+    }
+
+    if (req.query.disable !== undefined) {
+      filter.disable = req.query.disable === "true";
+    }
+
+    if (req.query.avgRating) {
+      filter.avgRating = { $gte: parseFloat(req.query.avgRating) };
+    }
+
+    if (req.query.pcategoryId) {
+      filter.pcategoryId = req.query.pcategoryId;
+    }
+
+    if (req.query.categoryId) {
+      filter.categoryId = req.query.categoryId;
+    }
+
+    if (req.query.subcategoryId) {
+      filter.subcategoryId = req.query.subcategoryId;
+    }
+
+    if (req.query.brandId) {
+      filter.brandId = req.query.brandId;
+    }
+
+    // // Location filters
+    // if (req.query.city) {
+    //   filter.city = req.query.city;
+    // }
+
+    // if (req.query.state) {
+    //   filter.state = req.query.state;
+    // }
+
+    // Sorting
+    const sortOptions = {
+      latest: { createdAt: -1 },
+      oldest: { createdAt: 1 },
+      topRated: { avgRating: -1 },
+      mostSold: { sold: -1 },
+    };
+
+    const sort = sortOptions[req.query.sort] || { createdAt: -1 };
+    const [totalProducts, products] = await Promise.all([
+      productModel.countDocuments(filter),
+      productModel
+        .find(filter)
+        .populate("pcategoryId", "name")
+        .populate("categoryId", "name")
+        .populate("subcategoryId", "name")
+        .populate("brandId", "name")
+        .populate("defaultVariantId")
+        .skip(skip)
+        .limit(limit)
+        .sort(sort),
+    ]);
+
+    if (!totalProducts) {
+      return res.status(404).json({
+        success: false,
+        message: "No products found",
+      });
+    }
+
+    if (!products.length) {
+      return res.status(404).json({
+        success: false,
+        message: `Page ${page} does not exist`,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Products fetched successfully",
+      data: products,
+      pagination: {
+        totalProducts,
+        totalPages: Math.ceil(totalProducts / limit),
+        currentPage: page,
+        limit,
+        hasNextPage: page < Math.ceil(totalProducts / limit),
+        hasPrevPage: page > 1,
+      },
+    });
+  } catch (error) {
+    next(new APIError(500, error.message));
+  }
 };
 
-//admin access
 export const getAllVendors = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -709,6 +819,11 @@ export const getAllVendors = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const { search, isAdminVerified, sort, disable } = req.query;
+
+    const cacheKey = `vendors:all:v1:${JSON.stringify({ page, limit, search, isAdminVerified, sort, disable })}`;
+    const cached = await RedisCache.get(cacheKey);
+    if (cached) return res.status(200).json(cached);
+
     const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const safeSearch = search ? escapeRegex(search) : null;
 
@@ -790,6 +905,7 @@ export const getAllVendors = async (req, res) => {
     ]);
 
     // ---------------- Response ----------------
+    await RedisCache.set(cacheKey, response);
     return res.status(200).json({
       success: true,
       pagination: {
@@ -811,6 +927,11 @@ export const getAllVendors = async (req, res) => {
 export const getVendorById = async (req, res) => {
   try {
     const { vendorId } = req.params;
+
+    const cacheKey = `vendor:id:v1:${vendorId}`;
+    const cached = await RedisCache.get(cacheKey);
+    if (cached) return res.status(200).json(cached);
+
     const vendor = await VendorCompany.findOne({ vendorId })
       .populate({
         path: "vendorId",
@@ -824,6 +945,8 @@ export const getVendorById = async (req, res) => {
         message: "Vendor not found",
       });
     }
+    const response = { success: true, data: vendor };
+    await RedisCache.set(cacheKey, response);
 
     return res.status(200).json({
       success: true,
@@ -980,7 +1103,6 @@ export const disableVendorStatus = async (req, res, next) => {
     next(error);
   }
 };
-
 //dynamic-otp
 const generateOtp = () => {
   return Number(

@@ -8,29 +8,41 @@ export const authMiddleware = async (req, res, next) => {
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Not authenticated" });
   }
+
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = await jwt.verify(token, process.env.JWT_SECRET);
-    const user = await userModel.findById(decoded.id);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (!user) {
-      return res.status(404).send({
+    // Query both models simultaneously
+    const [user, vendor] = await Promise.all([
+      userModel.findById(decoded.id),
+      VendorProfile.findById(decoded.id),
+    ]);
+
+    const account = user || vendor;
+    const accountType = user ? "user" : vendor ? "vendor" : null;
+
+    if (!account) {
+      return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: "Account not found",
       });
     }
 
-    if (user.disable === true) {
-      return res.status(403).send({
+    if (account.disable === true) {
+      return res.status(403).json({
         success: false,
         message: "Your account has been disabled. Contact admin.",
       });
     }
+
     req.user = {
       id: decoded.id,
-      role: decoded.role || "",
+      role: decoded.role || accountType,
+      accountType,
     };
+
     next();
   } catch (error) {
     return res.status(401).json({ message: "Invalid or expired token" });
