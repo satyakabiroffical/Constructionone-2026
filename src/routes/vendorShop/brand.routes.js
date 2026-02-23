@@ -5,11 +5,11 @@ import {
   createBrandSchema,
   updateBrandSchema,
 } from "../../validations/brand.validation.js";
-
 import { requireAuth } from "../../middlewares/auth.middleware.js";
+
 const router = Router();
 
-// Base: /api/v1/material/brands
+// Base: /api/v1/material
 
 router.get("/brands", requireAuth, BrandController.getBrands);
 router.get("/brands/:id", requireAuth, BrandController.getBrand);
@@ -18,14 +18,21 @@ router.post(
   "/brands",
   requireAuth,
   validate(createBrandSchema),
-  BrandController.createBrand,
+  BrandController.createBrand
 );
 
 router.patch(
   "/brands/:id",
   requireAuth,
   validate(updateBrandSchema),
-  BrandController.updateBrand,
+  BrandController.updateBrand
+);
+
+//  toggle enable/disable
+router.patch(
+  "/brands/:id/toggle-status",
+  requireAuth,
+  BrandController.toggleBrandStatus
 );
 
 router.delete("/brands/:id", requireAuth, BrandController.deleteBrand);

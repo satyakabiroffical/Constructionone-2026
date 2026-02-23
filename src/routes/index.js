@@ -14,7 +14,10 @@ import notificationRoutes from "./notification.routes.js";
 import brandRoutes from "./vendorShop/brand.routes.js";
 import productRoutes from "./vendorShop/product.routes.js";
 import variantRoutes from "./vendorShop/variant.routes.js";
-
+import countryRoutes from "./admin/country.routes.js";
+import statRoutes from "./admin/state.routes.js";
+import cityRoutes from "./admin/city.routes.js";
+import pincodeRoutes from "./admin/pincode.routes.js";
 const router = Router();
 
 // global route gateway
@@ -30,6 +33,10 @@ router.use("/v1", adminRoutes);
 router.use("/v1", exampleRoutes);
 router.use("/v1", notificationRoutes);
 
+router.use("/v1", countryRoutes);
+router.use("/v1", statRoutes);
+router.use("/v1", cityRoutes);
+router.use("/v1", pincodeRoutes);
 router.use("/v1/material", brandRoutes);
 router.use("/v1/material", productRoutes);
 router.use("/v1/material", variantRoutes);

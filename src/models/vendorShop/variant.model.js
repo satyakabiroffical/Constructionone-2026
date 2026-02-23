@@ -60,6 +60,13 @@ const variantSchema = new mongoose.Schema(
       index: true,
     },
 
+    discountAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+      index: true,
+    },
+
     size: {
       type: String,
       trim: true,
@@ -79,17 +86,23 @@ const variantSchema = new mongoose.Schema(
       enum: ["BULK", "RETAIL"],
     },
 
-    moq: {
-      type: Number,
-      min: 1,
-      default: null, // Only applicable for BULK variants
-    },
-
     disable: {
       type: Boolean,
       default: false,
     },
 
+    moq: {
+      type: Number,
+      default: 0,
+    },
+
+    packageWeight: {
+      type: Number,
+    },
+
+    packageDimensions: {
+      type: String,
+    },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

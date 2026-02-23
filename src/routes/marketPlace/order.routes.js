@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createOrder, verifyPayment, getAllOrders, getOrdersByVendor, cancelOrder, vendorUpdateOrder, getOrderById, updateOrderStatus } from "../../controllers/marketPlace/order.controller.js";
+import { createOrder, verifyPayment, getAllOrders, getOrdersByVendor, cancelOrder, vendorUpdateOrder, getOrderById, updateSingleProductStatus, updateAllProductsStatus } from "../../controllers/marketPlace/order.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";
 
@@ -14,7 +14,8 @@ router.put("/vendor/sub-order/:subOrderId", vendorUpdateOrder);
 
 // Vendor: update sub-order status  →  PUT /order/:orderId/status
 // (vendor sees only their own sub-order; requireRole ensures vendor)
-router.put("/:orderId/status", requireAuth, updateOrderStatus);
+router.put("/vendor/updateSingleProductStatus", updateSingleProductStatus);
+router.put("/vendor/all-items-status",  updateAllProductsStatus);
 
 router.get("/:orderId", requireAuth, getOrderById);
 

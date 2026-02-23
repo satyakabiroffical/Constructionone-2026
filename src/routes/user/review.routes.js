@@ -7,19 +7,19 @@ import { validateRequest } from "../../middlewares/validation.js"; // Assuming v
 const router = Router();
 
 // POST /api/v1/user/reviews - Add a review (Protected)
-router.post(
-    "/",
-    requireAuth,
-    validateRequest(reviewValidation.addReview),
-    addReview
-);
+// router.post(
+//     "/",
+//     requireAuth,
+//     validateRequest(reviewValidation.addReview),
+//     addReview
+// );
 
 // GET /api/v1/user/reviews/:productId - Get reviews for a product (Public or Protected?)
 // Usually public
-router.get(
-    "/:productId",
-    validateRequest(reviewValidation.getReviews),
-    getProductReviews
-);
+// router.get(
+//     "/:productId",
+//     validateRequest(reviewValidation.getReviews),
+//     getProductReviews
+// );
 
 export default router;

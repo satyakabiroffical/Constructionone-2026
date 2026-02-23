@@ -62,7 +62,8 @@ export const submitReturnRequest = async (req, res, next) => {
 
         if (!masterOrder) throw new APIError(404, "Order not found");
 
-        if (masterOrder.status !== "DELIVERED") {
+        const returnableStatuses = ["DELIVERED", "MULTI_STATE"];
+        if (!returnableStatuses.includes(masterOrder.status)) {
             throw new APIError(
                 400,
                 `Return requests can only be raised for delivered orders. Current status: "${masterOrder.status}"`
@@ -76,15 +77,20 @@ export const submitReturnRequest = async (req, res, next) => {
             );
         }
 
-        // ── 4. Duplicate active return check ──────────────────────────────────
-        const existing = await ReturnRequest.findOne({
+        const requestedVariantIds = items.map((i) => new mongoose.Types.ObjectId(i.variant.toString()));
+
+        const conflictingReturn = await ReturnRequest.findOne({
             orderId,
             userId,
             status: { $in: ["PENDING", "APPROVED", "PICKUP_SCHEDULED", "REFUND_INITIATED"] },
+            "items.variant": { $in: requestedVariantIds },
         }).session(session);
 
-        if (existing) {
-            throw new APIError(409, "A return request for this order is already in progress");
+        if (conflictingReturn) {
+            throw new APIError(
+                409,
+                "One or more selected items already have an active return request in progress"
+            );
         }
 
         const subOrders = await Order.find({
@@ -96,7 +102,6 @@ export const submitReturnRequest = async (req, res, next) => {
             throw new APIError(500, "Sub-orders not found for this order");
         }
 
-        // Map: variantId → { vandorId, subOrderId, returnInDays, price, orderedQty, product }
         const variantMetaMap = new Map();
         for (const sub of subOrders) {
             for (const oi of sub.items) {
@@ -178,8 +183,6 @@ export const submitReturnRequest = async (req, res, next) => {
             entry.refundAmount += meta.price * Number(reqItem.quantity);
         }
 
-        // ── 8. Create one ReturnRequest per vendor (insertMany — atomic) ───────
-        // Use a shared masterReturnId to link them all together
         const masterReturnId = new mongoose.Types.ObjectId();
 
         const returnDocs = [...vendorMap.values()].map((v) => ({
@@ -196,17 +199,74 @@ export const submitReturnRequest = async (req, res, next) => {
 
         const createdReturns = await ReturnRequest.insertMany(returnDocs, { session });
 
-        // ── 9. Mark master order as RETURN_REQUESTED ──────────────────────────
+        const returnedVariantObjectIds = items.map(
+            (i) => new mongoose.Types.ObjectId(i.variant.toString())
+        );
+
         await Order.updateOne(
             { _id: orderId },
-            { $set: { status: "RETURN_REQUESTED" } },
+            { $set: { "items.$[elem].status": "RETURN_REQUESTED" } },
+            {
+                session,
+                arrayFilters: [{ "elem.variant": { $in: returnedVariantObjectIds } }],
+            }
+        );
+
+        const affectedSubOrderIds = [...vendorMap.values()].map((v) => v.subOrderId);
+
+        await Order.updateMany(
+            { _id: { $in: affectedSubOrderIds } },
+            { $set: { "items.$[elem].status": "RETURN_REQUESTED" } },
+            {
+                session,
+                arrayFilters: [{ "elem.variant": { $in: returnedVariantObjectIds } }],
+            }
+        );
+
+        const affectedSubOrders = await Order.find(
+            { _id: { $in: affectedSubOrderIds } },
+            { items: 1, status: 1 }
+        ).session(session);
+
+        const subStatusUpdates = affectedSubOrders.map((sub) => {
+            const itemStatuses = [...new Set(sub.items.map((it) => it.status))];
+            const newSubStatus = itemStatuses.length === 1 ? itemStatuses[0] : "MULTI_STATE";
+            return { id: sub._id, status: newSubStatus };
+        });
+
+        for (const upd of subStatusUpdates) {
+            await Order.updateOne(
+                { _id: upd.id },
+                { $set: { status: upd.status } },
+                { session }
+            );
+        }
+
+        const allSubOrders = await Order.find(
+            { parentId: orderId, orderType: "SUB" },
+            { status: 1, _id: 0 }
+        ).session(session);
+
+        const subStatusMap = new Map(subStatusUpdates.map((u) => [u.id.toString(), u.status]));
+        const finalSubStatuses = allSubOrders.map((s) =>
+            subStatusMap.has(s._id?.toString()) ? subStatusMap.get(s._id.toString()) : s.status
+        );
+
+        const uniqueMasterStatuses = [...new Set(finalSubStatuses)];
+        const newMasterStatus = uniqueMasterStatuses.length === 1
+            ? uniqueMasterStatuses[0]
+            : "MULTI_STATE";
+
+        await Order.updateOne(
+            { _id: orderId },
+            { $set: { status: newMasterStatus } },
             { session }
         );
+
 
         await session.commitTransaction();
         session.endSession();
 
-        // ── 10. Invalidate user order cache ───────────────────────────────────
         const userKeys = await redis.keys(`orders:user:${userId}:*`);
         if (userKeys.length) await redis.del(userKeys);
 

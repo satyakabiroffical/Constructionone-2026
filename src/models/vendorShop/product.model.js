@@ -89,16 +89,10 @@ const productSchema = new mongoose.Schema(
       default: 0,
     },
 
-    leadTime: {
-      type: Number,
-      default: 7,      // days from order date to expected delivery
-      min: 1,
-    },
-
     returnDays: {
       type: Number,
-      default: 7,      // how many days after delivery the customer can return
-      min: 0,          // 0 = not returnable
+      default: 7,   // days after delivery within which return is allowed
+      min: 0,       // 0 = product is not returnable
     },
 
     disable: {
