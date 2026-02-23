@@ -8,7 +8,6 @@ export const authMiddleware = async (req, res, next) => {
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Not authenticated" });
   }
-
   const token = authHeader.split(" ")[1];
 
   try {
@@ -41,7 +40,6 @@ export const authMiddleware = async (req, res, next) => {
 export const vendorMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Not authenticated" });
     }
@@ -67,7 +65,7 @@ export const vendorMiddleware = async (req, res, next) => {
   }
 };
 
-export const adminMiddleware = async (req, res, nest) => {
+export const adminMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Not authenticated" });
@@ -77,7 +75,11 @@ export const adminMiddleware = async (req, res, nest) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // attach user to request
+    const user = await userModel.findById(decoded.id);
+    if (user.role !== "ADMIN" && user.role !== "SUB_ADMIN") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     req.user = {
       id: decoded.id,
       role: decoded.role,
@@ -87,3 +89,4 @@ export const adminMiddleware = async (req, res, nest) => {
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
+

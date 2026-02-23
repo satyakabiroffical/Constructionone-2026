@@ -13,9 +13,6 @@ import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";
 
 const router = express.Router();
-// Protect all routes
-router.use(requireAuth);
-// User routes (Me)
 router.get("/me", getMe);
 router.put("/me", updateMe);
 

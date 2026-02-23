@@ -20,7 +20,6 @@ router.use('/admin', adminRoutes);
 
 // All routes below are fully protected — requireAuth + ADMIN role enforced here
 router.use(requireAuth, requireRole('ADMIN'));
-
 router.use('/admin/platform-modules', platformModuleRoutes);
 router.use('/admin/pcategories', pcategoryRoutes);
 router.use('/admin/categories', categoryRoutes);

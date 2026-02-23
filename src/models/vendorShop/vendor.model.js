@@ -1,3 +1,4 @@
+//asgr
 import mongoose from "mongoose";
 
 const vendorProfile = new mongoose.Schema(
@@ -78,6 +79,7 @@ const vendorCompany = new mongoose.Schema(
       PinCodes: [String],
     },
     companyRegistrationNumber: { type: String },
+
     businessAddress: {
       address: String,
       city: String,
@@ -96,13 +98,12 @@ const vendorCompany = new mongoose.Schema(
     ifscCode: { type: String },
     accountType: {
       type: String,
-      enum: ["SBI", "BOB", "UNION BANK", "HDFC", "ICICI", "Axis", "Other"],
+      enum: ["Saving", "Current", "NRO", "NRE", "Other"],
       default: "Other",
     },
     upiId: { type: String },
     shopImages: [String],
     certificates: [String],
-    cancelledCheque: { type: String },
     cancelledCheque: { type: String },
     companyWebsiteURl: { type: String },
     badges: [
@@ -116,7 +117,7 @@ const vendorCompany = new mongoose.Schema(
           "TRUSTED SELLER",
           "ADMIN PICK",
         ],
-        default: ["TRUSTED SELLER"],
+        default: [""],
       },
     ],
   },

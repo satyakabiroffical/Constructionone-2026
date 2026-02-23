@@ -1,3 +1,4 @@
+//asgr
 import {
   VendorProfile,
   VendorCompany,
@@ -9,310 +10,8 @@ import https from "https";
 const MAX_OTP_ATTEMPTS = 3;
 const COOLDOWN_PERIOD = 50 * 1000;
 import { APIError } from "../../middlewares/errorHandler.js";
-
-export const getVendorProfile = async (req, res, next) => {
-  try {
-    const vendorProfileId = req.user.id;
-    const vendor = await VendorCompany.findOne({ vendorId: vendorProfileId })
-      .populate({
-        path: "vendorId",
-        select: "-password -phoneOtp -aadharOtp -__v",
-      })
-      .select("-__v")
-      .lean();
-
-    if (!vendor) {
-      return res.status(404).json({
-        success: false,
-        message: "Vendor not found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: vendor,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-const assignAutoBadges = async (vendor) => {
-  
-  const badges = new Set(vendor.badges || []);
-  if (vendor.totalOrders >= 500) badges.add("MOST_SOLD");
-  if (vendor.averageDeliveryTime <= 24) badges.add("FAST_DELIVERY");
-  if (vendor.avgRating >= 4.5) badges.add("TOP_VENDOR");
-  if (vendor.pastQualityDisputes === false) badges.add("TRUSTED_SELLER");
-
-  if (
-    badges.has("MOST_SOLD") &&
-    badges.has("FAST_DELIVERY") &&
-    vendor.rating >= 4.5
-  ) {
-    badges.add("TOP_VENDOR");
-  }
-
-  vendor.badges = Array.from(badges);
-};
-
-// ------------admin ------------
-export const getAllVendors = async (req, res) => {
-  try {
-    // ---------------- Pagination ----------------
-    const page = Math.max(parseInt(req.query.page) || 1, 1);
-    const limit = Math.min(parseInt(req.query.limit) || 10, 100);
-    const skip = (page - 1) * limit;
-
-    const { search, isAdminVerified, sort } = req.query;
-    const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-    const safeSearch = search ? escapeRegex(search) : null;
-
-    // ---------------- Vendor (User) Search ----------------
-    const vendorUserQuery = {};
-    if (safeSearch) {
-      vendorUserQuery.$or = [
-        { firstName: { $regex: safeSearch, $options: "i" } },
-        { lastName: { $regex: safeSearch, $options: "i" } },
-        { email: { $regex: safeSearch, $options: "i" } },
-        { phoneNumber: { $regex: safeSearch, $options: "i" } },
-      ];
-    }
-
-    if (isAdminVerified !== undefined) {
-      vendorUserQuery.isAdminVerified = isAdminVerified === "true";
-    }
-    // ---------------- Fetch matching Vendor IDs ----------------
-    let vendorIds = [];
-    if (Object.keys(vendorUserQuery).length > 0) {
-      const vendors = await VendorProfile.find(vendorUserQuery).select("_id");
-      vendorIds = vendors.map((v) => v._id);
-    }
-    const query = {};
-    if (safeSearch) {
-      query.$or = [{ companyName: { $regex: safeSearch, $options: "i" } }];
-
-      if (vendorIds.length > 0) {
-        query.$or.push({ vendorId: { $in: vendorIds } });
-      }
-    } else if (vendorIds.length > 0) {
-      query.vendorId = { $in: vendorIds };
-    } else if (isAdminVerified !== undefined) {
-      return res.status(200).json({
-        success: true,
-        pagination: {
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-        },
-        data: [],
-      });
-    }
-
-    // ---------------- Sorting ----------------
-    let sortQuery = { createdAt: -1 };
-    if (sort === "oldest") {
-      sortQuery = { createdAt: 1 };
-    }
-
-    // ---------------- DB Queries ----------------
-    const [vendors, total] = await Promise.all([
-      VendorCompany.find(query)
-        .populate({
-          path: "vendorId",
-          select: "-password -phoneOtp -aadharOtp -__v",
-        })
-        .sort(sortQuery)
-        .skip(skip)
-        .limit(limit),
-      VendorCompany.countDocuments(query),
-    ]);
-
-    // ---------------- Response ----------------
-    return res.status(200).json({
-      success: true,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-      data: vendors,
-    });
-  } catch (error) {
-    console.error("Get Vendors Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-export const getVendorById = async (req, res) => {
-  try {
-    const vendor = await VendorCompany.findById(req.params.id);
-
-    if (!vendor) {
-      return res.status(404).json({
-        success: false,
-        message: "Vendor not found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: vendor,
-    });
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid vendor ID",
-    });
-  }
-};
-export const verifyVendorByAdmin = async (req, res, next) => {
-  try {
-    const { vendorId } = req.params;
-
-    if (!vendorId) {
-      return res.status(400).json({
-        success: false,
-        message: "vendorId is required",
-      });
-    }
-
-    // Check vendor exists
-    const vendor = await VendorProfile.findById(vendorId);
-
-    if (!vendor) {
-      return next(APIError(403, "Vendor is not admin verified"));
-    }
-
-    // Already verified
-    if (vendor.isAdminVerified === true) {
-      return res.status(200).json({
-        success: true,
-        message: "Vendor already admin verified",
-      });
-    }
-
-    // Update admin verification
-    vendor.isAdminVerified = true;
-    await vendor.save();
-    return res.status(200).json({
-      success: true,
-      message: "Vendor admin verified successfully",
-      data: {
-        vendorId: vendor._id,
-        isAdminVerified: vendor.isAdminVerified,
-      },
-    });
-  } catch (error) {
-    next(APIError(500, error.message));
-  }
-};
-export const addMultipleBadgesByAdmin = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { badges } = req.body;
-
-    if (!Array.isArray(badges) || badges.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Badges array is required",
-      });
-    }
-
-    const vendor = await VendorCompany.findByIdAndUpdate(
-      id,
-      {
-        $addToSet: {
-          badges: { $each: badges },
-        },
-      },
-      { new: true, runValidators: true },
-    );
-
-    if (!vendor) {
-      return res.status(404).json({
-        success: false,
-        message: "Vendor not found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Badges added successfully",
-      data: vendor.badges,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-export const removeMultipleBadgesByAdmin = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { badges } = req.body;
-
-    if (!Array.isArray(badges) || badges.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Badges array is required",
-      });
-    }
-
-    const vendor = await Vendor.findByIdAndUpdate(
-      id,
-      {
-        $pull: {
-          badges: { $in: badges },
-        },
-      },
-      { new: true, runValidators: true },
-    );
-
-    if (!vendor) {
-      return res.status(404).json({
-        success: false,
-        message: "Vendor not found",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Badges removed successfully",
-      data: vendor.badges,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-//disable / eneble
-export const disableVendorStatus = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const vendor = await VendorProfile.findById(id);
-
-    if (!vendor) {
-      return res.status(404).json({
-        success: false,
-        message: "Vendor not found",
-      });
-    }
-    vendor.disable = !vendor.disable;
-    await vendor.save();
-
-    return res.status(200).json({
-      success: true,
-      message: `Vendor status toggled to ${vendor.disable ? "active" : "inactive"}`,
-      data: vendor,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// --------------vendor-----------
+import productModel from "../../models/vendorShop/product.model.js";
+//vendor auth
 export const vendorAuth = async (req, res) => {
   try {
     const { phoneNumber } = req.body;
@@ -433,10 +132,10 @@ export const verifyOtp = async (req, res) => {
 
     const safeUser = {
       id: user._id,
-      phoneNumber: user.phoneNumber,
-      isVerified: user.isVerified,
       firstName: user.firstName,
       lastName: user.lastName,
+      phoneNumber: user.phoneNumber,
+      isAdminVerified: user.isAdminVerified,
       isAadharVerified: user.isAadharVerified,
       isProfileCompleted: user.isProfileCompleted,
     };
@@ -523,161 +222,8 @@ export const resendOtp = async (req, res, next) => {
     });
   }
 };
-export const loginWithPhone = async (req, res) => {
-  try {
-    const { phoneNumber } = req.body;
-    if (!phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        error: "Phone number is required",
-      });
-    }
-    const phoneValidation = validatePhone(phoneNumber);
-    if (!phoneValidation.valid) {
-      return res.status(400).json({
-        success: false,
-        error: phoneValidation.error,
-      });
-    }
 
-    const validatedPhone = phoneValidation.normalized;
-
-    const user = await VendorProfile.findOne({ phoneNumber: validatedPhone });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found. Please register first.",
-      });
-    }
-    const now = new Date();
-    let attempts = user.phoneOtp?.attempts || 0;
-    const lastSentAt = user.phoneOtp?.lastSentAt
-      ? new Date(user.phoneOtp.lastSentAt)
-      : null;
-
-    if (attempts >= MAX_OTP_ATTEMPTS && lastSentAt) {
-      const diff = now - lastSentAt;
-
-      if (diff < COOLDOWN_PERIOD) {
-        const waitTime = Math.ceil((COOLDOWN_PERIOD - diff) / 1000);
-        return res.status(429).json({
-          success: false,
-          error: `OTP limit reached. Please wait ${waitTime} seconds`,
-        });
-      }
-
-      attempts = 0;
-    }
-
-    // const otp = generateOtp();
-    const otp = 1234; // For testing purposes, replace with generateOtp() in production
-    const hashedOtp = await bcrypt.hash(String(otp), 10);
-    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
-
-    // setImmediate(() => {
-    //   sendOtpViaMSG91(validatedPhone, otp).catch(() => {});
-    // });
-
-    user.phoneOtp = {
-      codeHash: hashedOtp,
-      expiresAt,
-      attempts: attempts + 1,
-      lastSentAt: now,
-    };
-
-    await user.save();
-    const remainingAttempts = MAX_OTP_ATTEMPTS - (attempts + 1);
-
-    return res.status(200).json({
-      success: true,
-      message: "OTP sent successfully",
-      remainingAttempts,
-      ...(remainingAttempts === 0 && {
-        note: "OTP limit reached. Try again after cooldown.",
-      }),
-    });
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: err.message,
-    });
-  }
-};
-export const logoutVendor = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const user = await VendorProfile.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // invalidate token
-    user.token = null;
-    await user.save();
-    res.status(200).json({
-      success: true,
-      message: "Logout successful",
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-export const upsertVendorInfo = async (req, res) => {
-  try {
-    const vendorProfileId = req.user.id;
-    const { firstName, lastName, email, governmentIdNumber, governmentIdType } =
-      req.body;
-
-    if (!req.files || !req.files.uploadId) {
-      return res.status(400).json({
-        success: false,
-        error: "Upload ID document is required",
-      });
-    }
-
-    const uploadIdPath = req.files.uploadId[0].location;
-
-    const otp = 1234; //For testing purposes, replace with generateOtp() in production
-    const hashedOtp = await bcrypt.hash(otp.toString(), 10);
-
-    const aadharOtpData = {
-      codeHash: hashedOtp,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min
-      attempts: 1,
-      lastSentAt: new Date(),
-    };
-
-    const vendorProfileInfo = await VendorProfile.findByIdAndUpdate(
-      vendorProfileId,
-      {
-        $set: {
-          uploadId: uploadIdPath,
-          aadharOtp: aadharOtpData,
-          firstName,
-          lastName,
-          email,
-          governmentIdNumber,
-          governmentIdType,
-        },
-      },
-      { new: true },
-    );
-    return res.status(200).json({
-      success: true,
-      message: "Vendor details saved successfully",
-      data: vendorProfileInfo,
-    });
-  } catch (e) {
-    return res.status(500).json({
-      success: false,
-      error: e.message,
-    });
-  }
-};
+//aadhar-varification
 export const verifyAadharOtp = async (req, res) => {
   try {
     const { vendorId } = req.params;
@@ -839,6 +385,231 @@ export const resendAadharOtp = async (req, res) => {
     });
   }
 };
+
+//vendorProfile
+export const upsertVendorInfo = async (req, res) => {
+  try {
+    const vendorProfileId = req.user.id;
+    const { firstName, lastName, email, governmentIdNumber, governmentIdType } =
+      req.body;
+
+    if (!req.files || !req.files.uploadId) {
+      return res.status(400).json({
+        success: false,
+        error: "Upload ID document is required",
+      });
+    }
+
+    const uploadIdPath = req.files.uploadId[0].location;
+
+    const otp = 1234; //For testing purposes, replace with generateOtp() in production
+    const hashedOtp = await bcrypt.hash(otp.toString(), 10);
+
+    const aadharOtpData = {
+      codeHash: hashedOtp,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min
+      attempts: 1,
+      lastSentAt: new Date(),
+    };
+
+    const vendorProfileInfo = await VendorProfile.findByIdAndUpdate(
+      vendorProfileId,
+      {
+        $set: {
+          uploadId: uploadIdPath,
+          aadharOtp: aadharOtpData,
+          firstName,
+          lastName,
+          email,
+          governmentIdNumber,
+          governmentIdType,
+        },
+      },
+      { new: true },
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Vendor details saved successfully",
+      data: vendorProfileInfo,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      error: e.message,
+    });
+  }
+};
+export const getVendorProfile = async (req, res, next) => {
+  try {
+    const vendorProfileId = req.user.id;
+    const vendor = await VendorCompany.findOne({ vendorId: vendorProfileId })
+      .populate({
+        path: "vendorId",
+        select: "-password -phoneOtp -aadharOtp -__v",
+      })
+      .select("-__v")
+      .lean();
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: vendor,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const updateUpsertVendorInfo = async (req, res) => {
+  try {
+    const vendorProfileId = req.user.id;
+    const { firstName, lastName, email, governmentIdNumber, governmentIdType } =
+      req.body;
+
+    // Sirf wo fields lo jo actually bheje gaye hain
+    const updateFields = {};
+
+    if (firstName) updateFields.firstName = firstName;
+    if (lastName) updateFields.lastName = lastName;
+    if (email) updateFields.email = email;
+    if (governmentIdNumber)
+      updateFields.governmentIdNumber = governmentIdNumber;
+    if (governmentIdType) updateFields.governmentIdType = governmentIdType;
+
+    if (req.files && req.files.uploadId) {
+      updateFields.uploadId = req.files.uploadId[0].location;
+    }
+
+    const vendorProfileInfo = await VendorProfile.findByIdAndUpdate(
+      vendorProfileId,
+      { $set: updateFields },
+      { new: true },
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Vendor details updated successfully",
+      data: vendorProfileInfo,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      error: e.message,
+    });
+  }
+};
+
+//login
+export const loginWithPhone = async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        error: "Phone number is required",
+      });
+    }
+    const phoneValidation = validatePhone(phoneNumber);
+    if (!phoneValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: phoneValidation.error,
+      });
+    }
+
+    const validatedPhone = phoneValidation.normalized;
+
+    const user = await VendorProfile.findOne({ phoneNumber: validatedPhone });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found. Please register first.",
+      });
+    }
+    const now = new Date();
+    let attempts = user.phoneOtp?.attempts || 0;
+    const lastSentAt = user.phoneOtp?.lastSentAt
+      ? new Date(user.phoneOtp.lastSentAt)
+      : null;
+
+    if (attempts >= MAX_OTP_ATTEMPTS && lastSentAt) {
+      const diff = now - lastSentAt;
+
+      if (diff < COOLDOWN_PERIOD) {
+        const waitTime = Math.ceil((COOLDOWN_PERIOD - diff) / 1000);
+        return res.status(429).json({
+          success: false,
+          error: `OTP limit reached. Please wait ${waitTime} seconds`,
+        });
+      }
+
+      attempts = 0;
+    }
+
+    // const otp = generateOtp();
+    const otp = 1234; // For testing purposes, replace with generateOtp() in production
+    const hashedOtp = await bcrypt.hash(String(otp), 10);
+    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
+
+    // setImmediate(() => {
+    //   sendOtpViaMSG91(validatedPhone, otp).catch(() => {});
+    // });
+
+    user.phoneOtp = {
+      codeHash: hashedOtp,
+      expiresAt,
+      attempts: attempts + 1,
+      lastSentAt: now,
+    };
+
+    await user.save();
+    const remainingAttempts = MAX_OTP_ATTEMPTS - (attempts + 1);
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent successfully",
+      remainingAttempts,
+      ...(remainingAttempts === 0 && {
+        note: "OTP limit reached. Try again after cooldown.",
+      }),
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+};
+export const logoutVendor = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const user = await VendorProfile.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // invalidate token
+    user.token = null;
+    await user.save();
+    res.status(200).json({
+      success: true,
+      message: "Logout successful",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//vendorShop
 export const upsertVendorCompanyInfo = async (req, res) => {
   try {
     const { vendorId, ...companyData } = req.body;
@@ -880,7 +651,337 @@ export const upsertVendorCompanyInfo = async (req, res) => {
     });
   }
 };
+export const updateUpsertVendorCompanyInfo = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+    const { ...companyData } = req.body;
 
+    if (req.files) {
+      if (req.files.shopImages) {
+        companyData.shopImages = req.files.shopImages.map(
+          (file) => file.location,
+        );
+      }
+      if (req.files.certificates) {
+        companyData.certificates = req.files.certificates.map(
+          (file) => file.location,
+        );
+      }
+      if (req.files.cancelledCheque) {
+        companyData.cancelledCheque = req.files.cancelledCheque[0].location;
+      }
+    }
+
+    const updatedCompany = await VendorCompany.findOneAndUpdate(
+      { vendorId },
+      { $set: companyData },
+      { new: true, upsert: true },
+    );
+
+    await VendorProfile.findByIdAndUpdate(vendorId, {
+      $set: { isProfileCompleted: true },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Company details saved successfully",
+      data: updatedCompany,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      error: e.message,
+    });
+  }
+};
+
+export const getAllProducts = async (req, res) => {
+  try {
+    const products = await productModel.findById();
+  } catch (error) {}
+};
+
+//admin access
+export const getAllVendors = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+    const skip = (page - 1) * limit;
+
+    const { search, isAdminVerified, sort, disable } = req.query;
+    const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const safeSearch = search ? escapeRegex(search) : null;
+
+    // ---------------- Vendor (User) Search ----------------
+    const vendorUserQuery = {};
+
+    if (safeSearch) {
+      vendorUserQuery.$or = [
+        { firstName: { $regex: safeSearch, $options: "i" } },
+        { lastName: { $regex: safeSearch, $options: "i" } },
+        { email: { $regex: safeSearch, $options: "i" } },
+        { phoneNumber: { $regex: safeSearch, $options: "i" } },
+      ];
+    }
+
+    if (isAdminVerified !== undefined) {
+      vendorUserQuery.isAdminVerified = isAdminVerified === "true";
+    }
+
+    if (disable !== undefined) {
+      vendorUserQuery.disable = disable === "true";
+    }
+    // ---------------- Fetch matching Vendor IDs ----------------
+    let vendorIds = [];
+    if (Object.keys(vendorUserQuery).length > 0) {
+      const vendors = await VendorProfile.find(vendorUserQuery).select("_id");
+      vendorIds = vendors.map((v) => v._id);
+
+      if (
+        (disable !== undefined || isAdminVerified !== undefined) &&
+        vendorIds.length === 0
+      ) {
+        return res.status(200).json({
+          success: true,
+          pagination: { total: 0, page, limit, totalPages: 0 },
+          data: [],
+        });
+      }
+    }
+    const query = {};
+    if (safeSearch) {
+      query.$or = [{ companyName: { $regex: safeSearch, $options: "i" } }];
+
+      if (vendorIds.length > 0) {
+        query.$or.push({ vendorId: { $in: vendorIds } });
+      }
+    } else if (vendorIds.length > 0) {
+      query.vendorId = { $in: vendorIds };
+    } else if (isAdminVerified !== undefined) {
+      return res.status(200).json({
+        success: true,
+        pagination: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+        data: [],
+      });
+    }
+
+    // ---------------- Sorting ----------------
+    let sortQuery = { createdAt: -1 };
+    if (sort === "oldest") {
+      sortQuery = { createdAt: 1 };
+    }
+
+    // ---------------- DB Queries ----------------
+    const [vendors, total] = await Promise.all([
+      VendorCompany.find(query)
+        .populate({
+          path: "vendorId",
+          select: "-password -phoneOtp -aadharOtp -__v",
+        })
+        .sort(sortQuery)
+        .skip(skip)
+        .limit(limit),
+      VendorCompany.countDocuments(query),
+    ]);
+
+    // ---------------- Response ----------------
+    return res.status(200).json({
+      success: true,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      data: vendors,
+    });
+  } catch (error) {
+    console.error("Get Vendors Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const getVendorById = async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const vendor = await VendorCompany.findOne({ vendorId })
+      .populate({
+        path: "vendorId",
+        select: "-password -phoneOtp -aadharOtp -__v",
+      })
+      .lean();
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: vendor,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid vendor ID",
+    });
+  }
+};
+export const verifyVendorByAdmin = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+
+    if (!vendorId) {
+      return res.status(400).json({
+        success: false,
+        message: "vendorId is required",
+      });
+    }
+
+    // Check vendor exists
+    const vendor = await VendorProfile.findById(vendorId);
+
+    if (!vendor) {
+      return next(APIError(403, "Vendor is not admin verified"));
+    }
+
+    // Already verified
+    if (vendor.isAdminVerified === true) {
+      return res.status(200).json({
+        success: true,
+        message: "Vendor already admin verified",
+      });
+    }
+
+    // Update admin verification
+    vendor.isAdminVerified = true;
+    await vendor.save();
+    return res.status(200).json({
+      success: true,
+      message: "Vendor admin verified successfully",
+      data: {
+        vendorId: vendor._id,
+        isAdminVerified: vendor.isAdminVerified,
+      },
+    });
+  } catch (error) {
+    next(APIError(500, error.message));
+  }
+};
+export const addMultipleBadgesByAdmin = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+    const { badges } = req.body;
+
+    if (!Array.isArray(badges) || badges.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Badges array is required",
+      });
+    }
+    const vendor = await VendorCompany.findOneAndUpdate(
+      { vendorId },
+      {
+        $addToSet: {
+          badges: { $each: badges },
+        },
+      },
+      { new: true, runValidators: true },
+    );
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Badges added successfully",
+      data: vendor.badges,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const removeMultipleBadgesByAdmin = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+    const { badges } = req.body;
+
+    if (!Array.isArray(badges) || badges.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Badges array is required",
+      });
+    }
+
+    const vendor = await VendorCompany.findOneAndUpdate(
+      { vendorId },
+      {
+        $pull: {
+          badges: { $in: badges },
+        },
+      },
+      { new: true, runValidators: true },
+    );
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Badges removed successfully",
+      data: vendor.badges,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+//eneble/disable vendor profile
+export const disableVendorStatus = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+    const vendor = await VendorProfile.findById(vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor not found",
+      });
+    }
+    vendor.disable = !vendor.disable;
+    await vendor.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Vendor status disable ${vendor.disable ? "true" : "false"}`,
+      data: {
+        name: `${vendor.firstName} ${vendor.lastName}`,
+        phoneNumber: vendor.phoneNumber,
+        email: vendor.email,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//dynamic-otp
 const generateOtp = () => {
   return Number(
     otpGenerator.generate(4, {
@@ -890,7 +991,6 @@ const generateOtp = () => {
     }),
   );
 };
-
 const sendOtpViaMSG91 = (mobile, otp) => {
   return new Promise((resolve, reject) => {
     const options = {
@@ -954,4 +1054,23 @@ const validatePhone = (phone) => {
     normalized = cleaned.slice(2);
   }
   return { valid: true, normalized };
+};
+
+//pending
+const assignAutoBadges = async (vendor) => {
+  const badges = new Set(vendor.badges || []);
+  if (vendor.totalOrders >= 500) badges.add("MOST_SOLD");
+  if (vendor.averageDeliveryTime <= 24) badges.add("FAST_DELIVERY");
+  if (vendor.avgRating >= 4.5) badges.add("TOP_VENDOR");
+  if (vendor.pastQualityDisputes === false) badges.add("TRUSTED_SELLER");
+
+  if (
+    badges.has("MOST_SOLD") &&
+    badges.has("FAST_DELIVERY") &&
+    vendor.rating >= 4.5
+  ) {
+    badges.add("TOP_VENDOR");
+  }
+
+  vendor.badges = Array.from(badges);
 };

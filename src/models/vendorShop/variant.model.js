@@ -83,11 +83,23 @@ const variantSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-     
+
+    moq: {
+      type: Number,
+      default: 0,
+    },
+
+    packageWeight: {
+      type: Number,
+    },
+
+    packageDimensions: {
+      type: String,
+    },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "vendorProfile",
     },
   },
   { timestamps: true },

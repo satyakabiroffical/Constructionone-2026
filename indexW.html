@@ -54,7 +54,6 @@
 <script>
 
 async function addMoney() {
-
   const amount = document.getElementById("amount").value;
 
   if (!amount) {
@@ -64,7 +63,7 @@ async function addMoney() {
 
   try {
 
-    // 1️⃣ Call backend to create order
+    // Call backend to create order
     const response = await fetch("http://localhost:3000/api/v1/create-topup", {
       method: "POST",
       headers: {
