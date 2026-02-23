@@ -11,6 +11,7 @@ import pcategoryRoutes from './pcategory.routes.js';
 import categoryRoutes from './category.routes.js';
 import subCategoryRoutes from './subCategory.routes.js';
 import bannerRoutes from './banner.routes.js';
+import homeSectionRoutes from './homeSection.routes.js';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/admin/sub-categories', subCategoryRoutes);
 router.use('/company', companyRoutes);
 router.use('/admin/faqs', faqRoutes);
 router.use('/admin/banners', bannerRoutes);
+router.use('/admin/home-sections', homeSectionRoutes);
 
 export default router;
