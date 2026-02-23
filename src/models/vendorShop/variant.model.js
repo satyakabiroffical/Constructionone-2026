@@ -60,6 +60,13 @@ const variantSchema = new mongoose.Schema(
       index: true,
     },
 
+    discountAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+      index: true,
+    },
+
     size: {
       type: String,
       trim: true,
@@ -103,6 +110,11 @@ const variantSchema = new mongoose.Schema(
     },
   },
   { timestamps: true },
+);
+
+variantSchema.index(
+  { productId: 1, size: 1, Type: 1 },
+  { unique: true, partialFilterExpression: { disable: false } },
 );
 
 // ULTRA IMPORTANT INDEX (for marketplace speed)

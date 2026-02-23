@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose from "mongoose"; //Sanvi
 
 const productSchema = new mongoose.Schema(
   {
@@ -186,7 +186,7 @@ const productSchema = new mongoose.Schema(
       index: true,
     },
 
-    createdBy: {
+    user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
