@@ -905,6 +905,16 @@ export const getAllVendors = async (req, res) => {
     ]);
 
     // ---------------- Response ----------------
+    const response = {
+      success: true,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      data: vendors,
+    };
     await RedisCache.set(cacheKey, response);
     return res.status(200).json({
       success: true,

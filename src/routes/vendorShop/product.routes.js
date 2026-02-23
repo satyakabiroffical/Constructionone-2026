@@ -3,7 +3,7 @@ import ProductController from "../../controllers/vendorShop/product.controller.j
 import validate from "../../middlewares/joiValidation.js";
 import { createProductWithVariantSchema } from "../../validations/product.validation.js";
 import { s3Uploader } from "../../middlewares/uploads.js";
-import { vendorMiddleware } from "../../middlewares/auth.js";
+import { authMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
 const router = Router();
 
 // Base: /api/v1/material/products
@@ -29,7 +29,6 @@ router.put(
   ProductController.updateProduct,
 );
 
-router.get("/product/:id", vendorMiddleware, ProductController.getProductById);
 
 router.patch(
   "/disableProduct/:id",
@@ -42,5 +41,13 @@ router.patch(
   vendorMiddleware,
   ProductController.verifyProduct,
 );
+
+// --------asgar----------flash sale
+router.post("/create-sale/:productId", vendorMiddleware, ProductController.setFlashSale);
+router.put("/cancell-sale/:productId", vendorMiddleware, ProductController.cancelFlashSale);
+router.get("/product/sale", authMiddleware, ProductController.getFlashSaleProducts);
+
+
+router.get("/product/:id", vendorMiddleware, ProductController.getProductById);
 
 export default router;
