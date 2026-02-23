@@ -1,3 +1,6 @@
+/**
+ * Written by Pradeep
+ */
 import * as homeSectionService from '../../services/homeSection.service.js';
 import { catchAsync, APIError } from '../../middlewares/errorHandler.js';
 import { ApiResponse } from '../../utils/ApiResponse.js';
