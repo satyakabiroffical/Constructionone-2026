@@ -25,7 +25,7 @@ export const addToCart = async (req, res, next) => {
     if (!variant) {
       return next(new APIError(404, "Variant not found"));
     }
-    console.log(variant);
+    // console.log(variant);
 
     // const product = await Product.findById(variant.productId);
 
@@ -33,7 +33,7 @@ export const addToCart = async (req, res, next) => {
     let finalQuantity = quantity;
 
     if (variant.Type === "BULK") {
-      const moq = variant.moq;
+      const moq = Number(variant.moq);
 
       if (quantity < moq) {
         return next(
@@ -41,10 +41,9 @@ export const addToCart = async (req, res, next) => {
         );
       }
 
-      // Optional (recommended for bulk)
       if (quantity % moq !== 0) {
         return next(
-          new APIError(400, `Quantity must be multiple of ${moq}`)
+          new APIError(400, `Quantity must be a multiple of MOQ (${moq})`)
         );
       }
     }
@@ -189,10 +188,10 @@ export const getCart = async (req, res, next) => {
 
 export const updateCartItem = async (req, res, next) => {
   try {
-    const { variantId, action } = req.body; 
+    const { variantId, action } = req.body;
     const userId = req.user.id;
 
-    console.log(variantId, action, userId);
+    // console.log(variantId, action, userId);
 
     if (!variantId || !action) {
       return next(new APIError(400, "VariantId and action are required"));
@@ -202,11 +201,11 @@ export const updateCartItem = async (req, res, next) => {
     if (!cart) {
       return next(new APIError(404, "Cart not found"));
     }
-    console.log(cart);
+    // console.log(cart);
     const itemIndex = cart.items.findIndex(
       (item) => item.variant.toString() === variantId
     );
-     
+
     if (itemIndex === -1) {
       return next(new APIError(404, "Item not found in cart"));
     }

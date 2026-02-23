@@ -51,7 +51,7 @@ const productSchema = new mongoose.Schema(
     },
 
     description: String,
-    
+
     images: [String],
 
     sku: {
@@ -89,6 +89,18 @@ const productSchema = new mongoose.Schema(
       default: 0,
     },
 
+    leadTime: {
+      type: Number,
+      default: 7,      // days from order date to expected delivery
+      min: 1,
+    },
+
+    returnDays: {
+      type: Number,
+      default: 7,      // how many days after delivery the customer can return
+      min: 0,          // 0 = not returnable
+    },
+
     disable: {
       type: Boolean,
       default: false,
@@ -99,10 +111,10 @@ const productSchema = new mongoose.Schema(
     },
 
     defaultVariantId: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "Variant",
-  index: true,
-},
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Variant",
+      index: true,
+    },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

@@ -363,6 +363,8 @@ export const createOrder = async (req, res, next) => {
 
         let transactionId = null;
         let razorpayOrder = null;
+        const DeliveryDate = new Date();
+        DeliveryDate.setDate(DeliveryDate.getDate() + 7);
 
         /* ================= ONLINE ================= */
         if (paymentMethod === "ONLINE") {
@@ -380,7 +382,8 @@ export const createOrder = async (req, res, next) => {
 
             const newSession = await mongoose.startSession();
             newSession.startTransaction();
-            console.log("spa" + splitdata.reduce((acc, data) => acc + data.billSummary.itemsTotal, 0));
+            // console.log("spa" + splitdata.reduce((acc, data) => acc + data.billSummary.itemsTotal, 0));
+
             const masterOrder = await Order.create(
                 [
                     {
@@ -393,7 +396,8 @@ export const createOrder = async (req, res, next) => {
                         paymentStatus: "UNPAID",
                         paymentMethod: "ONLINE",
                         orderType: "MASTER",
-                        transactionRef: razorpayOrder.id
+                        transactionRef: razorpayOrder.id,
+                        deliveredDate: DeliveryDate
                     }
                 ],
                 { session: newSession }
@@ -405,7 +409,8 @@ export const createOrder = async (req, res, next) => {
                     product: item.variant.productId._id,
                     variant: item.variant._id,
                     price: item.unitPrice,
-                    quantity: item.quantity
+                    quantity: item.quantity,
+                    returnInDays: item.variant.productId.returnDays ?? 7,
                 })),
                 vandorId: data.vendorId,
                 totalAmount: data.billSummary.grandTotal,
@@ -415,7 +420,8 @@ export const createOrder = async (req, res, next) => {
                 paymentMethod: "ONLINE",
                 orderType: "SUB",
                 parentId: masterOrder[0]._id,
-                transactionRef: razorpayOrder.id
+                transactionRef: razorpayOrder.id,
+                deliveredDate: DeliveryDate
             }));
 
             await Order.insertMany(subOrderDocs, { session: newSession });
@@ -457,7 +463,8 @@ export const createOrder = async (req, res, next) => {
                     status: orderStatus,
                     paymentStatus,
                     paymentMethod,
-                    orderType: "MASTER"
+                    orderType: "MASTER",
+                    deliveredDate: DeliveryDate
                 }
             ],
             { session }
@@ -498,7 +505,8 @@ export const createOrder = async (req, res, next) => {
                 variant: item.variant._id,
                 price: item.unitPrice,
                 quantity: item.quantity,
-                status: "CONFIRMED"
+                status: "CONFIRMED",
+                returnInDays: item.variant.productId.returnDays ?? 7,
             })),
             vandorId: data.vendorId,
             totalAmount: data.billSummary.grandTotal,
@@ -508,7 +516,8 @@ export const createOrder = async (req, res, next) => {
             paymentMethod,
             orderType: "SUB",
             parentId: masterOrder[0]._id,
-            transactionId
+            transactionId,
+            deliveredDate: DeliveryDate
         }));
 
         await Order.insertMany(subOrderDocs, { session });
@@ -1029,7 +1038,7 @@ export const vendorUpdateOrder = async (req, res, next) => {
     session.startTransaction();
 
     try {
-        const vandorId = "6996b112fc8b2eec3d5e47e7";
+        const vandorId = "6996b112fc8b2eec3d5e47e5";
         const { subOrderId } = req.params;
         const { action, reason } = req.body;
 
@@ -1292,5 +1301,151 @@ export const adminGetAllOrders = async (req, res, next) => {
 
 
 
+const VALID_STATUSES = [
+    "PENDING", "CONFIRMED", "SHIPPED", "VENDOR_CONFIRMED",
+    "VENDOR_CANCELLED", "OUT_FOR_DELIVERY", "DELIVERED",
+    "CANCELLED", "RETURNED", "RETURN_REQUESTED",
+];
 
+// Helper — given all sibling sub-orders, decide what master status should be
+const resolveMasterStatus = (subOrders) => {
+    const statuses = [...new Set(subOrders.map((s) => s.status))];
+    return statuses.length === 1 ? statuses[0] : "MULTI_STATE";
+};
 
+export const updateOrderStatus = async (req, res, next) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { orderId } = req.params;
+        const { status, orderType } = req.body;
+
+        // Role determined by middleware — req.user.role = "ADMIN" | "VENDOR"
+        const isAdmin = req.user.role === "ADMIN";
+        const vendorId = !isAdmin ? req.user._id : null;
+
+        // ── 1. Basic validation ───────────────────────────────────────────────
+        if (!status) throw new APIError(400, "status is required");
+        if (!VALID_STATUSES.includes(status)) {
+            throw new APIError(400, `Invalid status. Allowed: ${VALID_STATUSES.join(", ")}`);
+        }
+
+        // Vendor can only set vendor-relevant or delivery statuses
+        if (!isAdmin) {
+            const vendorAllowed = [
+                "VENDOR_CONFIRMED", "VENDOR_CANCELLED",
+                "CONFIRMED", "SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED",
+            ];
+            if (!vendorAllowed.includes(status)) {
+                throw new APIError(403, `Vendors cannot set status to "${status}"`);
+            }
+        }
+
+        // ── 2. Determine path based on caller ─────────────────────────────────
+        const isAdminMasterUpdate = isAdmin && orderType === "MASTER";
+
+        // ══ PATH A: Admin updating from a MASTER order ID ════════════════════
+        if (isAdminMasterUpdate) {
+            const master = await Order.findOne({
+                _id: orderId,
+                orderType: "MASTER",
+            }).session(session);
+
+            if (!master) throw new APIError(404, "Master order not found");
+
+            // Update master
+            const masterUpdate = { status };
+            if (status === "DELIVERED") masterUpdate.deliveredDate = new Date();
+
+            await Order.updateOne(
+                { _id: master._id },
+                { $set: masterUpdate },
+                { session }
+            );
+
+            // Update ALL sub-orders and their item statuses
+            await Order.updateMany(
+                { parentId: master._id, orderType: "SUB" },
+                {
+                    $set: {
+                        status,
+                        "items.$[].status": status,
+                    },
+                },
+                { session }
+            );
+
+            await session.commitTransaction();
+            session.endSession();
+
+            return res.status(200).json({
+                success: true,
+                message: `Master order and all sub-orders updated to "${status}"`,
+                data: { orderId: master._id, status },
+            });
+        }
+
+        // ══ PATH B: Admin (by SUB order ID) or Vendor (always sub order) ═════
+        const subOrderFilter = { _id: orderId, orderType: "SUB" };
+        if (!isAdmin) subOrderFilter.vandorId = vendorId; // vendor can only touch their own
+
+        const subOrder = await Order.findOne(subOrderFilter).session(session);
+        if (!subOrder) throw new APIError(404, "Sub-order not found or access denied");
+
+        // Update sub-order status + all item statuses inside it
+        await Order.updateOne(
+            { _id: subOrder._id },
+            {
+                $set: {
+                    status,
+                    "items.$[].status": status,
+                },
+            },
+            { session }
+        );
+
+        // Fetch all sibling sub-orders (including the one we just updated)
+        const allSubOrders = await Order.find(
+            { parentId: subOrder.parentId, orderType: "SUB" },
+            { status: 1 }
+        ).session(session);
+
+        // Replace the just-updated one in the list with the new status
+        const updatedSiblings = allSubOrders.map((s) =>
+            s._id.equals(subOrder._id) ? { ...s.toObject(), status } : s
+        );
+
+        const newMasterStatus = resolveMasterStatus(updatedSiblings);
+
+        const masterUpdate = { status: newMasterStatus };
+        if (status === "DELIVERED" && newMasterStatus === "DELIVERED") {
+            // All delivered → set deliveredDate on master
+            masterUpdate.deliveredDate = new Date();
+        }
+
+        await Order.updateOne(
+            { _id: subOrder.parentId },
+            { $set: masterUpdate },
+            { session }
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(200).json({
+            success: true,
+            message: `Sub-order updated to "${status}". Master order is now "${newMasterStatus}"`,
+            data: {
+                subOrderId: subOrder._id,
+                subStatus: status,
+                masterOrderId: subOrder.parentId,
+                masterStatus: newMasterStatus,
+            },
+        });
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        next(error);
+    }
+};

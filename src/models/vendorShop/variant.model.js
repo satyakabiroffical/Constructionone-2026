@@ -79,11 +79,17 @@ const variantSchema = new mongoose.Schema(
       enum: ["BULK", "RETAIL"],
     },
 
+    moq: {
+      type: Number,
+      min: 1,
+      default: null, // Only applicable for BULK variants
+    },
+
     disable: {
       type: Boolean,
       default: false,
     },
-     
+
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
