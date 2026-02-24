@@ -83,7 +83,7 @@ const variantSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-     
+
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
