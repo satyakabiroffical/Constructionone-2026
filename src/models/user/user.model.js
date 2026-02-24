@@ -173,6 +173,6 @@ userSchema.methods.generateRefreshToken = function () {
     process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET, // Fallback if strictly needed, but better separate
     { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "7d" },
   );
-};
+};  
 
 export default mongoose.model("User", userSchema);

@@ -1,8 +1,9 @@
-import redis from"../config/redis.config.js";
+import redis from "../config/redis.config.js";
 
 const DEFAULT_TTL = 300; // 5 minutes
 
 class RedisCache {
+  // ---------- GET ----------
   static async get(key) {
     try {
       const data = await redis.get(key);
@@ -13,20 +14,46 @@ class RedisCache {
     }
   }
 
+  // ---------- SET ----------
   static async set(key, value, ttl = DEFAULT_TTL) {
     try {
-      await redis.set(key, JSON.stringify(value), "EX", ttl);
+      await redis.set(key, JSON.stringify(value), {
+        EX: ttl,
+      });
     } catch (err) {
       console.error("Redis SET error:", err);
     }
   }
 
-  static async delete(pattern) {
+  // ---------- DELETE SINGLE ----------
+  static async delete(key) {
     try {
-      const keys = await redis.keys(`${pattern}*`);
-      if (keys.length) await redis.del(keys);
+      await redis.del(key);
     } catch (err) {
       console.error("Redis DELETE error:", err);
+    }
+  }
+
+  // ---------- SAFE PATTERN DELETE (PRODUCTION) ----------
+  static async deletePattern(pattern) {
+    try {
+      let cursor = "0";
+
+      do {
+        const reply = await redis.scan(cursor, {
+          MATCH: `${pattern}*`,
+          COUNT: 100,
+        });
+
+        cursor = reply.cursor;
+        const keys = reply.keys;
+
+        if (keys.length) {
+          await redis.del(keys);
+        }
+      } while (cursor !== "0");
+    } catch (err) {
+      console.error("Redis DELETE PATTERN error:", err);
     }
   }
 }
