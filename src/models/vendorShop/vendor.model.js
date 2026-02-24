@@ -46,6 +46,10 @@ const vendorProfile = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    avgRating: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true },
 );
@@ -120,6 +124,10 @@ const vendorCompany = new mongoose.Schema(
         default: [""],
       },
     ],
+    isOpen: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true },
 );
