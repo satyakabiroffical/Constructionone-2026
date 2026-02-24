@@ -109,5 +109,4 @@ export const getUserNotifications = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch notifications" });
   }
 };
-
 //asgr
