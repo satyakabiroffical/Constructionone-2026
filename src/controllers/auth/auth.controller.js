@@ -112,26 +112,28 @@ export const loginPhone = catchAsync(async (req, res, next) => {
         }
     }
 
-    // Generate OTP
-    const otp = generateOtp();
-    user.otp = String(otp);
+    // ─── DEV MODE: static OTP ────────────────────────────────────────────────────
+    // TODO (PRODUCTION): Uncomment the real block below and delete the static otp line.
+    //
+    // const otp = generateOtp();
+    // user.otp = String(otp);
+    // user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    // user.otpAttempts += 1;
+    // await user.save({ validateBeforeSave: false });
+    // try {
+    //     await sendOtpViaMSG91(phone, otp);
+    //     console.log(`[MSG91] OTP sent to ${phone}`);
+    // } catch (error) {
+    //     console.error(`[MSG91] Failed to send OTP to ${phone}:`, error.message);
+    //     // return next(new APIError(500, 'Failed to send OTP')); // uncomment in production
+    // }
+    // ─────────────────────────────────────────────────────────────────────────────
+    const otp = '1234'; // DEV ONLY — static OTP. Replace with generateOtp() in production.
+    user.otp = otp;
     user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 mins
     user.otpAttempts += 1;
     await user.save({ validateBeforeSave: false });
-
-    // Send OTP via MSG91
-    try {
-        await sendOtpViaMSG91(phone, otp);
-        console.log(`[MSG91] OTP sent to ${phone}`);
-    } catch (error) {
-        console.error(`[MSG91] Failed to send OTP to ${phone}:`, error.message);
-        // We might want to throw error here or just log it. 
-        // For now, let's allow it to proceed so we can at least see it in dev console if configured.
-        // But for production, if SMS fails, user can't login.
-        // return next(new APIError(500, 'Failed to send OTP'));
-    }
-
-    console.log(`[DEV MODE] OTP for ${phone}: ${otp}`);
+    console.log(`[DEV MODE] Static OTP for ${phone}: ${otp}`);
 
     res.status(200).json(
         new ApiResponse(200, { otp }, "OTP sent successfully")
@@ -194,12 +196,20 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     const user = await User.findOne({ email });
     if (!user) return next(new APIError(404, 'User not found'));
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    // ─── DEV MODE: static OTP ────────────────────────────────────────────────────
+    // TODO (PRODUCTION): Uncomment the real block below and delete the static otp line.
+    //
+    // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    // user.otp = otp;
+    // user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    // await user.save({ validateBeforeSave: false });
+    // // TODO: integrate email OTP service here (e.g. Nodemailer / SendGrid)
+    // ─────────────────────────────────────────────────────────────────────────────
+    const otp = '1234'; // DEV ONLY — static OTP. Replace with Math.random() in production.
     user.otp = otp;
     user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 mins
     await user.save({ validateBeforeSave: false });
-
-    console.log(`[DEV MODE] Forgot Password OTP for ${email}: ${otp}`);
+    console.log(`[DEV MODE] Static Forgot Password OTP for ${email}: ${otp}`);
 
     res.status(200).json(
         new ApiResponse(200, { otp }, "OTP sent to email")
