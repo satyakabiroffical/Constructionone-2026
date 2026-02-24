@@ -189,6 +189,23 @@ const productSchema = new mongoose.Schema(
       ref: "vendorProfile",
       index: true,
     },
+
+    minDiscount: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
+
+    maxDiscount: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
+
+    activeVariantCount: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true },
 );

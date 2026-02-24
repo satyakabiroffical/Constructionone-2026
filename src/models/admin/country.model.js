@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose from "mongoose"; //sanvi
 
 const countrySchema = new mongoose.Schema(
   {

@@ -321,6 +321,87 @@ class VariantController {
       next(err);
     }
   }
+
+static async getVariantsByProductId(req, res, next) {
+  try {
+    const { productId } = req.params;
+
+    // ✅ validate id
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      throw new APIError("Invalid product id", 400);
+    }
+
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limitRaw = parseInt(req.query.limit) || 20;
+    const limit = Math.min(limitRaw, 50);
+    const skip = (page - 1) * limit;
+
+    const cacheKey = `product:v1:${productId}:variants:${page}:${limit}`;
+
+    // ✅ cache check
+    const cached = await RedisCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    // ✅ fetch variants
+    const [variants, total] = await Promise.all([
+      Variant.find(
+        {
+          productId,
+          disable: false, // 👈 important for customer side
+        },
+        {
+          price: 1,
+          mrp: 1,
+          discount: 1,
+          discountAmount: 1,
+          size: 1,
+          stock: 1,
+          sold: 1,
+          Type: 1,
+          moq: 1,
+          packageWeight: 1,
+          packageDimensions: 1,
+          createdAt: 1,
+        },
+      )
+        .sort({ _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+
+      Variant.countDocuments({
+        productId,
+        disable: false,
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    const result = {
+      status: "success",
+      message: "Product variants fetched successfully",
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+      results: variants.length,
+      data: { variants },
+    };
+
+    //  cache set
+    await RedisCache.set(cacheKey, result, 300);
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+
 }
 
 export default VariantController;

@@ -14,6 +14,11 @@ const router = Router();
 
 router.get("/variants", authMiddleware, VariantController.getVariants);
 router.get("/variant/:id", authMiddleware, VariantController.getVariantById);
+router.get(
+  "/variant/:productId",
+  authMiddleware,
+  VariantController.getVariantsByProductId,
+);
 router.post(
   "/variant",
   vendorMiddleware,
