@@ -16,9 +16,9 @@ const router = express.Router();
 router.get("/me", getMe);
 router.put("/me", updateMe);
 
-// Admin routes
-router.get("/", requireRole("ADMIN"), getAllUsers);
-router.get("/:id", requireRole("ADMIN"), getUser);
-router.delete("/:id", requireRole("ADMIN"), deleteUser);
+// Admin routes — must be authenticated AND have ADMIN role
+router.get("/", requireAuth, requireRole("ADMIN"), getAllUsers);
+router.get("/:id", requireAuth, requireRole("ADMIN"), getUser);
+router.delete("/:id", requireAuth, requireRole("ADMIN"), deleteUser);
 
 export default router;

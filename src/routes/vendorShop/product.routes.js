@@ -1,19 +1,19 @@
-import { Router } from "express"; //Sanvi
+import { Router } from "express";
 import ProductController from "../../controllers/vendorShop/product.controller.js";
 import validate from "../../middlewares/joiValidation.js";
 import { createProductWithVariantSchema } from "../../validations/product.validation.js";
 import { s3Uploader } from "../../middlewares/uploads.js";
-import {
-  adminMiddleware,
-  authMiddleware,
-  vendorMiddleware,
-} from "../../middlewares/auth.js";
+import { authMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
+
 const router = Router();
 
-// Base: /api/v1/material/products
+// Base: /v1/material/products
+
+// GET all products — any authenticated user/admin/vendor
 router.get("/products", authMiddleware, ProductController.getProducts);
 
+// CREATE product with variants (vendor only)
 router.post(
   "/addProducts",
   vendorMiddleware,
@@ -25,9 +25,9 @@ router.post(
   ProductController.createProduct,
 );
 
+// UPDATE product (vendor only)
 router.put(
   "/updateProduct/:id",
-
   vendorMiddleware,
   s3Uploader().fields([
     { name: "images", maxCount: 5 },
@@ -36,25 +36,28 @@ router.put(
   ProductController.updateProduct,
 );
 
-router.get("/product/:id", requireAuth, ProductController.getProductById);
-
+// GET product variants (Sanvi's route — getProductVariants exists in controller now)
 router.get(
   "/product/:productId/variants",
   requireAuth,
   ProductController.getProductVariants,
 );
 
+// DISABLE / ENABLE product (vendor only)
 router.patch(
   "/disableProduct/:id",
   vendorMiddleware,
   ProductController.disableProduct,
 );
 
+// VERIFY product (vendor only)
 router.patch(
   "/verifyProduct/:id",
   vendorMiddleware,
   ProductController.verifyProduct,
 );
 
-router.get("/product/:id", vendorMiddleware, ProductController.getProductById);
+// GET single product by ID — ONCE only (removed duplicate)
+router.get("/product/:id", requireAuth, ProductController.getProductById);
+
 export default router;

@@ -38,7 +38,7 @@ class ProductController {
       //  FAST QUERY
       const products = await Product.find(query)
         .populate("brandId", "name")
-        .populate("defaultVariantId")
+        // .populate("defaultVariantId")
         .sort(sort)
         .skip((page - 1) * Number(limit))
         .limit(Number(limit))
