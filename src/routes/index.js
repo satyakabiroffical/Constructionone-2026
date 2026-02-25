@@ -11,6 +11,8 @@ import brandRoutes from "./vendorShop/brand.routes.js";
 import productRoutes from "./vendorShop/product.routes.js";
 import variantRoutes from "./vendorShop/variant.routes.js";
 import publicBannerRoutes from "./platform/banner.routes.js";
+import platformRoutes from "./platform/platform.routes.js";
+import faqRoutes from "./admin/faq.routes.js";
 import countryRoutes from "./admin/country.routes.js";
 import statRoutes from "./admin/state.routes.js";
 import cityRoutes from "./admin/city.routes.js";
@@ -23,10 +25,11 @@ router.use("/v1", marketplaceRoutes);
 router.use("/v1", rentalRoutes);
 router.use("/v1", serviceProviderRoutes);
 
-//Public routes MUST be mounted BEFORE adminRoutes
-//adminRoutes has a global requireAuth gate that catches all /v1/* requests
-
+// ─── PUBLIC routes — MUST be before adminRoutes ──────────────────────────────
+// adminRoutes has global requireAuth that intercepts ALL /v1/* if mounted first
 router.use("/v1/banners", publicBannerRoutes);
+router.use("/v1/platform", platformRoutes);   // ← /platform/home/:slug, /platform/modules
+router.use("/v1/faqs", faqRoutes);
 router.use("/v1", adminRoutes);
 router.use("/v1", notificationRoutes);
 router.use("/v1", userRoutes);
