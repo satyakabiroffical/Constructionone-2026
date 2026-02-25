@@ -41,22 +41,5 @@ router.patch(
   ProductController.verifyProduct,
 );
 
-// --------asgar----------flash sale
-router.post(
-  "/create-sale/:productId",
-  vendorMiddleware,
-  ProductController.setFlashSale,
-);
-router.put(
-  "/cancell-sale/:productId",
-  vendorMiddleware,
-  ProductController.cancelFlashSale,
-);
-router.get(
-  "/product/sale",
-  authMiddleware,
-  ProductController.getFlashSaleProducts,
-);
-
 router.get("/product/:id", vendorMiddleware, ProductController.getProductById);
 export default router;

@@ -1,5 +1,11 @@
 import mongoose from "mongoose";
-
+const PROPERTY_KEYS = [
+  "fire_resistance",
+  "durability",
+  "eco_friendly",
+  "water_resistance",
+  "weather_proof",
+];
 const productSchema = new mongoose.Schema(
   {
     name: {
@@ -181,26 +187,25 @@ const productSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "VendorProfile",
     },
+
     //asgr
-    flashSale: {
-      isActive: {
-        type: Boolean,
-        default: false,
-      },
-      discount: {
-        type: Number,
-        min: 0,
-        max: 100,
-      },
-      startDateTime: {
-        type: Date,
-      },
-      endDateTime: {
-        type: Date,
-      },
-      label: {
-        type: String,
-        trim: true,
+    properties: {
+      type: [
+        {
+          key: {
+            type: String,
+            enum: PROPERTY_KEYS,
+          },
+          value: String,
+        },
+      ],
+      validate: {
+        validator: function (props) {
+          if (!props || props.length === 0) return true;
+          const keys = props.map((p) => p.key);
+          return keys.length === new Set(keys).size;
+        },
+        message: "Duplicate properties are not allowed",
       },
     },
   },
