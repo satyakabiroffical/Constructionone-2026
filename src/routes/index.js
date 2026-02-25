@@ -17,6 +17,7 @@ import countryRoutes from "./admin/country.routes.js";
 import statRoutes from "./admin/state.routes.js";
 import cityRoutes from "./admin/city.routes.js";
 import pincodeRoutes from "./admin/pincode.routes.js";
+import flashSalePublicRoutes from "./platform/flashSale.routes.js";
 
 const router = Router();
 
@@ -30,6 +31,7 @@ router.use("/v1", serviceProviderRoutes);
 router.use("/v1/banners", publicBannerRoutes);
 router.use("/v1/platform", platformRoutes);   // ← /platform/home/:slug, /platform/modules
 router.use("/v1/faqs", faqRoutes);
+router.use("/v1", flashSalePublicRoutes); // public: flash sales + pricing resolution
 router.use("/v1", adminRoutes);
 router.use("/v1", notificationRoutes);
 router.use("/v1", userRoutes);

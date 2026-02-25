@@ -455,7 +455,7 @@ class ProductController {
   }
 
   //asgar ---> flash sale
-  static async setFlashSale(req, res) {
+  static async setFlashSale(req, res, next) {
     try {
       const { productId } = req.params;
       const { discount, startDateTime, endDateTime, label } = req.body;
@@ -488,7 +488,7 @@ class ProductController {
 
       res.status(200).json({ success: true, product });
     } catch (error) {
-      next(err);
+      next(error);
     }
   }
 
