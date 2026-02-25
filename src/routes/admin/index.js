@@ -16,14 +16,10 @@ import flashSaleRoutes from './flashSale.routes.js';
 
 const router = Router();
 
-// Public admin route (login) — mounted BEFORE the auth gateway
-// admin.routes.js manages its own auth internally (login is public, rest requires ADMIN)
-
+// Public admin route (login) — managed internally in admin.routes.js
 router.use("/admin", adminRoutes);
 
-// All routes below are fully protected — requireAuth + ADMIN role enforced here
-// router.use(requireAuth, requireRole('ADMIN'));
-
+// All routes below — fully protected (requireAuth + ADMIN role enforced inside each route file)
 router.use('/admin/platform-modules', platformModuleRoutes);
 router.use('/admin/pcategories', pcategoryRoutes);
 router.use('/admin/categories', categoryRoutes);

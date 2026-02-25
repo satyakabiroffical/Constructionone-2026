@@ -18,6 +18,7 @@ import statRoutes from "./admin/state.routes.js";
 import cityRoutes from "./admin/city.routes.js";
 import pincodeRoutes from "./admin/pincode.routes.js";
 import flashSalePublicRoutes from "./platform/flashSale.routes.js";
+import rfqRoutes from "./vendorShop/rfq.routes.js";
 
 const router = Router();
 
@@ -26,12 +27,13 @@ router.use("/v1", marketplaceRoutes);
 router.use("/v1", rentalRoutes);
 router.use("/v1", serviceProviderRoutes);
 
-// ─── PUBLIC routes — MUST be before adminRoutes ──────────────────────────────
+// ─── PUBLIC routes — MUST be before adminRoutes ───────────────────────────────
 // adminRoutes has global requireAuth that intercepts ALL /v1/* if mounted first
 router.use("/v1/banners", publicBannerRoutes);
 router.use("/v1/platform", platformRoutes);   // ← /platform/home/:slug, /platform/modules
 router.use("/v1/faqs", faqRoutes);
-router.use("/v1", flashSalePublicRoutes); // public: flash sales + pricing resolution
+router.use("/v1", flashSalePublicRoutes);     // public: flash sales + pricing resolution
+
 router.use("/v1", adminRoutes);
 router.use("/v1", notificationRoutes);
 router.use("/v1", userRoutes);
@@ -42,6 +44,7 @@ router.use("/v1", countryRoutes);
 router.use("/v1", statRoutes);
 router.use("/v1", cityRoutes);
 router.use("/v1", pincodeRoutes);
+router.use("/v1", rfqRoutes);
 router.use("/v1/material", brandRoutes);
 router.use("/v1/material", productRoutes);
 router.use("/v1/material", variantRoutes);
