@@ -11,7 +11,6 @@ class ProductController {
       const cacheKey = `products:v1:${JSON.stringify(req.query)}`;
       const cached = await RedisCache.get(cacheKey);
       if (cached) return res.json(cached);
-
       const { page = 1, limit = 20, sort = "-createdAt" } = req.query;
 
       //  SAFE FILTER BUILD
@@ -36,7 +35,7 @@ class ProductController {
       //  FAST QUERY
       const products = await Product.find(query)
         .populate("brandId", "name")
-        .populate("defaultVariantId")
+        // .populate("defaultVariantId")
         .sort(sort)
         .skip((page - 1) * Number(limit))
         .limit(Number(limit))

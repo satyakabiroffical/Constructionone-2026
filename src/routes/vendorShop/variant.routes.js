@@ -3,15 +3,16 @@ import VariantController from "../../controllers/vendorShop/variant.controller.j
 import validate from "../../middlewares/joiValidation.js";
 import { createVariantSchema } from "../../validations/variant.validation.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
+import { authMiddleware ,vendorMiddleware} from "../../middlewares/auth.js";
 const router = Router();
 
 // Base: /api/v1/material/variants
 
-router.get("/variants", requireAuth, VariantController.getVariants);
+router.get("/variants", authMiddleware, VariantController.getVariants);
 
 router.post(
   "/variants",
-  requireAuth,
+  vendorMiddleware,
   validate(createVariantSchema),
   VariantController.createVariant,
 );

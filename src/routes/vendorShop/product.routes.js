@@ -7,7 +7,8 @@ import { authMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
 const router = Router();
 
 // Base: /api/v1/material/products
-router.get("/products", vendorMiddleware, ProductController.getProducts);
+router.get("/products", authMiddleware, ProductController.getProducts);
+
 router.post(
   "/addProducts",
   vendorMiddleware,
