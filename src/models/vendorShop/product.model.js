@@ -51,7 +51,6 @@ const productSchema = new mongoose.Schema(
     },
 
     description: String,
-
     images: [String],
 
     sku: {
@@ -136,6 +135,7 @@ const productSchema = new mongoose.Schema(
       trim: true,
     },
 
+
     defaultVariantId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Variant",
@@ -186,25 +186,29 @@ const productSchema = new mongoose.Schema(
     },
     vendorId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "vendorProfile",
-      index: true,
+      ref: "VendorProfile",
     },
-
-    minDiscount: {
-      type: Number,
-      default: 0,
-      index: true,
-    },
-
-    maxDiscount: {
-      type: Number,
-      default: 0,
-      index: true,
-    },
-
-    activeVariantCount: {
-      type: Number,
-      default: 0,
+    //asgr
+    flashSale: {
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      discount: {
+        type: Number,
+        min: 0,
+        max: 100,
+      },
+      startDateTime: {
+        type: Date,
+      },
+      endDateTime: {
+        type: Date,
+      },
+      label: {
+        type: String,
+        trim: true,
+      },
     },
   },
   { timestamps: true },
@@ -228,5 +232,12 @@ productSchema.pre("save", function (next) {
       .replace(/\s+/g, "-");
   }
   next();
+});
+
+//asgr
+productSchema.index({
+  "flashSale.isActive": 1,
+  "flashSale.startDateTime": 1,
+  "flashSale.endDateTime": 1,
 });
 export default mongoose.model("Product", productSchema);

@@ -130,7 +130,7 @@ export const verifyOtp = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "365d" },
     );
-e
+
     const safeUser = {
       id: user._id,
       firstName: user.firstName,
@@ -905,6 +905,16 @@ export const getAllVendors = async (req, res) => {
     ]);
 
     // ---------------- Response ----------------
+    const response = {
+      success: true,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      data: vendors,
+    };
     await RedisCache.set(cacheKey, response);
     return res.status(200).json({
       success: true,

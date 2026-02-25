@@ -2,6 +2,41 @@ import jwt from "jsonwebtoken";
 import userModel from "../models/user/user.model.js";
 import { VendorProfile } from "../models/vendorShop/vendor.model.js";
 
+// export const authMiddleware = async (req, res, next) => {
+//   const authHeader = req.headers.authorization;
+
+//   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//     return res.status(401).json({ message: "Not authenticated" });
+//   }
+//   const token = authHeader.split(" ")[1];
+
+//   try {
+//     const decoded = await jwt.verify(token, process.env.JWT_SECRET);
+//     const user = await userModel.findById(decoded.id);
+
+//     if (!user) {
+//       return res.status(404).send({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
+
+//     if (user.disable === true) {
+//       return res.status(403).send({
+//         success: false,
+//         message: "Your account has been disabled. Contact admin.",
+//       });
+//     }
+//     req.user = {
+//       id: decoded.id,
+//       role: decoded.role || "",
+//     };
+//     next();
+//   } catch (error) {
+//     return res.status(401).json({ message: "Invalid or expired token" });
+//   }
+// };
+
 export const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -51,7 +86,7 @@ export const authMiddleware = async (req, res, next) => {
 
 export const vendorMiddleware = async (req, res, next) => {
   try {
-    console.log("🔥 vendorMiddleware hit");
+    console.log(" vendorMiddleware hit");
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Not authenticated" });
@@ -80,15 +115,22 @@ export const vendorMiddleware = async (req, res, next) => {
 
 export const adminMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
+  console.log("AUTH HEADER:", authHeader); // 👈 ADD
+
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Not authenticated" });
   }
 
   const token = authHeader.split(" ")[1];
+  console.log("TOKEN:", token); // 👈 ADD
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("DECODED:", decoded); // 👈 MOST IMPORTANT
+
     const user = await userModel.findById(decoded.id);
+    console.log("DB USER:", user?.role); // 👈 ADD
+
     if (user.role !== "ADMIN" && user.role !== "SUB_ADMIN") {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -97,8 +139,10 @@ export const adminMiddleware = async (req, res, next) => {
       id: decoded.id,
       role: decoded.role,
     };
+
     next();
   } catch (error) {
+    console.error("JWT ERROR:", error.message); // 👈 ADD
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
