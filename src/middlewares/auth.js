@@ -48,8 +48,8 @@ export const authMiddleware = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
     // Query both models simultaneously
+
     const [user, vendor] = await Promise.all([
       userModel.findById(decoded.id),
       VendorProfile.findById(decoded.id),

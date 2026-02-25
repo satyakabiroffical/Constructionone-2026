@@ -1,3 +1,6 @@
+/**
+ * Written by Pradeep
+ */
 import * as subCategoryService from '../../services/subCategory.service.js';
 import { catchAsync } from '../../middlewares/errorHandler.js';
 import { ApiResponse } from '../../utils/ApiResponse.js';
