@@ -9,7 +9,6 @@ class ProductController {
   static async getProducts(req, res, next) {
     try {
       //  versioned cache key (important)
-
       const cacheKey = `products:v1:${JSON.stringify(req.query)}`;
 
       const cached = await RedisCache.get(cacheKey);
