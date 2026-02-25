@@ -1,19 +1,23 @@
-import mongoose from "mongoose";
+import mongoose from "mongoose"; //Sanvi
 import Product from "../../models/vendorShop/product.model.js";
 import Variant from "../../models/vendorShop/variant.model.js";
 import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
+import { calculateDiscount } from "../../utils/priceCalculator.js";
 
 class ProductController {
   static async getProducts(req, res, next) {
     try {
       //  versioned cache key (important)
+
       const cacheKey = `products:v1:${JSON.stringify(req.query)}`;
+
       const cached = await RedisCache.get(cacheKey);
       if (cached) return res.json(cached);
       const { page = 1, limit = 20, sort = "-createdAt" } = req.query;
 
       //  SAFE FILTER BUILD
+
       const query = {};
 
       const allowedFilters = [
@@ -35,7 +39,7 @@ class ProductController {
       //  FAST QUERY
       const products = await Product.find(query)
         .populate("brandId", "name")
-        // .populate("defaultVariantId")
+        .populate("defaultVariantId")
         .sort(sort)
         .skip((page - 1) * Number(limit))
         .limit(Number(limit))
@@ -43,7 +47,7 @@ class ProductController {
 
       const result = {
         status: "success",
-        message: "Products retrieved successfully",
+        message: "Products retrieved successfully ",
         results: products.length,
         data: { products },
       };
@@ -182,6 +186,9 @@ class ProductController {
       //  support normal form-data (CHANGED)
       let productData = { ...req.body };
 
+      //  prevent client from spoofing vendor
+      delete productData.vendorId;
+
       // parse shippingCharges from form-data
       if (typeof productData.shippingCharges === "string") {
         try {
@@ -201,6 +208,7 @@ class ProductController {
       }
 
       let variants = req.body.variants;
+
       //  remove variants from product payload (NEW)
       delete productData.variants;
 
@@ -209,7 +217,7 @@ class ProductController {
         throw new APIError("At least one variant is required", 400);
       }
 
-      // HANDLE FILES (UNCHANGED)
+      // HANDLE FILES
       const uploadedImages = req.files?.images?.map((f) => f.location) || [];
       const uploadedThumbnail = req.files?.thumbnail?.[0]?.location || null;
 
@@ -221,12 +229,13 @@ class ProductController {
         productData.thumbnail = uploadedThumbnail;
       }
 
-      // CREATE PRODUCT (UNCHANGED)
+      // ✅ CREATE PRODUCT (FIXED)
       const productArr = await Product.create(
         [
           {
             ...productData,
-            createdBy: req.user?.id,
+            vendorId: req.user.id,
+            // ✅ correct owner
           },
         ],
         { session },
@@ -234,7 +243,7 @@ class ProductController {
 
       const product = productArr[0];
 
-      // SECURITY CLEANUP (UNCHANGED)
+      // SECURITY CLEANUP
       const forbiddenFields = [
         "productId",
         "moduleId",
@@ -249,32 +258,49 @@ class ProductController {
         return v;
       });
 
-      // PREPARE VARIANTS (UNCHANGED)
-      const preparedVariants = variants.map((variant) => ({
-        ...variant,
-        // AUTO INJECT
-        productId: product._id,
-        moduleId: product.moduleId,
-        pcategoryId: product.pcategoryId,
-        categoryId: product.categoryId,
-        subcategoryId: product.subcategoryId,
-        brandId: product.brandId,
-        createdBy: req.user?.id,
-      }));
+      // PREPARE VARIANTS
+      const preparedVariants = variants.map((variant) => {
+        const mrp = Number(variant.mrp || 0);
+        const discount = Number(variant.discount || 0);
 
-      // BULK CREATE VARIANTS (UNCHANGED)
+        //  calculate both values
+        const { price, discountAmount } = calculateDiscount(mrp, discount);
+
+        //  prevent manual price override (PRO)
+        const { price: _p, discountAmount: _d, ...safeVariant } = variant;
+
+        return {
+          ...safeVariant,
+
+          price,
+          discountAmount,
+
+          // AUTO INJECT
+          productId: product._id,
+          moduleId: product.moduleId,
+          pcategoryId: product.pcategoryId,
+          categoryId: product.categoryId,
+          subcategoryId: product.subcategoryId,
+          brandId: product.brandId,
+
+          // ✅ FIXED vendor ownership
+          vendorId: req.user.id,
+        };
+      });
+
+      // BULK CREATE VARIANTS
       const createdVariants = await Variant.insertMany(preparedVariants, {
         session,
       });
 
-      // SET DEFAULT VARIANT (UNCHANGED)
+      // SET DEFAULT VARIANT
       product.defaultVariantId = createdVariants[0]._id;
       await product.save({ session });
 
       await session.commitTransaction();
       session.endSession();
 
-      // CACHE CLEAR (UNCHANGED)
+      // CACHE CLEAR
       await RedisCache.deletePattern?.("products:*");
       await RedisCache.delete?.("products:");
 
@@ -439,7 +465,7 @@ class ProductController {
         throw new APIError("Product not found", 404);
       }
 
-      // smart cache clear
+      //  smart cache clear
       await RedisCache.deletePattern?.("products:*");
       await RedisCache.delete?.(`product:v1:${id}`);
 
@@ -450,6 +476,160 @@ class ProductController {
       });
     } catch (err) {
       next(err);
+    }
+  }
+
+  static async getProductVariants(req, res, next) {
+    try {
+      const { productId } = req.params;
+
+      const page = Math.max(parseInt(req.query.page) || 1, 1);
+      const limitRaw = parseInt(req.query.limit) || 10;
+      const limit = Math.min(limitRaw, 50);
+      const skip = (page - 1) * limit;
+
+      const cacheKey = `product:v1:${productId}:variants:${page}:${limit}`;
+
+      const cached = await RedisCache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const filter = { productId, disable: false };
+
+      const [variants, total] = await Promise.all([
+        Variant.find(filter, {
+          price: 1,
+          mrp: 1,
+          discount: 1,
+          discountAmount: 1,
+          size: 1,
+          stock: 1,
+          Type: 1,
+          sold: 1,
+        })
+          .sort({ price: 1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        Variant.countDocuments(filter),
+      ]);
+
+      const totalPages = Math.ceil(total / limit);
+
+      const result = {
+        status: "success",
+        message: "Product variants fetched successfully",
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+        results: variants.length,
+        data: { variants },
+      };
+
+      await RedisCache.set(cacheKey, result, 300);
+
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+  //asgar ---> flash sale
+  static async setFlashSale(req, res) {
+    try {
+      const { productId } = req.params;
+      const { discount, startDateTime, endDateTime, label } = req.body;
+      if (new Date(startDateTime) >= new Date(endDateTime)) {
+        return res.status(400).json({
+          success: false,
+          message: "End date/time must be greater than start date/time",
+        });
+      }
+
+      const product = await Product.findByIdAndUpdate(
+        productId,
+        {
+          flashSale: {
+            isActive: true,
+            discount,
+            startDateTime: new Date(startDateTime),
+            endDateTime: new Date(endDateTime),
+            label: label || "",
+          },
+        },
+        { new: true },
+      );
+
+      if (!product) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Product nahi mila" });
+      }
+
+      res.status(200).json({ success: true, product });
+    } catch (error) {
+      next(err);
+    }
+  }
+
+  static async cancelFlashSale(req, res) {
+    try {
+      const { productId } = req.params;
+      const product = await Product.findByIdAndUpdate(
+        productId,
+        { "flashSale.isActive": false },
+        { new: true },
+      );
+
+      res.status(200).json({ success: true, product });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  static async getFlashSaleProducts(req, res) {
+    try {
+      const now = new Date();
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const sortBy = req.query.sortBy || "flashSale.startDateTime"; // createdAt, discount, avgRating
+      const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+
+      const filter = {
+        "flashSale.isActive": true,
+        "flashSale.startDateTime": { $lte: now },
+        "flashSale.endDateTime": { $gte: now },
+        disable: false,
+      };
+
+      const [products, total] = await Promise.all([
+        Product.find(filter)
+          .populate("brandId categoryId subcategoryId")
+          .sort({ [sortBy]: sortOrder })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        Product.countDocuments(filter),
+      ]);
+
+      res.status(200).json({
+        success: true,
+        products,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPrevPage: page > 1,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
     }
   }
 }

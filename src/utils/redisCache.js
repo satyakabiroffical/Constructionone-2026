@@ -1,4 +1,4 @@
-import redis from "../config/redis.config.js";
+import redis from "../config/redis.config.js"; 
 
 const DEFAULT_TTL = 300; // 5 minutes
 
@@ -25,7 +25,7 @@ class RedisCache {
     }
   }
 
-  // ---------- DELETE SINGLE ----------
+  // ---------- DELETE SINGLE ---------- //Sanvi
   static async delete(key) {
     try {
       await redis.del(key);
@@ -34,7 +34,7 @@ class RedisCache {
     }
   }
 
-  // ---------- SAFE PATTERN DELETE (PRODUCTION) ----------
+  // ---------- SAFE PATTERN DELETE (PRODUCTION) ---------- //Sanvi
   static async deletePattern(pattern) {
     try {
       let cursor = "0";
@@ -57,5 +57,6 @@ class RedisCache {
     }
   }
 }
+
 
 export default RedisCache;

@@ -93,6 +93,17 @@ const vendorCompany = new mongoose.Schema(
       latitude: Number,
       longitude: Number,
     },
+ location: {   //Sanvi
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [lng, lat]
+      },
+    },
+
     gstNumber: { type: String },
     contactNumber: { type: String },
     accountHolderName: { type: String },

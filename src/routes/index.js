@@ -17,6 +17,7 @@ import countryRoutes from "./admin/country.routes.js";
 import statRoutes from "./admin/state.routes.js";
 import cityRoutes from "./admin/city.routes.js";
 import pincodeRoutes from "./admin/pincode.routes.js";
+import rfqRoutes from "./vendorShop/rfq.routes.js";
 
 const router = Router();
 
@@ -36,12 +37,13 @@ router.use("/v1", userRoutes);
 
 // Vendor / Material shop routes
 router.use("/v1", vendorRoutes);
-router.use("/v1", countryRoutes);
-router.use("/v1", statRoutes);
-router.use("/v1", cityRoutes);
-router.use("/v1", pincodeRoutes);
-router.use("/v1/material", brandRoutes);
-router.use("/v1/material", productRoutes);
-router.use("/v1/material", variantRoutes);
+router.use("/v1", countryRoutes); //Sanvi
+router.use("/v1", statRoutes); //Sanvi
+router.use("/v1", cityRoutes); //Sanvi
+router.use("/v1", pincodeRoutes); //Sanvi
+router.use("/v1", rfqRoutes); //Sanvi
+router.use("/v1/material", brandRoutes); //Sanvi
+router.use("/v1/material", productRoutes); //Sanvi
+router.use("/v1/material", variantRoutes); // Sanvi
 
 export default router;

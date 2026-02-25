@@ -6,6 +6,7 @@ const PROPERTY_KEYS = [
   "water_resistance",
   "weather_proof",
 ];
+
 const productSchema = new mongoose.Schema(
   {
     name: {
@@ -140,6 +141,12 @@ const productSchema = new mongoose.Schema(
       enum: ["no-warranty", "6month", "1year", "2year", "5year", "lifetime"],
       trim: true,
     },
+
+    defaultVariantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Variant",
+    },
+
     preferredPayementMethod: {
       type: String,
       enum: [
