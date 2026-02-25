@@ -7,7 +7,7 @@ import { authMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
 const router = Router();
 
 // Base: /api/v1/material/products
-router.get("/products", authMiddleware, ProductController.getProducts);  // authMiddleware accepts admin/user/vendor tokens
+router.get("/products", authMiddleware, ProductController.getProducts);
 router.post(
   "/addProducts",
   vendorMiddleware,
@@ -39,23 +39,6 @@ router.patch(
   "/verifyProduct/:id",
   vendorMiddleware,
   ProductController.verifyProduct,
-);
-
-// --------asgar----------flash sale
-router.post(
-  "/create-sale/:productId",
-  vendorMiddleware,
-  ProductController.setFlashSale,
-);
-router.put(
-  "/cancell-sale/:productId",
-  vendorMiddleware,
-  ProductController.cancelFlashSale,
-);
-router.get(
-  "/product/sale",
-  authMiddleware,
-  ProductController.getFlashSaleProducts,
 );
 
 router.get("/product/:id", vendorMiddleware, ProductController.getProductById);

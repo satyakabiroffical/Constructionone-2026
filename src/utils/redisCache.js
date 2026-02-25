@@ -17,9 +17,7 @@ class RedisCache {
   // ---------- SET ----------
   static async set(key, value, ttl = DEFAULT_TTL) {
     try {
-      await redis.set(key, JSON.stringify(value), {
-        EX: ttl,
-      });
+      await redis.set(key, JSON.stringify(value), 'EX', ttl); // ioredis syntax: positional args
     } catch (err) {
       console.error("Redis SET error:", err);
     }
