@@ -1,11 +1,11 @@
-// src/controllers/admin/flashSale.controller.js
 import { catchAsync, APIError } from '../../middlewares/errorHandler.js';
 import * as FlashSaleService from '../../services/flashSale.service.js';
 import FlashSale from '../../models/flashSale/flashSale.model.js';
 import FlashSaleItem from '../../models/flashSale/flashSaleItem.model.js';
 import { createFlashSaleSchema } from '../../validations/flashSale/flashSale.validation.js';
+import { ApiResponse } from '../../utils/ApiResponse.js';
+import { buildStatusFilter } from '../../services/flashSale.service.js';
 
-// ─── CREATE ──────────────────────────────────────────────────────────────────
 // POST /v1/admin/flash-sales
 export const createFlashSale = catchAsync(async (req, res, next) => {
     const { error, value } = createFlashSaleSchema.validate(req.body, { abortEarly: false });
@@ -22,55 +22,28 @@ export const createFlashSale = catchAsync(async (req, res, next) => {
         createdBy: req.user.id,
     });
 
-    res.status(201).json({
-        success: true,
-        message: 'Flash sale created successfully',
-        data: flashSale,
-    });
+    res.status(201).json(
+        new ApiResponse(201, { flashSale }, 'Flash sale created successfully')
+    );
 });
 
-// ─── ACTIVATE ────────────────────────────────────────────────────────────────
-// PUT /v1/admin/flash-sales/:id/activate
-export const activateFlashSale = catchAsync(async (req, res, next) => {
-    const sale = await FlashSaleService.activateFlashSale(req.params.id);
-    res.json({
-        success: true,
-        message: 'Flash sale activated successfully',
-        data: sale,
-    });
-});
-
-// ─── EXPIRE ──────────────────────────────────────────────────────────────────
-// PUT /v1/admin/flash-sales/:id/expire
-export const expireFlashSale = catchAsync(async (req, res, next) => {
-    const sale = await FlashSaleService.expireFlashSale(req.params.id);
-    res.json({
-        success: true,
-        message: 'Flash sale marked as completed. All variant prices auto-reverted.',
-        data: sale,
-    });
-});
-
-// ─── CANCEL ──────────────────────────────────────────────────────────────────
 // PUT /v1/admin/flash-sales/:id/cancel
 export const cancelFlashSale = catchAsync(async (req, res, next) => {
     const sale = await FlashSaleService.cancelFlashSale(req.params.id);
-    res.json({
-        success: true,
-        message: 'Flash sale cancelled. All variant prices auto-reverted.',
-        data: sale,
-    });
+    res.status(200).json(
+        new ApiResponse(200, { flashSale: sale }, 'Flash sale cancelled. Prices auto-reverted.')
+    );
 });
 
-// ─── LIST ALL ─────────────────────────────────────────────────────────────────
 // GET /v1/admin/flash-sales
 export const getAllFlashSales = catchAsync(async (req, res) => {
     const { status, moduleId, vendorId, page = 1, limit = 20 } = req.query;
 
-    const filter = {};
-    if (status) filter.status = status;
-    if (moduleId) filter.moduleId = moduleId;
-    if (vendorId) filter.vendorId = vendorId;
+    const filter = {
+        ...(status ? buildStatusFilter(status) : {}),
+        ...(moduleId ? { moduleId } : {}),
+        ...(vendorId ? { vendorId } : {}),
+    };
 
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -80,39 +53,44 @@ export const getAllFlashSales = catchAsync(async (req, res) => {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(Number(limit))
-            .populate('moduleId', 'name')
+            .populate('moduleId', 'title')
             .populate('vendorId', 'firstName lastName phoneNumber')
             .populate('createdBy', 'firstName lastName email')
             .lean(),
     ]);
 
-    res.json({
-        success: true,
-        total,
-        page: Number(page),
-        pages: Math.ceil(total / Number(limit)),
-        data: sales,
-    });
+    const salesWithStatus = FlashSale.attachStatus(sales);
+
+    res.status(200).json(
+        new ApiResponse(
+            200,
+            { flashSales: salesWithStatus },
+            'Flash sales fetched successfully',
+            { total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / Number(limit)) }
+        )
+    );
 });
 
-// ─── GET SINGLE ───────────────────────────────────────────────────────────────
 // GET /v1/admin/flash-sales/:id
 export const getFlashSaleById = catchAsync(async (req, res, next) => {
     const sale = await FlashSale.findById(req.params.id)
-        .populate('moduleId', 'name')
+        .populate('moduleId', 'title')
         .populate('vendorId', 'firstName lastName phoneNumber')
         .lean();
 
     if (!sale) return next(new APIError(404, 'Flash sale not found'));
 
-    res.json({ success: true, data: sale });
+    const saleWithStatus = FlashSale.attachStatus(sale);
+
+    res.status(200).json(
+        new ApiResponse(200, { flashSale: saleWithStatus }, 'Flash sale fetched successfully')
+    );
 });
 
-// ─── GET ITEMS ────────────────────────────────────────────────────────────────
 // GET /v1/admin/flash-sales/:id/items
 export const getFlashSaleItems = catchAsync(async (req, res) => {
     const items = await FlashSaleItem.find({ flashSaleId: req.params.id })
-        .populate('productId', 'name images')
+        .populate('productId', 'name thumbnail images')
         .populate('variantId', 'price mrp size Type stock')
         .lean();
 
@@ -122,5 +100,7 @@ export const getFlashSaleItems = catchAsync(async (req, res) => {
         soldPercent: Math.round((item.sold / item.allocatedStock) * 100),
     }));
 
-    res.json({ success: true, count: items.length, data: enriched });
+    res.status(200).json(
+        new ApiResponse(200, { items: enriched }, 'Flash sale items fetched successfully', { total: items.length })
+    );
 });
