@@ -4,6 +4,7 @@ import { sendPushNotification } from "./sendPushNotification.js";
 export const notifyUser = async ({ userId, title, message, type }) => {
   await Notification.create({
     userId,
+    vendorId,
     title,
     message,
     type,
@@ -15,6 +16,6 @@ export const notifyUser = async ({ userId, title, message, type }) => {
     title,
     body: message,
     type,
-    bookingId,
+    orderId,
   });
 };

@@ -72,6 +72,8 @@ const productSchema = new mongoose.Schema(
 
     avgRating: {
       type: Number,
+       default: 0,
+
     },
 
     ratingSum: {
@@ -206,6 +208,14 @@ productSchema.index({
   categoryId: 1,
   subcategoryId: 1,
   brandId: 1,
+});
+productSchema.index({
+  name: "text",
+  description: "text",
+  sku: "text",
+  brandName: "text",
+  categoryName: "text",
+  subcategoryName: "text"
 });
 
 productSchema.pre("save", function (next) {

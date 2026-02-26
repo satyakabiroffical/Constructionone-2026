@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose from "mongoose";  // priyanshu
 import { APIError } from "../../middlewares/errorHandler.js";
 import redis from "../../config/redis.config.js";
 import Order from "../../models/marketPlace/order.model.js";
@@ -117,7 +117,6 @@ export const submitReturnRequest = async (req, res, next) => {
             }
         }
 
-        // ── 6. Per-item: return window & quantity validation ──────────────────
         const now = new Date();
         const deliveredAt = new Date(masterOrder.deliveredDate);
 
@@ -157,7 +156,6 @@ export const submitReturnRequest = async (req, res, next) => {
             }
         }
 
-        // ── 7. Group items vendor-wise ────────────────────────────────────────
         const vendorMap = new Map();
         for (const reqItem of items) {
             const meta = variantMetaMap.get(reqItem.variant.toString());

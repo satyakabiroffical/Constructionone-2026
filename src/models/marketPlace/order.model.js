@@ -58,10 +58,10 @@ const orderSchema = new mongoose.Schema(
         netAmount: {
             type: Number,
         },
-        shippingAddress: {},            
+        shippingAddress: {},
         status: {
             type: String,
-            enum: ["PENDING", "CONFIRMED", "SHIPPED", "VENDOR_CONFIRMED", "VENDOR_CANCELLED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "RETURNED","RETURN_REQUESTED", "MULTI_STATE"],
+            enum: ["PENDING", "CONFIRMED", "SHIPPED", "VENDOR_CONFIRMED", "VENDOR_CANCELLED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "RETURNED", "RETURN_REQUESTED", "MULTI_STATE"],
             default: "PENDING",
         },
 
@@ -84,6 +84,8 @@ const orderSchema = new mongoose.Schema(
         },
         transactionRef: String,
         invoice: String,
+        creditNote: String,
+
         reason: String,
         remark: String,
         cancleBy: {
