@@ -228,20 +228,18 @@ class ProductController {
         productData.thumbnail = uploadedThumbnail;
       }
 
-      // ✅ CREATE PRODUCT (FIXED)
+      // CREATE PRODUCT (FIXED)
       const productArr = await Product.create(
         [
           {
             ...productData,
             vendorId: req.user.id,
-            // ✅ correct owner
+            //  correct owner
           },
         ],
         { session },
       );
-
       const product = productArr[0];
-
       // SECURITY CLEANUP
       const forbiddenFields = [
         "productId",
