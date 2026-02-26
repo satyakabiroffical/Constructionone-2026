@@ -27,7 +27,6 @@ export const notifySingleUser = async (req, res) => {
     res.status(500).json({ message: "Failed to send notification" });
   }
 };
-
 export const notifyAllUsers = async (req, res, next) => {
   try {
     const { title, message } = req.body;
@@ -62,7 +61,6 @@ export const notifyAllUsers = async (req, res, next) => {
     next(err);
   }
 };
-
 export const markNotificationRead = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -109,4 +107,5 @@ export const getUserNotifications = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch notifications" });
   }
 };
+
 //asgr

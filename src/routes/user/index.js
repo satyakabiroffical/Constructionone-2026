@@ -8,7 +8,6 @@ import transactionRoutes from "./transaction.routes.js";
 import reviewRoutes from "./review.routes.js";
 
 const router = Router();
-
 router.use("/users", userRoutes);
 router.use("/address", addressRoutes);
 router.use("/cart", cartRoutes);

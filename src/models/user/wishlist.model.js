@@ -16,5 +16,4 @@ const wishlistSchema = new mongoose.Schema(
 );
 
 export default mongoose.model("Wishlist", wishlistSchema);
-
 //asgr
