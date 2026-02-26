@@ -17,8 +17,6 @@ const router = Router();
 // ─── Public ───────────────────────────────────────────────────────────────────
 router.post("/login", loginAdmin);
 
-// ─── Protected (all routes below require auth) ────────────────────────────────
-// router.use(requireAuth);
 // Protected Admin Routes (Requires Auth + Role=ADMIN)
 // router.use(requireAuth); // All routes below this require authentication
 

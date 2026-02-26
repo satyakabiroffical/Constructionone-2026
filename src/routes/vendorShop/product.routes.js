@@ -9,7 +9,6 @@ import { requireAuth } from "../../middlewares/auth.middleware.js";
 const router = Router();
 
 // Base: /v1/material/products
-
 // GET all products — any authenticated user/admin/vendor
 router.get("/products", authMiddleware, ProductController.getProducts);
 
@@ -36,7 +35,7 @@ router.put(
   ProductController.updateProduct,
 );
 
-// GET product variants (Sanvi's route — getProductVariants exists in controller now)
+router.get("/product/:id", requireAuth, ProductController.getProductById);
 router.get(
   "/product/:productId/variants",
   requireAuth,
@@ -44,6 +43,7 @@ router.get(
 );
 
 // DISABLE / ENABLE product (vendor only)
+
 router.patch(
   "/disableProduct/:id",
   vendorMiddleware,

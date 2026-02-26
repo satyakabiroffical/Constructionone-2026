@@ -38,8 +38,8 @@ router.use("/v1", adminRoutes);
 router.use("/v1", notificationRoutes);
 router.use("/v1", userRoutes);
 
-// Vendor / Material shop routes
 router.use("/v1", vendorRoutes);
+// Vendor / Material shop routes
 router.use("/v1", countryRoutes);
 router.use("/v1", statRoutes);
 router.use("/v1", cityRoutes);

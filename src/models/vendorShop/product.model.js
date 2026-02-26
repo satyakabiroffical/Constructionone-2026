@@ -195,6 +195,16 @@ const productSchema = new mongoose.Schema(
       ref: "VendorProfile",
     },
 
+    vendorLocation: {
+      type: {
+        type: String,
+        enum: ["Point"],
+      },
+      coordinates: {
+        type: [Number],
+      },
+    },
+
     //asgr
     properties: {
       type: [
@@ -220,6 +230,7 @@ const productSchema = new mongoose.Schema(
 );
 
 // heavy-duty index for marketplace filtering
+// base category index
 productSchema.index({
   moduleId: 1,
   pcategoryId: 1,
@@ -227,6 +238,40 @@ productSchema.index({
   subcategoryId: 1,
   brandId: 1,
 });
+
+// 🔥 ULTRA FAST INDEX
+productSchema.index(
+  {
+    disable: 1,
+    varified: 1,
+    moduleId: 1,
+    pcategoryId: 1,
+    categoryId: 1,
+    subcategoryId: 1,
+    brandId: 1,
+    createdAt: -1,
+  },
+  { name: "idx_marketplace_core" },
+);
+
+// ⚡ PARTIAL INDEX
+productSchema.index(
+  {
+    categoryId: 1,
+    brandId: 1,
+    createdAt: -1,
+  },
+  {
+    partialFilterExpression: {
+      disable: false,
+      varified: true,
+    },
+    name: "idx_active_products",
+  },
+);
+
+// optional future filter
+productSchema.index({ "properties.key": 1 });
 
 productSchema.pre("save", function (next) {
   if (this.isModified("name")) {
