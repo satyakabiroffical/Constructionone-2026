@@ -1,4 +1,4 @@
-import User from "../models/user/user.model.js";
+import User from "../models/user/user.model.js";  // priyanshu
 import Notification from "../models/notification.model.js";
 import { notifyUser } from "../utils/notifyUser.js";
 
@@ -109,3 +109,64 @@ export const getUserNotifications = async (req, res) => {
 };
 
 //asgr
+//priyanshu
+
+// Internal helper — NOT an HTTP handler. Call this after order creation.
+export const sendOrderNotificationToUser = async (order, status) => {
+  try {
+    const statusMessages = {
+      CONFIRMED: "Your order has been confirmed! ",
+      PENDING: "Your order is pending payment.",
+      CANCELLED: "Your order has been cancelled.",
+      OUT_FOR_DELIVERY: "Your order is out for delivery! ",
+      DELIVERED: "Your order has been delivered. Enjoy! ",
+      VENDOR_CONFIRMED: "Your order has been accepted by the vendor.",
+      VENDOR_CANCELLED: "Your order was rejected by the vendor.",
+    };
+
+    const message =
+      statusMessages[status] ||
+      `Your order status has been updated to: ${status}`;
+
+    await notifyUser({
+      userId: order.userId,
+      title: "Order Update",
+      message,
+      type: "ORDER",
+    });
+  } catch (err) {
+    // Never crash the main flow — just log silently
+    console.error("sendOrderNotificationToUser failed:", err.message);
+  }
+};
+
+// Internal helper — Send new order notification to a vendor
+export const sendOrderNotificationToVendor = async (subOrder) => {
+  try {
+    const vendorId = subOrder.vandorId;
+    const orderId = subOrder._id;
+    if (!vendorId) return;
+
+    const itemCount = subOrder.items?.length || 0;
+    const amount = subOrder.totalAmount || 0;
+
+    await Notification.create({
+      vendorId,
+      title: "New Order Received 🛒",
+      message: `You have a new order with ${itemCount} item(s) worth ₹${amount}. Please review and confirm.`,
+      type: "system",
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+
+     await sendPushNotification({
+        vendorId,
+        title,
+        body: message,
+        type,
+        orderId,
+      });
+  } catch (err) {
+    console.error("sendOrderNotificationToVendor failed:", err.message);
+  }
+};
+

@@ -116,11 +116,6 @@ const variantSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-variantSchema.index(
-  { productId: 1, size: 1, Type: 1 },
-  { unique: true, partialFilterExpression: { disable: false } },
-);
-
 // ULTRA IMPORTANT INDEX (for marketplace speed)
 variantSchema.index({
   moduleId: 1,

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+
 const PROPERTY_KEYS = [
   "fire_resistance",
   "durability",
@@ -78,6 +79,7 @@ const productSchema = new mongoose.Schema(
 
     avgRating: {
       type: Number,
+      default: 0,
     },
 
     ratingSum: {
@@ -182,6 +184,12 @@ const productSchema = new mongoose.Schema(
       default: 0,
     },
 
+    returnDays: {
+      type: Number,
+      default: 7, // days after delivery within which return is allowed
+      min: 0, // 0 = product is not returnable
+    },
+
     disable: {
       type: Boolean,
       default: false,
@@ -238,8 +246,16 @@ productSchema.index({
   subcategoryId: 1,
   brandId: 1,
 });
+productSchema.index({
+  name: "text",
+  description: "text",
+  sku: "text",
+  brandName: "text",
+  categoryName: "text",
+  subcategoryName: "text",
+});
 
-// 🔥 ULTRA FAST INDEX
+//  ULTRA FAST INDEX
 productSchema.index(
   {
     disable: 1,
@@ -254,7 +270,7 @@ productSchema.index(
   { name: "idx_marketplace_core" },
 );
 
-// ⚡ PARTIAL INDEX
+// PARTIAL INDEX
 productSchema.index(
   {
     categoryId: 1,
@@ -275,11 +291,7 @@ productSchema.index({ "properties.key": 1 });
 
 productSchema.pre("save", function (next) {
   if (this.isModified("name")) {
-    this.slug = this.name
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-");
+    this.slug = this.name.toLowerCase().replace(/\s+/g, "-");
   }
   next();
 });
