@@ -1,4 +1,4 @@
-import { Router } from "express"; // Sanvi 
+import { Router } from "express"; // Sanvi
 import PincodeController from "../../controllers/admin/pincode.controller.js";
 import validate from "../../middlewares/joiValidation.js";
 // import {
@@ -21,14 +21,11 @@ router.post(
   PincodeController.createPincode,
 );
 
-
-
 router.post(
   "/pincodes/bulk",
   requireAuth,
   PincodeController.bulkCreatePincodes,
 );
-
 
 router.patch(
   "/pincodes/:id",
