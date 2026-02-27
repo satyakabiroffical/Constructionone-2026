@@ -239,6 +239,7 @@ const productSchema = new mongoose.Schema(
 
 // heavy-duty index for marketplace filtering
 // base category index
+
 productSchema.index({
   moduleId: 1,
   pcategoryId: 1,
@@ -296,10 +297,4 @@ productSchema.pre("save", function (next) {
   next();
 });
 
-//asgr
-productSchema.index({
-  "flashSale.isActive": 1,
-  "flashSale.startDateTime": 1,
-  "flashSale.endDateTime": 1,
-});
 export default mongoose.model("Product", productSchema);

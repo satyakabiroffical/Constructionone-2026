@@ -19,10 +19,11 @@ export const createFlashSaleSchema = Joi.object({
     label: Joi.string().trim().min(3).max(100).required(),
     moduleId: objectId.required(),
     vendorId: objectId.required(),
-    startDateTime: Joi.date().iso().greater('now').required()
-        .messages({ 'date.greater': 'startDateTime must be in the future' }),
-    endDateTime: Joi.date().iso().greater(Joi.ref('startDateTime')).required()
-        .messages({ 'date.greater': 'endDateTime must be after startDateTime' }),
+    startDateTime: Joi.date().iso().required(),
+    endDateTime: Joi.date().iso().greater(Joi.ref('startDateTime')).greater('now').required()
+        .messages({
+            'date.greater': 'endDateTime must be after startDateTime and in the future',
+        }),
     items: Joi.array().items(flashSaleItemSchema).min(1).required()
         .messages({ 'array.min': 'At least one variant item is required' }),
 });

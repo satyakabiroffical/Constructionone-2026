@@ -2,16 +2,15 @@ import { catchAsync, APIError } from '../../middlewares/errorHandler.js';
 import FlashSale from '../../models/flashSale/flashSale.model.js';
 import FlashSaleItem from '../../models/flashSale/flashSaleItem.model.js';
 import { resolvePrice } from '../../services/pricing.service.js';
+import { ApiResponse } from '../../utils/ApiResponse.js';
 
-// ─── ACTIVE FLASH SALES (public) ─────────────────────────────────────────────
-// GET /v1/flash-sales/active?moduleId=xxx
-// Used by: Home Engine, Listing pages
+// GET /v1/flash-sales/active
 export const getActiveFlashSales = catchAsync(async (req, res) => {
     const { moduleId } = req.query;
     const now = new Date();
 
     const filter = {
-        status: 'ACTIVE',
+        isCancelled: false,
         startDateTime: { $lte: now },
         endDateTime: { $gte: now },
     };
@@ -19,28 +18,30 @@ export const getActiveFlashSales = catchAsync(async (req, res) => {
 
     const sales = await FlashSale.find(filter)
         .select('label moduleId startDateTime endDateTime')
-        .populate('moduleId', 'name slug')
+        .populate('moduleId', 'title slug')
         .lean();
 
-    res.json({ success: true, count: sales.length, data: sales });
+    const salesWithStatus = FlashSale.attachStatus(sales);
+
+    res.status(200).json(
+        new ApiResponse(200, { flashSales: salesWithStatus }, 'Active flash sales fetched successfully', { total: sales.length })
+    );
 });
 
-// ─── FLASH SALE ITEMS (public listing) ───────────────────────────────────────
 // GET /v1/flash-sales/:id/items
 export const getFlashSalePublicItems = catchAsync(async (req, res, next) => {
     const sale = await FlashSale.findById(req.params.id)
-        .select('label status startDateTime endDateTime')
+        .select('label startDateTime endDateTime isCancelled')
         .lean();
 
     if (!sale) return next(new APIError(404, 'Flash sale not found'));
-    if (sale.status !== 'ACTIVE') {
-        return next(new APIError(400, 'This flash sale is not currently active'));
+
+    const status = FlashSale.computeStatus(sale);
+    if (status !== 'ACTIVE') {
+        return next(new APIError(400, `Flash sale is ${status} — not currently active`));
     }
 
-    const items = await FlashSaleItem.find({
-        flashSaleId: req.params.id,
-        isActive: true,
-    })
+    const items = await FlashSaleItem.find({ flashSaleId: req.params.id })
         .populate('productId', 'name images slug')
         .populate('variantId', 'mrp size Type')
         .lean();
@@ -57,23 +58,23 @@ export const getFlashSalePublicItems = catchAsync(async (req, res, next) => {
         soldPercent: Math.round((item.sold / item.allocatedStock) * 100),
     }));
 
-    res.json({
-        success: true,
-        sale: {
-            id: sale._id,
-            label: sale.label,
-            endsAt: sale.endDateTime,
-        },
-        count: enriched.length,
-        data: enriched,
-    });
+    res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                sale: { id: sale._id, label: sale.label, status, startsAt: sale.startDateTime, endsAt: sale.endDateTime },
+                items: enriched,
+            },
+            'Flash sale items fetched successfully',
+            { total: enriched.length }
+        )
+    );
 });
 
-// ─── RESOLVE PRICE FOR ANY VARIANT ───────────────────────────────────────────
 // GET /v1/pricing/variant/:variantId
-// Used by: Home listing, Product detail, Cart update, Checkout validation
-export const getVariantPrice = catchAsync(async (req, res, next) => {
-    const { variantId } = req.params;
-    const pricing = await resolvePrice(variantId);
-    res.json({ success: true, data: pricing });
+export const getVariantPrice = catchAsync(async (req, res) => {
+    const pricing = await resolvePrice(req.params.variantId);
+    res.status(200).json(
+        new ApiResponse(200, { pricing }, 'Variant price resolved successfully')
+    );
 });

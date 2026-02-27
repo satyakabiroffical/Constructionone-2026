@@ -7,6 +7,7 @@ import { calculateDiscount } from "../../utils/priceCalculator.js";
 import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
 
 class ProductController {
+  //users get all
   static async getProducts(req, res, next) {
     try {
       const {
@@ -181,6 +182,152 @@ class ProductController {
       };
 
       // ✅ CACHE RESULT
+      await RedisCache.set(cacheKey, response, 60);
+
+      return res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+  //products according to vendorshop - asgr
+  static async getVendorProducts(req, res, next) {
+    try {
+      const {
+        page = 1,
+        limit = 20,
+        sort,
+        minPrice,
+        maxPrice,
+        type,
+        newArrival,
+        moduleId,
+        pcategoryId,
+        categoryId,
+        subcategoryId,
+        brandId,
+      } = req.query;
+
+      const { vendorId } = req.params;
+
+      if (!vendorId) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+      }
+
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const cacheKey = `products:vendor:${vendorId}:${JSON.stringify(req.query)}`;
+      const cached = await RedisCache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      // ================= BASE MATCH =================
+      const matchStage = {
+        disable: false,
+        vendorId: new mongoose.Types.ObjectId(vendorId),
+      };
+
+      // ================= CATEGORY FILTERS =================
+      const toObjectId = (id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null;
+
+      if (moduleId) matchStage.moduleId = toObjectId(moduleId);
+      if (pcategoryId) matchStage.pcategoryId = toObjectId(pcategoryId);
+      if (categoryId) matchStage.categoryId = toObjectId(categoryId);
+      if (subcategoryId) matchStage.subcategoryId = toObjectId(subcategoryId);
+      if (brandId) matchStage.brandId = toObjectId(brandId);
+
+      if (newArrival === "true") {
+        matchStage.createdAt = {
+          $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        };
+      }
+
+      // ================= PIPELINE =================
+      const pipeline = [];
+
+      // early vendor product filter
+      pipeline.push({ $match: matchStage });
+
+      // ================= VARIANT LOOKUP =================
+      pipeline.push({
+        $lookup: {
+          from: "variants",
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$productId", "$$productId"] },
+                disable: false,
+                ...(type && { Type: type }),
+                ...((minPrice || maxPrice) && {
+                  price: {
+                    ...(minPrice && { $gte: Number(minPrice) }),
+                    ...(maxPrice && { $lte: Number(maxPrice) }),
+                  },
+                }),
+              },
+            },
+            { $sort: { price: 1 } },
+            { $limit: 1 },
+            {
+              $project: {
+                price: 1,
+                mrp: 1,
+                discount: 1,
+                Type: 1,
+              },
+            },
+          ],
+          as: "defaultVariant",
+        },
+      });
+
+      // remove products without variant
+      pipeline.push({
+        $match: { defaultVariant: { $ne: [] } },
+      });
+
+      // ================= SORT =================
+      pipeline.push({
+        $sort:
+          sort === "priceLowHigh"
+            ? { "defaultVariant.price": 1 }
+            : sort === "priceHighLow"
+              ? { "defaultVariant.price": -1 }
+              : sort === "oldest"
+                ? { createdAt: 1 }
+                : { createdAt: -1 },
+      });
+
+      // ================= PAGINATION =================
+      pipeline.push({ $skip: skip }, { $limit: Number(limit) });
+
+      // ================= BRAND LOOKUP =================
+      pipeline.push(
+        {
+          $lookup: {
+            from: "brands",
+            localField: "brandId",
+            foreignField: "_id",
+            pipeline: [{ $project: { name: 1 } }],
+            as: "brandId",
+          },
+        },
+        { $unwind: { path: "$brandId", preserveNullAndEmptyArrays: true } },
+      );
+
+      const products = await Product.aggregate(pipeline);
+
+      const response = {
+        success: true,
+        message: "Vendor products fetched successfully",
+        results: products.length,
+        data: { products },
+      };
+
       await RedisCache.set(cacheKey, response, 60);
 
       return res.status(200).json(response);
@@ -459,7 +606,6 @@ class ProductController {
   }
 
   // UPDATE PRODUCT
-
   static async updateProduct(req, res, next) {
     try {
       const { id } = req.params;
@@ -674,101 +820,6 @@ class ProductController {
       res.json(result);
     } catch (err) {
       next(err);
-    }
-  }
-  //asgar ---> flash sale
-  static async setFlashSale(req, res) {
-    try {
-      const { productId } = req.params;
-      const { discount, startDateTime, endDateTime, label } = req.body;
-      if (new Date(startDateTime) >= new Date(endDateTime)) {
-        return res.status(400).json({
-          success: false,
-          message: "End date/time must be greater than start date/time",
-        });
-      }
-
-      const product = await Product.findByIdAndUpdate(
-        productId,
-        {
-          flashSale: {
-            isActive: true,
-            discount,
-            startDateTime: new Date(startDateTime),
-            endDateTime: new Date(endDateTime),
-            label: label || "",
-          },
-        },
-        { new: true },
-      );
-
-      if (!product) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Product nahi mila" });
-      }
-
-      res.status(200).json({ success: true, product });
-    } catch (error) {
-      next(err);
-    }
-  }
-
-  static async cancelFlashSale(req, res) {
-    try {
-      const { productId } = req.params;
-      const product = await Product.findByIdAndUpdate(
-        productId,
-        { "flashSale.isActive": false },
-        { new: true },
-      );
-
-      res.status(200).json({ success: true, product });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  static async getFlashSaleProducts(req, res) {
-    try {
-      const now = new Date();
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const skip = (page - 1) * limit;
-      const sortBy = req.query.sortBy || "flashSale.startDateTime"; // createdAt, discount, avgRating
-      const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
-
-      const filter = {
-        "flashSale.isActive": true,
-        "flashSale.startDateTime": { $lte: now },
-        "flashSale.endDateTime": { $gte: now },
-        disable: false,
-      };
-
-      const [products, total] = await Promise.all([
-        Product.find(filter)
-          .populate("brandId categoryId subcategoryId")
-          .sort({ [sortBy]: sortOrder })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        Product.countDocuments(filter),
-      ]);
-
-      res.status(200).json({
-        success: true,
-        products,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-          hasNextPage: page < Math.ceil(total / limit),
-          hasPrevPage: page > 1,
-        },
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
     }
   }
 }

@@ -60,4 +60,11 @@ router.patch(
 // GET single product by ID — ONCE only (removed duplicate)
 router.get("/product/:id", requireAuth, ProductController.getProductById);
 
+//get vendor products
+router.get(
+  "/product/vendorshop/:vendorId",
+  authMiddleware,
+  ProductController.getVendorProducts,
+);
+
 export default router;
