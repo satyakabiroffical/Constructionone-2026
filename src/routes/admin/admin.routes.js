@@ -1,13 +1,13 @@
 //Pradeep
 import { Router } from "express";
 import {
-    registerAdmin,
-    loginAdmin,
-    getAdminMe,
-    updateAdmin,
-    logoutAdmin,
-    getAllAdmins,
-    getAdminById,
+  registerAdmin,
+  loginAdmin,
+  getAdminMe,
+  updateAdmin,
+  logoutAdmin,
+  getAllAdmins,
+  getAdminById,
 } from "../../controllers/admin/admin.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";

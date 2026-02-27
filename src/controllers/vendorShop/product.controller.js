@@ -30,7 +30,7 @@ class ProductController {
 
       const skip = (Number(page) - 1) * Number(limit);
 
-      // ✅ REDIS CACHE
+      // REDIS CACHE
       const cacheKey = `products:public:v2:${JSON.stringify(req.query)}`;
       const cached = await RedisCache.get(cacheKey);
       if (cached) return res.json(cached);
