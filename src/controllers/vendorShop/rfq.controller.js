@@ -96,7 +96,6 @@ class RFQController {
             ...body,
             rfqNumber,
             userId,
-
             // REAL snapshot from DB
             userName: user.name,
             userImage: user.profileImage,

@@ -16,7 +16,7 @@ const companySchema = new mongoose.Schema({
     alternatePhone: { type: String, default: "" },
     address: { type: String, default: "" },
     gstNumber: { type: String, default: "" },
-
+    taxPercentage: { type: Number, default: 0 },
     banner: { type: String, default: "" },
     headerLogo: { type: String, default: "" },
     footerLogo: { type: String, default: "" },

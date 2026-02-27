@@ -58,7 +58,7 @@ const transactionSchema = new mongoose.Schema(
   },
     walletPurpose: {
       type: String,
-      enum: ["TOPUP", "ORDER_PAYMENT", "BOOKING_PAYMENT", "REFUND", null],   
+      enum: ["TOPUP", "ORDER_PAYMENT", "BOOKING_PAYMENT", "REFUND", "ORDER_REFUND", null],   
       default: null,
     },
 

@@ -62,12 +62,19 @@ async function addMoney() {
   }
 
   try {
+<<<<<<< HEAD
+    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTZhMTA3M2Y2OTBkMjFjYjkwOWNlMyIsInJvbGUiOiJVU0VSIiwiZW1haWwiOiJwcmFkZWVwQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcxNTc4NDc2LCJleHAiOjE3NzQxNzA0NzZ9.HbfjwyfdiQqwuEgNaRfne5qO0x09V2xLX1G4LDa2Aco";
+    // 1️⃣ Call backend to create order
+    const response = await fetch("http://localhost:3000/api/v1/wallet/create-topup", {
+=======
 
     // Call backend to create order
     const response = await fetch("http://localhost:3000/api/v1/create-topup", {
+>>>>>>> cd8f0d8c88b2a5829b02e785936057d9b0f4c8db
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
       },
       body: JSON.stringify({ amount })
     });
@@ -90,10 +97,11 @@ async function addMoney() {
       handler: async function (response) {
 
         // 2️⃣ Verify Payment
-        const verifyRes = await fetch("http://localhost:3000/api/v1/verify-topup", {
+        const verifyRes = await fetch("http://localhost:3000/api/v1/wallet/verify-topup", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
           },
           body: JSON.stringify({
             razorpay_order_id: response.razorpay_order_id,

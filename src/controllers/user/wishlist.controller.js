@@ -5,7 +5,6 @@ export const toggleWishlist = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { productId } = req.body;
-
     let wishlist = await Wishlist.findOne({ userId });
 
     if (!wishlist) {
@@ -35,7 +34,7 @@ export const toggleWishlist = async (req, res, next) => {
       `wishlist:${userId}`,
       JSON.stringify(wishlist),
       "EX",
-      600, // Cache for 10 minutes
+      300, // Cache for 10 minutes
     );
     res.json({
       message,

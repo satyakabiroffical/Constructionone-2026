@@ -1,6 +1,8 @@
 import Brand from "../../models/vendorShop/brand.model.js";
 import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
+import productModel from "../../models/vendorShop/product.model.js";
+import mongoose from "mongoose";
 
 class BrandController {
   //  GET ALL
@@ -61,6 +63,79 @@ class BrandController {
     }
   }
 
+  //get brand for vendor shop profiles
+  static async getVendorBrands(req, res) {
+    const { vendorId } = req.params;
+    const { search } = req.query; //<-- brand name search
+    const cacheKey = `brands:${vendorId}:${search || ""}`;
+
+    const cached = await RedisCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const pipeline = [
+      {
+        $match: {
+          vendorId: new mongoose.Types.ObjectId(vendorId),
+          disable: false,
+        },
+      },
+
+      {
+        $group: {
+          _id: "$brandId",
+          totalProducts: { $sum: 1 },
+        },
+      },
+
+      {
+        $lookup: {
+          from: "brands",
+          localField: "_id",
+          foreignField: "_id",
+          as: "brand",
+        },
+      },
+      { $unwind: "$brand" },
+
+      {
+        $match: {
+          "brand.status": "active",
+        },
+      },
+    ];
+    // 🔍 Optional brand name filter
+    if (search) {
+      pipeline.push({
+        $match: {
+          "brand.name": { $regex: search, $options: "i" }, // case-insensitive
+        },
+      });
+    }
+    pipeline.push(
+      {
+        $project: {
+          _id: 0,
+          brandId: "$brand._id",
+          name: "$brand.name",
+          slug: "$brand.slug",
+          logo: "$brand.logo",
+          totalProducts: 1,
+        },
+      },
+      {
+        $sort: {
+          totalProducts: -1,
+        },
+      },
+    );
+
+    const brands = await productModel.aggregate(pipeline);
+    await RedisCache.set(cacheKey, brands);
+    res.status(200).json({
+      success: true,
+      data: brands,
+    });
+  }
   //  GET ONE
   static async getBrand(req, res, next) {
     try {

@@ -6,12 +6,13 @@ import {
   updateCartItem,
   removeCartItem,
 } from "../../controllers/user/cart.controller.js";
+import { requireAuth } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.post("/", addToCart);
-router.get("/", getCart);
-router.put("/:productId", updateCartItem);
-router.delete("/:productId", removeCartItem);
+router.post("/addToCart", requireAuth, addToCart);
+router.get("/getCart", requireAuth, getCart);
+router.put("/update-quantity", requireAuth, updateCartItem);
+router.delete("/remove/:variantId", requireAuth, removeCartItem);
 
 export default router;
