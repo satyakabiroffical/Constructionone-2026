@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const SECTION_TYPES = ['BANNER', 'PRODUCT_LIST', 'CATEGORY_LIST', 'VENDOR_LIST', 'BRAND_LIST'];
+const SECTION_TYPES = ['BANNER', 'PRODUCT_LIST', 'CATEGORY_LIST', 'VENDOR_LIST', 'BRAND_LIST', 'FLASH_SALE'];
 const SOURCE_TYPES = ['FLASH', 'TOP_SELLING', 'FEATURED', 'NEW_ARRIVALS', 'MANUAL', 'ALL'];
 
 const homeSectionSchema = new mongoose.Schema(

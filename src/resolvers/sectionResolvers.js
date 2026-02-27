@@ -11,6 +11,8 @@ import Pcategory from '../models/category/pcategory.model.js';
 import Product from '../models/vendorShop/product.model.js';
 import { VendorProfile } from '../models/vendorShop/vendor.model.js';  // named export
 import Brand from '../models/vendorShop/brand.model.js';
+import FlashSale from '../models/flashSale/flashSale.model.js';
+import FlashSaleItem from '../models/flashSale/flashSaleItem.model.js';
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -82,6 +84,64 @@ const resolveBRAND_LIST = async (section) => {
         .lean();
 };
 
+/**
+ * FLASH_SALE Resolver
+ *
+ * Kaam kaise karta hai:
+ * 1. Pehle us module ki abhi ACTIVE chal rahi flash sale dhundta hai
+ *    (current time startDateTime aur endDateTime ke beech ho)
+ * 2. Phir us flash sale ke items fetch karta hai
+ * 3. Har item mein product info, flash price, discount % aur
+ *    remaining stock attach karta hai
+ * 4. Agar koi active flash sale nahi — khali array return hota hai
+ *    (home page break nahi hoga)
+ */
+const resolveFLASH_SALE = async (section) => {
+    const now = new Date();
+
+    // Step 1: Find the currently ACTIVE flash sale for this module
+    const activeSale = await FlashSale.findOne({
+        moduleId: section.moduleId,
+        isCancelled: false,
+        startDateTime: { $lte: now },   // already started
+        endDateTime: { $gte: now },   // not yet ended
+    })
+        .select('_id label startDateTime endDateTime')
+        .lean();
+
+    // No active sale → return empty (section will be hidden by frontend)
+    if (!activeSale) return [];
+
+    // Step 2: Fetch flash sale items with product & variant info
+    const items = await FlashSaleItem.find({ flashSaleId: activeSale._id })
+        .limit(section.limit)
+        .populate('productId', 'name thumbnail slug avgRating')  // product basic info
+        .populate('variantId', 'mrp size Type')                  // variant info
+        .lean();
+
+    // Step 3: Enrich each item with calculated fields
+    const enriched = items.map((item) => ({
+        flashItemId: item._id,
+        product: item.productId,         // name, thumbnail, slug, avgRating
+        variant: item.variantId,          // mrp, size, type
+        originalPrice: item.basePriceSnapshot,  // price before flash sale
+        flashPrice: item.flashPrice,          // discounted price
+        discountPercent: item.flashDiscountPercent, // e.g. 30 means 30% off
+        discountAmount: item.basePriceSnapshot - item.flashPrice, // saved amount
+        remainingStock: Math.max(item.allocatedStock - item.sold, 0), // items left
+        soldPercent: Math.round((item.sold / item.allocatedStock) * 100), // progress bar
+    }));
+
+    // Step 4: Return alongside sale meta (for countdown timer on frontend)
+    return {
+        saleId: activeSale._id,
+        saleLabel: activeSale.label,
+        endsAt: activeSale.endDateTime,   // frontend uses this for countdown timer
+        startsAt: activeSale.startDateTime,
+        items: enriched,
+    };
+};
+
 // ─── Registry ─────────────────────────────────────────────────────────────────
 // To add a new section type: add one line here. That's it.
 export const sectionResolvers = {
@@ -90,4 +150,5 @@ export const sectionResolvers = {
     CATEGORY_LIST: resolveCATEGORY_LIST,
     VENDOR_LIST: resolveVENDOR_LIST,
     BRAND_LIST: resolveBRAND_LIST,
+    FLASH_SALE: resolveFLASH_SALE,   // ← NEW: Flash sale section for home page
 };
