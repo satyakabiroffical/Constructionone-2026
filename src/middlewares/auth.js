@@ -49,20 +49,14 @@ export const authMiddleware = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // FIX: JWT mein role already stored hai — use it to query ONLY one collection
-    // Pehle dono collections query hoti thi = 2 DB calls per request (wasteful!)
-    let account;
-    const isVendor = decoded.role === 'vendor';
+    // Query both models simultaneously
+    const [user, vendor] = await Promise.all([
+      userModel.findById(decoded.id),
+      VendorProfile.findById(decoded.id),
+    ]);
 
-    if (isVendor) {
-      account = await VendorProfile.findById(decoded.id)
-        .select('_id disable')
-        .lean();
-    } else {
-      account = await userModel.findById(decoded.id)
-        .select('_id disable role')
-        .lean();
-    }
+    const account = user || vendor;
+    const accountType = user ? "user" : vendor ? "vendor" : null;
 
     if (!account) {
       return res.status(404).json({
@@ -80,8 +74,8 @@ export const authMiddleware = async (req, res, next) => {
 
     req.user = {
       id: decoded.id,
-      role: decoded.role,
-      accountType: isVendor ? 'vendor' : 'user',
+      role: decoded.role || accountType,
+      accountType,
     };
 
     next();
