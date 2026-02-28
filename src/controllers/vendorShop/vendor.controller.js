@@ -223,7 +223,6 @@ export const resendOtp = async (req, res, next) => {
     });
   }
 };
-
 //aadhar-varification
 export const verifyAadharOtp = async (req, res) => {
   try {
@@ -385,6 +384,22 @@ export const resendAadharOtp = async (req, res) => {
       error: e.message,
     });
   }
+};
+
+//saveFCM token After login
+export const saveFcmToken = async (req, res) => {
+  const userId = req.user.id;
+  const { fcmToken } = req.body;
+
+  if (!fcmToken) {
+    return res.status(400).json({ message: "FCM token required" });
+  }
+  await VendorProfile.findByIdAndUpdate(userId, { fcmToken });
+
+  const cacheKey = `vendor:v1:${JSON.stringify({})}`;
+  await RedisCache.delete(cacheKey);
+
+  res.status(200).json({ message: "FCM token saved" });
 };
 
 //vendorProfile
@@ -1080,7 +1095,6 @@ const validatePhone = (phone) => {
   }
   return { valid: true, normalized };
 };
-
 //pending
 const assignAutoBadges = async (vendor) => {
   const badges = new Set(vendor.badges || []);

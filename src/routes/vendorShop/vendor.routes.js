@@ -19,6 +19,7 @@ import {
   removeMultipleBadgesByAdmin,
   updateUpsertVendorInfo,
   updateUpsertVendorCompanyInfo,
+  saveFcmToken,
 } from "../../controllers/vendorShop/vendor.controller.js";
 import { adminMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
 import { validateRequest } from "../../middlewares/validation.js";
@@ -96,5 +97,5 @@ router.post(
   adminMiddleware,
   removeMultipleBadgesByAdmin,
 );
-
+router.post("/saveFcmToken", vendorMiddleware, saveFcmToken);
 export default router;

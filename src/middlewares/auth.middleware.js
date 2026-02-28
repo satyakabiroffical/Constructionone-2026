@@ -6,7 +6,7 @@ import User from "../models/user/user.model.js";
 import { APIError } from "./errorHandler.js";
 
 export const requireAuth = async (req, res, next) => {
-  console.log("🔥 requireAuth hit");
+  console.log("requireAuth hit");
   let token;
   if (
     req.headers.authorization &&

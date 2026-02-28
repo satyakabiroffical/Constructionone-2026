@@ -50,6 +50,10 @@ const vendorProfile = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    fcmToken: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true },
 );
@@ -93,7 +97,8 @@ const vendorCompany = new mongoose.Schema(
       latitude: Number,
       longitude: Number,
     },
- location: {   //Sanvi
+    location: {
+      //Sanvi
       type: {
         type: String,
         enum: ["Point"],
@@ -143,16 +148,11 @@ const vendorCompany = new mongoose.Schema(
   { timestamps: true },
 );
 
-
-
 // ================= GEO AUTO SET =================
 
 // auto set location on create
 vendorCompany.pre("save", function (next) {
-  if (
-    this.businessAddress?.latitude &&
-    this.businessAddress?.longitude
-  ) {
+  if (this.businessAddress?.latitude && this.businessAddress?.longitude) {
     this.location = {
       type: "Point",
       coordinates: [
@@ -169,10 +169,7 @@ vendorCompany.pre("findOneAndUpdate", function (next) {
   const update = this.getUpdate();
   const data = update.$set || update;
 
-  if (
-    data?.businessAddress?.latitude &&
-    data?.businessAddress?.longitude
-  ) {
+  if (data?.businessAddress?.latitude && data?.businessAddress?.longitude) {
     update.$set = update.$set || {};
     update.$set.location = {
       type: "Point",
