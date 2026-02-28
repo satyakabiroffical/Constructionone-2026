@@ -65,12 +65,9 @@ export const notifyAllUsers = async (req, res, next) => {
 
 export const markNotificationRead = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    const notification = await Notification.findByIdAndUpdate(
-      id,
-      { isRead: true },
-      { new: true },
+    const notification = await Notification.updateMany(
+      { isRead: false },
+      { $set: { isRead: true } }
     );
 
     if (!notification) {
@@ -109,7 +106,6 @@ export const getUserNotifications = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch notifications" });
   }
 };
-
 //asgr
 
 
@@ -119,11 +115,11 @@ export const getUserNotifications = async (req, res) => {
 export const sendOrderNotificationToUser = async (order, status) => {
   try {
     const statusMessages = {
-      CONFIRMED: "Your order has been confirmed! ",
+      CONFIRMED: "Your order has been confirmed!",
       PENDING: "Your order is pending payment.",
       CANCELLED: "Your order has been cancelled.",
-      OUT_FOR_DELIVERY: "Your order is out for delivery! ",
-      DELIVERED: "Your order has been delivered. Enjoy! ",
+      OUT_FOR_DELIVERY: "Your order is out for delivery!",
+      DELIVERED: "Your order has been delivered. Enjoy!",
       VENDOR_CONFIRMED: "Your order has been accepted by the vendor.",
       VENDOR_CANCELLED: "Your order was rejected by the vendor.",
     };
@@ -139,12 +135,10 @@ export const sendOrderNotificationToUser = async (order, status) => {
       type: "ORDER",
     });
   } catch (err) {
-    // Never crash the main flow — just log silently
     console.error("sendOrderNotificationToUser failed:", err.message);
   }
 };
 
-// Internal helper — Send new order notification to a vendor
 export const sendOrderNotificationToVendor = async (subOrder) => {
   try {
     const vendorId = subOrder.vandorId;

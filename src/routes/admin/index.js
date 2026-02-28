@@ -11,18 +11,16 @@ import pcategoryRoutes from "./pcategory.routes.js";
 import categoryRoutes from "./category.routes.js";
 import subCategoryRoutes from "./subCategory.routes.js";
 import bannerRoutes from "./banner.routes.js";
+import homeSectionRoutes from "./homeSection.routes.js";
+import flashSaleRoutes from "./flashSale.routes.js";
 import taxRoutes from "./tax.routes.js";
 import adminOrderRoutes from "./order.routes.js";
 import globalSearchRoutes from "./globalSearch.routes.js";
 import adminReviewRoutes from "./review.routes.js";
-
-
 const router = Router();
 
-// Public admin route (login) — mounted BEFORE the auth gateway
-// admin.routes.js manages its own auth internally (login is public, rest requires ADMIN)
+// Public admin route (login) — managed internally in admin.routes.js
 router.use("/admin", adminRoutes);
-
 // All routes below are fully protected — requireAuth + ADMIN role enforced here
 // router.use(requireAuth, requireRole('ADMIN'));
 
@@ -35,8 +33,11 @@ router.use("/admin/sub-categories", subCategoryRoutes);
 router.use("/company", companyRoutes);
 router.use("/admin/faqs", faqRoutes);
 router.use("/admin/banners", bannerRoutes);
+router.use("/admin/home-sections", homeSectionRoutes);
+router.use("/admin/flash-sales", flashSaleRoutes);
 router.use('/tax', taxRoutes);
 router.use('/admin/order', adminOrderRoutes);
 router.use('/user', globalSearchRoutes);
 router.use('/admin/reviews', adminReviewRoutes);
+
 export default router;

@@ -1,4 +1,11 @@
 import mongoose from "mongoose";
+const PROPERTY_KEYS = [
+  "fire_resistance",
+  "durability",
+  "eco_friendly",
+  "water_resistance",
+  "weather_proof",
+];
 
 const productSchema = new mongoose.Schema(
   {
@@ -51,7 +58,6 @@ const productSchema = new mongoose.Schema(
     },
 
     description: String,
-
     images: [String],
 
     sku: {
@@ -194,14 +200,45 @@ const productSchema = new mongoose.Schema(
     },
     vendorId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "vendorProfile",
-      index: true,
+      ref: "VendorProfile",
+    },
+
+    vendorLocation: {
+      type: {
+        type: String,
+        enum: ["Point"],
+      },
+      coordinates: {
+        type: [Number],
+      },
+    },
+
+    //asgr
+    properties: {
+      type: [
+        {
+          key: {
+            type: String,
+            enum: PROPERTY_KEYS,
+          },
+          value: String,
+        },
+      ],
+      validate: {
+        validator: function (props) {
+          if (!props || props.length === 0) return true;
+          const keys = props.map((p) => p.key);
+          return keys.length === new Set(keys).size;
+        },
+        message: "Duplicate properties are not allowed",
+      },
     },
   },
   { timestamps: true },
 );
 
 // heavy-duty index for marketplace filtering
+// base category index
 productSchema.index({
   moduleId: 1,
   pcategoryId: 1,
@@ -218,10 +255,51 @@ productSchema.index({
   subcategoryName: "text"
 });
 
+// 🔥 ULTRA FAST INDEX
+productSchema.index(
+  {
+    disable: 1,
+    varified: 1,
+    moduleId: 1,
+    pcategoryId: 1,
+    categoryId: 1,
+    subcategoryId: 1,
+    brandId: 1,
+    createdAt: -1,
+  },
+  { name: "idx_marketplace_core" },
+);
+
+// ⚡ PARTIAL INDEX
+productSchema.index(
+  {
+    categoryId: 1,
+    brandId: 1,
+    createdAt: -1,
+  },
+  {
+    partialFilterExpression: {
+      disable: false,
+      varified: true,
+    },
+    name: "idx_active_products",
+  },
+);
+
+// optional future filter
+productSchema.index({ "properties.key": 1 });
+
 productSchema.pre("save", function (next) {
   if (this.isModified("name")) {
     this.slug = this.name.toLowerCase().replace(/\s+/g, "-");
   }
   next();
+});
+
+//asgr
+productSchema.index({
+  "flashSale.isActive": 1,
+  "flashSale.startDateTime": 1,
+  "flashSale.endDateTime": 1,
 });
 export default mongoose.model("Product", productSchema);

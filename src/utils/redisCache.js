@@ -1,4 +1,4 @@
-import redis from "../config/redis.config.js";
+import redis from "../config/redis.config.js"; 
 
 const DEFAULT_TTL = 300; // 5 minutes
 
@@ -17,15 +17,13 @@ class RedisCache {
   // ---------- SET ----------
   static async set(key, value, ttl = DEFAULT_TTL) {
     try {
-      await redis.set(key, JSON.stringify(value), {
-        EX: ttl,
-      });
+      await redis.set(key, JSON.stringify(value), 'EX', ttl); // ioredis syntax: positional args
     } catch (err) {
       console.error("Redis SET error:", err);
     }
   }
 
-  // ---------- DELETE SINGLE ----------
+  // ---------- DELETE SINGLE ---------- //Sanvi
   static async delete(key) {
     try {
       await redis.del(key);
@@ -34,7 +32,7 @@ class RedisCache {
     }
   }
 
-  // ---------- SAFE PATTERN DELETE (PRODUCTION) ----------
+  // ---------- SAFE PATTERN DELETE (PRODUCTION) ---------- //Sanvi
   static async deletePattern(pattern) {
     try {
       let cursor = "0";
@@ -57,5 +55,6 @@ class RedisCache {
     }
   }
 }
+
 
 export default RedisCache;

@@ -3,10 +3,11 @@ import { createOrder, verifyPayment, getAllOrders, getOrdersByVendor, cancelOrde
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";
 import { vendorMiddleware } from "../../middlewares/auth.js";
+import { idempotencyMiddleware } from "../../middlewares/idempotency.middleware.js";
 
 const router = Router();
 
-router.post("/create", requireAuth, createOrder);
+router.post("/create", requireAuth, idempotencyMiddleware, createOrder);
 router.post("/verify-payment", requireAuth, verifyPayment);
 router.get("/my-orders", requireAuth, getAllOrders);
 router.get("/vendor-orders/:vendorId", requireAuth, getOrdersByVendor);

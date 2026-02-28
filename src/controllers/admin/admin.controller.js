@@ -104,6 +104,27 @@ export const loginAdmin = catchAsync(async (req, res, next) => {
   );
 });
 
+// Get Own Admin Profile
+export const getAdminMe = catchAsync(async (req, res) => {
+    const admin = req.user; // Already fetched from DB by requireAuth middleware
+    res.status(200).json(
+        new ApiResponse(200, {
+            admin: {
+                id: admin._id,
+                firstName: admin.firstName,
+                lastName: admin.lastName,
+                email: admin.email,
+                phone: admin.phone,
+                role: admin.role,
+                permissions: admin.permissions,
+                isVerified: admin.isVerified,
+                lastLoginAt: admin.lastLoginAt,
+                createdAt: admin.createdAt,
+            },
+        }, 'Admin profile fetched successfully')
+    );
+});
+
 // Update Admin Profile (Self)
 export const updateAdmin = catchAsync(async (req, res, next) => {
   const { firstName, lastName, phone, address, gender, dob } = req.body;
@@ -143,3 +164,54 @@ export const logoutAdmin = catchAsync(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, null, "Admin logged out successfully"));
 });
+
+// Get All Admins (paginated)
+export const getAllAdmins = catchAsync(async (req, res) => {
+    const { page = 1, limit = 10, search } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const filter = { role: { $in: ['ADMIN', 'SUB_ADMIN'] } };
+    if (search) {
+        filter.$or = [
+            { firstName: { $regex: search, $options: 'i' } },
+            { lastName: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } },
+        ];
+    }
+
+    const [admins, total] = await Promise.all([
+        User.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit))
+            .select('firstName lastName email phone role isVerified isDisabled lastLoginAt createdAt'),
+        User.countDocuments(filter),
+    ]);
+
+    res.status(200).json(
+        new ApiResponse(200, {
+            admins,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                totalPages: Math.ceil(total / parseInt(limit)),
+            },
+        }, 'Admins fetched successfully')
+    );
+});
+
+// Get Admin By ID
+export const getAdminById = catchAsync(async (req, res, next) => {
+    const admin = await User.findOne({
+        _id: req.params.id,
+        role: { $in: ['ADMIN', 'SUB_ADMIN'] },
+    }).select('firstName lastName email phone role isVerified isDisabled permissions lastLoginAt createdAt');
+
+    if (!admin) return next(new APIError(404, 'Admin not found'));
+
+    res.status(200).json(
+        new ApiResponse(200, { admin }, 'Admin fetched successfully')
+    );
+});
+

@@ -4,62 +4,188 @@ import Variant from "../../models/vendorShop/variant.model.js";
 import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
 import { calculateDiscount } from "../../utils/priceCalculator.js";
+import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
 
 class ProductController {
-
-  
   static async getProducts(req, res, next) {
     try {
-      //  versioned cache key (important)
+      const {
+        page = 1,
+        limit = 20,
+        sort,
+        minPrice,
+        maxPrice,
+        lat,
+        lng,
+        radius = 50000,
+        type,
+        newArrival,
+        moduleId,
+        pcategoryId,
+        categoryId,
+        subcategoryId,
+        brandId,
+      } = req.query;
 
-      const cacheKey = `products:v1:${JSON.stringify(req.query)}`;
+      const skip = (Number(page) - 1) * Number(limit);
 
+      // ✅ REDIS CACHE
+      const cacheKey = `products:public:v2:${JSON.stringify(req.query)}`;
       const cached = await RedisCache.get(cacheKey);
       if (cached) return res.json(cached);
 
-      const { page = 1, limit = 20, sort = "-createdAt" } = req.query;
+      const useGeo = lat && lng && sort === "nearest";
+      // ================= BASE MATCH =================
+      const matchStage = {
+        disable: false,
+        varified: true,
+      };
 
-      //  SAFE FILTER BUILD
-      const query = {};
+      // ================= CATEGORY FILTERS =================
+      const toObjectId = (id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null;
 
-      const allowedFilters = [
-        "moduleId",
-        "pcategoryId",
-        "categoryId",
-        "subcategoryId",
-        "brandId",
-        "disable",
-        "varified",
-      ];
+      if (moduleId) matchStage.moduleId = toObjectId(moduleId);
+      if (pcategoryId) matchStage.pcategoryId = toObjectId(pcategoryId);
+      if (categoryId) matchStage.categoryId = toObjectId(categoryId);
+      if (subcategoryId) matchStage.subcategoryId = toObjectId(subcategoryId);
+      if (brandId) matchStage.brandId = toObjectId(brandId);
 
-      allowedFilters.forEach((field) => {
-        if (req.query[field] !== undefined) {
-          query[field] = req.query[field];
-        }
+      if (newArrival === "true") {
+        matchStage.createdAt = {
+          $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        };
+      }
+
+      // ================= PIPELINE =================
+      const pipeline = [];
+
+      //  GEO FIRST (kept as you wrote)
+      if (useGeo) {
+        pipeline.push({
+          $geoNear: {
+            near: {
+              type: "Point",
+              coordinates: [Number(lng), Number(lat)],
+            },
+            distanceField: "distance",
+            maxDistance: Number(radius),
+            spherical: true,
+            key: "vendorCompany.location",
+          },
+        });
+      }
+
+      // early product filter
+      pipeline.push({ $match: matchStage });
+
+      // ================= VARIANT LOOKUP =================
+      pipeline.push({
+        $lookup: {
+          from: "variants",
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$productId", "$$productId"] },
+                disable: false,
+                ...(type && { Type: type }),
+                ...((minPrice || maxPrice) && {
+                  price: {
+                    ...(minPrice && { $gte: Number(minPrice) }),
+                    ...(maxPrice && { $lte: Number(maxPrice) }),
+                  },
+                }),
+              },
+            },
+            { $sort: { price: 1 } },
+            { $limit: 1 },
+            {
+              $project: {
+                price: 1,
+                Type: 1,
+                mrp: 1,
+                discount: 1,
+              },
+            },
+          ],
+          as: "defaultVariant",
+        },
       });
 
-      //  FAST QUERY
-      const products = await Product.find(query)
-        .populate("brandId", "name")
-        .populate("defaultVariantId")
-        .sort(sort)
-        .skip((page - 1) * Number(limit))
-        .limit(Number(limit))
-        .lean(); //  BIG PERFORMANCE BOOST
+      // remove products without valid variant
+      pipeline.push({
+        $match: {
+          defaultVariant: { $ne: [] },
+        },
+      });
 
-      const result = {
-        status: "success",
-        message: "Products retrieved successfully ",
+      // ================= ✅ FIXED VENDOR LOOKUP =================
+      pipeline.push(
+        {
+          $lookup: {
+            from: "vendorcompanies",
+            localField: "vendorId",
+            foreignField: "vendorId",
+            as: "vendorCompany",
+          },
+        },
+        {
+          $unwind: {
+            path: "$vendorCompany",
+            preserveNullAndEmptyArrays: true, // ✅ IMPORTANT FIX
+          },
+        },
+      );
+
+      // ================= SORT =================
+      pipeline.push({
+        $sort:
+          sort === "priceLowHigh"
+            ? { "defaultVariant.price": 1 }
+            : sort === "priceHighLow"
+              ? { "defaultVariant.price": -1 }
+              : sort === "nearest" && useGeo
+                ? { distance: 1 }
+                : sort === "newest"
+                  ? { createdAt: -1 }
+                  : { createdAt: -1 },
+      });
+
+      // ================= PAGINATION =================
+      pipeline.push({ $skip: skip }, { $limit: Number(limit) });
+
+      // ================= BRAND LOOKUP =================
+      pipeline.push(
+        {
+          $lookup: {
+            from: "brands",
+            localField: "brandId",
+            foreignField: "_id",
+            pipeline: [{ $project: { name: 1 } }],
+            as: "brandId",
+          },
+        },
+        { $unwind: { path: "$brandId", preserveNullAndEmptyArrays: true } },
+      );
+
+      const products = await Product.aggregate(pipeline);
+
+      const response = {
+        success: true,
+        message: "Products fetched successfully",
         results: products.length,
         data: { products },
       };
 
-      //  cache result
-      await RedisCache.set(cacheKey, result);
+      // ✅ CACHE RESULT
+      await RedisCache.set(cacheKey, response, 60);
 
-      res.json(result);
-    } catch (err) {
-      next(err);
+      return res.status(200).json(response);
+    } catch (error) {
+      next(error);
     }
   }
   //  CREATE PRODUCT
@@ -230,20 +356,34 @@ class ProductController {
         productData.thumbnail = uploadedThumbnail;
       }
 
+      // CREATE PRODUCT (FIXED)
+
+      const vendorCompany = await VendorCompany.findOne({
+        vendorId: req.user.id,
+      })
+        .select("location")
+        .lean();
+
+      let vendorLocation = undefined;
+
+      if (vendorCompany?.location?.coordinates?.length === 2) {
+        vendorLocation = vendorCompany.location;
+      }
+
       // ✅ CREATE PRODUCT (FIXED)
+
       const productArr = await Product.create(
         [
           {
             ...productData,
             vendorId: req.user.id,
+            vendorLocation,
             // ✅ correct owner
           },
         ],
         { session },
       );
-
       const product = productArr[0];
-
       // SECURITY CLEANUP
       const forbiddenFields = [
         "productId",
@@ -275,7 +415,6 @@ class ProductController {
 
           price,
           discountAmount,
-
           // AUTO INJECT
           productId: product._id,
           moduleId: product.moduleId,
@@ -283,7 +422,6 @@ class ProductController {
           categoryId: product.categoryId,
           subcategoryId: product.subcategoryId,
           brandId: product.brandId,
-
           // ✅ FIXED vendor ownership
           vendorId: req.user.id,
         };
@@ -319,6 +457,7 @@ class ProductController {
       next(err);
     }
   }
+
   // UPDATE PRODUCT
 
   static async updateProduct(req, res, next) {
@@ -537,9 +676,217 @@ class ProductController {
       next(err);
     }
   }
-}
+  //asgar ---> flash sale
+  static async setFlashSale(req, res) {
+    try {
+      const { productId } = req.params;
+      const { discount, startDateTime, endDateTime, label } = req.body;
+      if (new Date(startDateTime) >= new Date(endDateTime)) {
+        return res.status(400).json({
+          success: false,
+          message: "End date/time must be greater than start date/time",
+        });
+      }
 
+      const product = await Product.findByIdAndUpdate(
+        productId,
+        {
+          flashSale: {
+            isActive: true,
+            discount,
+            startDateTime: new Date(startDateTime),
+            endDateTime: new Date(endDateTime),
+            label: label || "",
+          },
+        },
+        { new: true },
+      );
 
-// trending Product
+      if (!product) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Product nahi mila" });
+      }
+
+      res.status(200).json({ success: true, product });
+    } catch (error) {
+      next(err);
+    }
+  }
+
+  static async cancelFlashSale(req, res) {
+    try {
+      const { productId } = req.params;
+      const product = await Product.findByIdAndUpdate(
+        productId,
+        { "flashSale.isActive": false },
+        { new: true },
+      );
+
+      res.status(200).json({ success: true, product });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  static async getFlashSaleProducts(req, res) {
+    try {
+      const now = new Date();
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const sortBy = req.query.sortBy || "flashSale.startDateTime"; // createdAt, discount, avgRating
+      const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+
+      const filter = {
+        "flashSale.isActive": true,
+        "flashSale.startDateTime": { $lte: now },
+        "flashSale.endDateTime": { $gte: now },
+        disable: false,
+      };
+
+      const [products, total] = await Promise.all([
+        Product.find(filter)
+          .populate("brandId categoryId subcategoryId")
+          .sort({ [sortBy]: sortOrder })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        Product.countDocuments(filter),
+      ]);
+
+      res.status(200).json({
+        success: true,
+        products,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPrevPage: page > 1,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+
+  }
+  //priyanshu
+    // ===================== TOP SELLING PRODUCTS =====================
+  static async getTopSellingProducts(req,res,next){
+    try {
+      const {
+        limit = 10,
+        days,
+        moduleId,
+        pcategoryId,
+      } = req.query;
+
+      const safeLimit = Math.min(parseInt(limit), 50);
+      const cacheKey = `products:top-selling:v1:${JSON.stringify(req.query)}`;
+      const cached = await RedisCache.get(cacheKey);
+      if (cached) return res.status(200).json(cached);
+
+      const toObjectId = (id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null;
+
+      const matchStage = {
+        disable: false,
+        varified: true,
+        sold: { $gt: 0 },
+      };
+
+      if (moduleId) matchStage.moduleId = toObjectId(moduleId);
+      if (pcategoryId) matchStage.pcategoryId = toObjectId(pcategoryId);
+
+      if (days && !isNaN(Number(days))) {
+        matchStage.updatedAt = {
+          $gte: new Date(Date.now() - Number(days) * 24 * 60 * 60 * 1000),
+        };
+      }
+      // console.log(matchStage);
+
+      const pipeline = [
+        { $match: matchStage },
+        { $sort: { sold: -1 } },
+        { $limit: safeLimit },
+        {
+          $lookup: {
+            from: "variants",
+            let: { pid: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ["$productId", "$$pid"] },
+                  disable: false,
+                },
+              },
+              { $sort: { price: 1 } },
+              { $limit: 1 },
+              { $project: { price: 1, mrp: 1, discount: 1, discountAmount: 1, Type: 1 } },
+            ],
+            as: "defaultVariant",
+          },
+        },
+
+        { $match: { defaultVariant: { $ne: [] } } },
+
+        {
+          $lookup: {
+            from: "brands",
+            localField: "brandId",
+            foreignField: "_id",
+            pipeline: [{ $project: { name: 1 } }],
+            as: "brandId",
+          },
+        },
+        { $unwind: { path: "$brandId", preserveNullAndEmptyArrays: true } },
+
+        {
+          $project: {
+            name: 1,
+            slug: 1,
+            thumbnail: 1,
+            images: 1,
+            sold: 1,
+            avgRating: 1,
+            reviewCount: 1,
+            measurementUnit: 1,
+            features:1,
+            disable: 1,
+            varified: 1,
+            vendorId: 1,
+            categoryId: 1,
+            subcategoryId: 1,
+            "brandId.name": 1,
+            defaultVariant: { $arrayElemAt: ["$defaultVariant", 0] },
+          },
+        },
+      ];
+
+      const products = await Product.aggregate(pipeline);
+
+      const response = {
+        success: true,
+        message: "Top selling products fetched successfully",
+        results: products.length,
+        data: { products },
+      };
+
+      await RedisCache.set(cacheKey, response, 300);
+
+      return res.status(200).json(response);
+
+      
+    } catch (error) {
+      next(error)
+    }
+  }
+  }
+
 
 export default ProductController;
+

@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose from "mongoose"; // Sanvi
 
 const stateSchema = new mongoose.Schema(
   {

@@ -1,4 +1,4 @@
-export function calculateDiscount(mrp, discountPercent) {
+export function calculateDiscount(mrp, discountPercent) {  // Sanvi 
   const mrpNum = Number(mrp || 0);
   const discountNum = Number(discountPercent || 0);
 

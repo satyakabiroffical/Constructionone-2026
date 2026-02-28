@@ -1,6 +1,7 @@
 import { Router } from "express";
 import BrandController from "../../controllers/vendorShop/brand.controller.js";
 import validate from "../../middlewares/joiValidation.js";
+import { authMiddleware } from "../../middlewares/auth.js";
 import {
   createBrandSchema,
   updateBrandSchema,
@@ -18,23 +19,29 @@ router.post(
   "/brands",
   requireAuth,
   validate(createBrandSchema),
-  BrandController.createBrand
+  BrandController.createBrand,
 );
 
 router.patch(
   "/brands/:id",
   requireAuth,
   validate(updateBrandSchema),
-  BrandController.updateBrand
+  BrandController.updateBrand,
 );
 
 //  toggle enable/disable
 router.patch(
   "/brands/:id/toggle-status",
   requireAuth,
-  BrandController.toggleBrandStatus
+  BrandController.toggleBrandStatus,
 );
 
 router.delete("/brands/:id", requireAuth, BrandController.deleteBrand);
-
+//vendor section
+//get vendor brands and available product in vendor shop section
+router.get(
+  "/brands/vendorshop/:vendorId",
+  authMiddleware,
+  BrandController.getVendorBrands,
+);
 export default router;

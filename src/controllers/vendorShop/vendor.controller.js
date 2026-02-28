@@ -12,6 +12,7 @@ const COOLDOWN_PERIOD = 50 * 1000;
 import { APIError } from "../../middlewares/errorHandler.js";
 import productModel from "../../models/vendorShop/product.model.js";
 import RedisCache from "../../utils/redisCache.js";
+
 //vendor auth
 export const vendorAuth = async (req, res) => {
   try {
@@ -130,7 +131,7 @@ export const verifyOtp = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "365d" },
     );
-e
+
     const safeUser = {
       id: user._id,
       firstName: user.firstName,
@@ -471,6 +472,7 @@ export const getVendorProfile = async (req, res, next) => {
     next(error);
   }
 };
+
 export const updateUpsertVendorInfo = async (req, res) => {
   try {
     const vendorProfileId = req.user.id;
@@ -509,7 +511,6 @@ export const updateUpsertVendorInfo = async (req, res) => {
     });
   }
 };
-
 //login
 export const loginWithPhone = async (req, res) => {
   try {
@@ -607,7 +608,7 @@ export const logoutVendor = async (req, res, next) => {
     user.token = null;
     await user.save();
     const cacheKey = `vendor:v1:${JSON.stringify({})}`;
-    await RedisCache.del(cacheKey);
+    await RedisCache.delete(cacheKey);
     res.status(200).json({
       success: true,
       message: "Logout successful",
@@ -616,7 +617,6 @@ export const logoutVendor = async (req, res, next) => {
     next(error);
   }
 };
-
 //vendor add Shop details
 export const upsertVendorCompanyInfo = async (req, res) => {
   try {
@@ -692,7 +692,8 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
       $set: { isProfileCompleted: true },
     });
     const cacheKey = `vendor:v1:${JSON.stringify({})}`;
-    await RedisCache.del(cacheKey);
+    await RedisCache.delete(cacheKey);
+
     return res.status(200).json({
       success: true,
       message: "Company details saved successfully",
@@ -905,6 +906,16 @@ export const getAllVendors = async (req, res) => {
     ]);
 
     // ---------------- Response ----------------
+    const response = {
+      success: true,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      data: vendors,
+    };
     await RedisCache.set(cacheKey, response);
     return res.status(200).json({
       success: true,
