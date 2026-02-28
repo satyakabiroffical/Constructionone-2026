@@ -181,7 +181,7 @@ class ProductController {
         data: { products },
       };
 
-      // ✅ CACHE RESULT
+      // CACHE RESULT
       await RedisCache.set(cacheKey, response, 60);
 
       return res.status(200).json(response);

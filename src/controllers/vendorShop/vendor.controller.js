@@ -11,6 +11,9 @@ const MAX_OTP_ATTEMPTS = 3;
 const COOLDOWN_PERIOD = 50 * 1000;
 import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
+import { ApiResponse } from "../../utils/ApiResponse.js";
+import productModel from "../../models/vendorShop/product.model.js";
+import mongoose from "mongoose";
 
 //vendor auth
 export const vendorAuth = async (req, res) => {
@@ -401,7 +404,6 @@ export const saveFcmToken = async (req, res) => {
 
   res.status(200).json({ message: "FCM token saved" });
 };
-
 //vendorProfile
 export const upsertVendorInfo = async (req, res) => {
   try {
@@ -1020,6 +1022,40 @@ export const disableVendorStatus = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+//vendorshop - catogry
+export const getCategoriesByVendorId = async (req, res) => {
+  const vendorId = req.params.vendorId;
+  const categories = await productModel.aggregate([
+    {
+      $match: {
+        vendorId: new mongoose.Types.ObjectId(vendorId),
+      },
+    },
+    {
+      $group: {
+        _id: "$categoryId",
+      },
+    },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "_id",
+        foreignField: "_id",
+        as: "category",
+      },
+    },
+    { $unwind: "$category" },
+    { $replaceRoot: { newRoot: "$category" } },
+  ]);
+  res.status(200).json({
+    data: categories.map((category) => ({
+      id: category._id,
+      name: category.name,
+      image: category.image,
+    })),
+  });
 };
 //dynamic-otp
 const generateOtp = () => {

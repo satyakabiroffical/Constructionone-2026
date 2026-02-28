@@ -20,6 +20,7 @@ import {
   updateUpsertVendorInfo,
   updateUpsertVendorCompanyInfo,
   saveFcmToken,
+  getCategoriesByVendorId,
 } from "../../controllers/vendorShop/vendor.controller.js";
 import { adminMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
 import { validateRequest } from "../../middlewares/validation.js";
@@ -98,4 +99,6 @@ router.post(
   removeMultipleBadgesByAdmin,
 );
 router.post("/saveFcmToken", vendorMiddleware, saveFcmToken);
+router.get("/vendorshop/:vendorId", getCategoriesByVendorId);
+
 export default router;
