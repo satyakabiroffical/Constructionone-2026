@@ -7,15 +7,16 @@ import { idempotencyMiddleware } from "../../middlewares/idempotency.middleware.
 
 const router = Router();
 
-router.post("/create", requireAuth, idempotencyMiddleware, createOrder);
+router.post("/create", requireAuth, 
+    idempotencyMiddleware, 
+    createOrder);
 router.post("/verify-payment", requireAuth, verifyPayment);
 router.get("/my-orders", requireAuth, getAllOrders);
 router.get("/vendor-orders/:vendorId", requireAuth, getOrdersByVendor);
 router.put("/:orderId/cancel", requireAuth, cancelOrder);
 router.put("/vendor/sub-order/:subOrderId", vendorMiddleware, vendorUpdateOrder);
 
-// Vendor: update sub-order status  →  PUT /order/:orderId/status
-// (vendor sees only their own sub-order; requireRole ensures vendor)
+
 router.put("/vendor/updateSingleProductStatus", vendorMiddleware, updateSingleProductStatus);
 router.put("/vendor/all-items-status", vendorMiddleware, updateAllProductsStatus);
 
