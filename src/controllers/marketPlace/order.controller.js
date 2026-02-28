@@ -88,7 +88,6 @@ export const createOrder = async (req, res, next) => {
     try {
         const userId = req.user._id;
         const { shippingAddress, paymentMethod } = req.body;
-
         if (!shippingAddress || !paymentMethod) {
             throw new APIError(400, "Shipping address & payment method required");
         }
@@ -122,8 +121,6 @@ export const createOrder = async (req, res, next) => {
         const DeliveryDate = new Date();
         DeliveryDate.setDate(DeliveryDate.getDate() + 7);
 
-        /* ================= PAYMENT LOGIC ================= */
-
         let paymentStatus = "UNPAID";
         let orderStatus = "PENDING";
 
@@ -140,8 +137,7 @@ export const createOrder = async (req, res, next) => {
             paymentStatus = "PAID";
         }
 
-        /* ================= CREATE MASTER ORDER ================= */
-
+        // CREATE MASTER ORDER
         const masterOrder = await Order.create(
             [{
                 userId,
@@ -178,8 +174,7 @@ export const createOrder = async (req, res, next) => {
             await masterOrder[0].save({ session });
         }
 
-        /* ================= TRANSACTION ================= */
-
+        // TRANSACTION
         const transaction = await Transaction.create(
             [{
                 userId,
@@ -191,8 +186,7 @@ export const createOrder = async (req, res, next) => {
             { session }
         );
 
-        /* ================= CREATE SUB ORDERS ================= */
-
+        // CREATE SUB ORDERS
         const subOrderDocs = splitdata.map(data => ({
             userId,
             items: data.items.map(item => ({
@@ -216,8 +210,6 @@ export const createOrder = async (req, res, next) => {
         }));
 
         await Order.insertMany(subOrderDocs, { session });
-
-        /* ================= BULK STOCK UPDATE ================= */
 
         if (paymentMethod !== "ONLINE") {
             const variantOps = [];
@@ -247,13 +239,13 @@ export const createOrder = async (req, res, next) => {
             ]);
         }
 
-        // if (paymentMethod !== "ONLINE") {
-        //     await Cart.findOneAndUpdate(
-        //         { userId },
-        //         { items: [], totalAmount: 0 },
-        //         { session }
-        //     );
-        // }
+        if (paymentMethod !== "ONLINE") {
+            await Cart.findOneAndUpdate(
+                { userId },
+                { items: [], totalAmount: 0 },
+                { session }
+            );
+        }
 
         await session.commitTransaction();
         session.endSession();
@@ -390,13 +382,13 @@ export const verifyPayment = async (req, res, next) => {
         await session.commitTransaction();
         session.endSession();
 
-        // Version bump — buyer's order list cache auto-invalidated, no redis.keys() needed
+
         await redis.incr(`user:orders:version:${userId}`);
 
-        // Send notification to user after online payment confirmation
+
         await sendOrderNotificationToUser(masterOrder, "CONFIRMED");
 
-        // Generate invoices + notify vendors fire-and-forget
+        
         subOrders.forEach(sub =>
             sendOrderNotificationToVendor(sub).catch(console.error)
         );

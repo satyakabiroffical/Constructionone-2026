@@ -27,8 +27,6 @@ router.use("/v1", marketplaceRoutes);
 router.use("/v1", rentalRoutes);
 router.use("/v1", serviceProviderRoutes);
 
-// ─── PUBLIC routes — MUST be before adminRoutes ───────────────────────────────
-// adminRoutes has global requireAuth that intercepts ALL /v1/* if mounted first
 router.use("/v1/banners", publicBannerRoutes);
 router.use("/v1/platform", platformRoutes); // ← /platform/home/:slug, /platform/modules
 router.use("/v1/faqs", faqRoutes);

@@ -29,7 +29,6 @@ router.put(
 );
 
 // Vendor: update sub-order status  →  PUT /order/:orderId/status
-// (vendor sees only their own sub-order; requireRole ensures vendor)
 router.put(
   "/vendor/updateSingleProductStatus",
   vendorMiddleware,
