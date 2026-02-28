@@ -48,15 +48,21 @@ export const authMiddleware = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // Query both models simultaneously
 
-    const [user, vendor] = await Promise.all([
-      userModel.findById(decoded.id),
-      VendorProfile.findById(decoded.id),
-    ]);
+    // FIX: JWT mein role already stored hai — use it to query ONLY one collection
+    // Pehle dono collections query hoti thi = 2 DB calls per request (wasteful!)
+    let account;
+    const isVendor = decoded.role === 'vendor';
 
-    const account = user || vendor;
-    const accountType = user ? "user" : vendor ? "vendor" : null;
+    if (isVendor) {
+      account = await VendorProfile.findById(decoded.id)
+        .select('_id disable')
+        .lean();
+    } else {
+      account = await userModel.findById(decoded.id)
+        .select('_id disable role')
+        .lean();
+    }
 
     if (!account) {
       return res.status(404).json({
@@ -74,8 +80,8 @@ export const authMiddleware = async (req, res, next) => {
 
     req.user = {
       id: decoded.id,
-      role: decoded.role || accountType,
-      accountType,
+      role: decoded.role,
+      accountType: isVendor ? 'vendor' : 'user',
     };
 
     next();
@@ -115,34 +121,32 @@ export const vendorMiddleware = async (req, res, next) => {
 
 export const adminMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  console.log("AUTH HEADER:", authHeader); // 👈 ADD
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Not authenticated" });
   }
 
   const token = authHeader.split(" ")[1];
-  console.log("TOKEN:", token); // 👈 ADD
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("DECODED:", decoded); // 👈 MOST IMPORTANT
 
-    const user = await userModel.findById(decoded.id);
-    console.log("DB USER:", user?.role); // 👈 ADD
+    // Sirf role check ke liye minimal fields fetch karo
+    const user = await userModel.findById(decoded.id)
+      .select('_id role')
+      .lean();
 
-    if (user.role !== "ADMIN" && user.role !== "SUB_ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUB_ADMIN")) {
       return res.status(403).json({ message: "Access denied" });
     }
 
     req.user = {
       id: decoded.id,
-      role: decoded.role,
+      role: user.role,
     };
 
     next();
   } catch (error) {
-    console.error("JWT ERROR:", error.message); // 👈 ADD
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
