@@ -136,7 +136,7 @@ class ProductController {
         {
           $unwind: {
             path: "$vendorCompany",
-            preserveNullAndEmptyArrays: true, // ✅ IMPORTANT FIX
+            preserveNullAndEmptyArrays: true, // IMPORTANT FIX
           },
         },
       );
@@ -183,7 +183,6 @@ class ProductController {
 
       // CACHE RESULT
       await RedisCache.set(cacheKey, response, 60);
-
       return res.status(200).json(response);
     } catch (error) {
       next(error);

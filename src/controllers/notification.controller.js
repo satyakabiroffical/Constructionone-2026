@@ -286,7 +286,6 @@ export const sendOrderNotificationToUser = async (order, status) => {
     console.error("sendOrderNotificationToUser failed:", err.message);
   }
 };
-
 // Internal helper — Send new order notification to a vendor
 
 export const sendOrderNotificationToVendor = async (subOrder) => {
