@@ -3,7 +3,6 @@ import { Router } from "express";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";
 
-
 import adminRoutes from "./admin.routes.js";
 import companyRoutes from "./company.routes.js";
 import faqRoutes from "./faq.routes.js";
@@ -18,7 +17,6 @@ import taxRoutes from "./tax.routes.js";
 import adminOrderRoutes from "./order.routes.js";
 import globalSearchRoutes from "./globalSearch.routes.js";
 import adminReviewRoutes from "./review.routes.js";
-
 const router = Router();
 
 // Public admin route (login) — managed internally in admin.routes.js

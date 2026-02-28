@@ -12,6 +12,9 @@ const router = Router();
 // GET all products — any authenticated user/admin/vendor
 router.get("/products", authMiddleware, ProductController.getProducts);
 
+// GET top selling products (must be BEFORE /product/:id to avoid wildcard conflict)
+router.get("/products/top-selling", authMiddleware, ProductController.getTopSellingProducts);
+
 // CREATE product with variants (vendor only)
 router.post(
   "/addProducts",
@@ -57,8 +60,10 @@ router.patch(
   ProductController.verifyProduct,
 );
 
-// GET single product by ID — ONCE only (removed duplicate)
-router.get("/product/:id", requireAuth, ProductController.getProductById);
+// FLASH SALE routes
+router.post("/products/:productId/flash-sale", vendorMiddleware, ProductController.setFlashSale);
+router.patch("/products/:productId/flash-sale/cancel", vendorMiddleware, ProductController.cancelFlashSale);
+router.get("/products/flash-sale", authMiddleware, ProductController.getFlashSaleProducts);
 
 //get vendor products
 router.get(

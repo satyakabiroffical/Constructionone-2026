@@ -1,4 +1,5 @@
 // priyanshu
+import mongoose from "mongoose";
 import Cart from "../../models/user/cart.model.js";
 import calculateBillSummary from "../../services/calculateBillSummary.js";
 import { APIError } from "../../middlewares/errorHandler.js";
@@ -10,104 +11,103 @@ import redis from "../../config/redis.config.js";
 
 
 
+
 export const addToCart = async (req, res, next) => {
   try {
-
     const { variantId, quantity } = req.body;
     const userId = req.user.id;
+    const cacheKey = `cart:${userId}`;
 
     if (!variantId || !quantity || quantity <= 0) {
       return next(new APIError(400, "VariantId and valid quantity required"));
     }
 
-    // Find Variant + Product     
-    const variant = await Variant.findById(variantId);
+    const variant = await Variant.findById(variantId)
+      .populate("productId", "name thumbnail slug")
+      .lean();
+
     if (!variant) {
       return next(new APIError(404, "Variant not found"));
     }
-    // console.log(variant);
-
-    // const product = await Product.findById(variant.productId);
 
     // BULK LOGIC
-    let finalQuantity = quantity;
-
     if (variant.Type === "BULK") {
       const moq = Number(variant.moq);
 
-      if (quantity < moq) {
-        return next(
-          new APIError(400, `Minimum order quantity is ${moq}`)
-        );
-      }
+      if (quantity < moq)
+        return next(new APIError(400, `Minimum order quantity is ${moq}`));
 
-      if (quantity % moq !== 0) {
+      if (quantity % moq !== 0)
         return next(
-          new APIError(400, `Quantity must be a multiple of MOQ (${moq})`)
+          new APIError(400, `Quantity must be multiple of MOQ (${moq})`)
         );
-      }
     }
 
-    // Stock Check
-    if (variant.stock < finalQuantity) {
+    if (variant.stock < quantity)
       return next(new APIError(400, "Out of stock"));
-    }
 
-    // Find or Create Cart
+    
     let cart = await Cart.findOne({ userId });
-    if (!cart) {
-      cart = new Cart({ userId, items: [] });
-    }
+    if (!cart) cart = new Cart({ userId, items: [] });
 
-    // Check existing item
     const existingItem = cart.items.find(
       (item) => item.variant.toString() === variantId
     );
 
     if (existingItem) {
-      const newQuantity = existingItem.quantity + finalQuantity;
+      const newQty = existingItem.quantity + quantity;
 
-      // Re-check stock
-      if (variant.stock < newQuantity) {
-        return next(new APIError(400, "Not enough stock available"));
-      }
+      if (variant.stock < newQty)
+        return next(new APIError(400, "Not enough stock"));
 
-      existingItem.quantity = newQuantity;
-      existingItem.totalPrice = newQuantity * existingItem.unitPrice;
+      existingItem.quantity = newQty;
+      existingItem.totalPrice = newQty * existingItem.unitPrice;
     } else {
       cart.items.push({
         variant: variant._id,
-        quantity: finalQuantity,
+        quantity,
         unitPrice: variant.price,
-        totalPrice: variant.price * finalQuantity,
+        totalPrice: variant.price * quantity,
       });
     }
 
-
     const billSummary = await calculateBillSummary(cart.items);
-    // Recalculate totalAmount
     cart.totalAmount = billSummary.grandTotal;
-    // cart.items.reduce(
-    //   (total , item) => total + item.totalPrice,
-    //   0
-    // );
 
     await cart.save();
 
-    // Invalidate Cache
-    await redis.del(`cart:${userId}`);
-
-    res.status(200).json({
+    // Build SAME response structure as getCart
+    const response = {
       success: true,
-      message: "Product added to cart",
-      cart,
-    });
+      message: "Cart updated successfully",
+      cart: {
+        _id: cart._id,
+        items: cart.items.map((item) => ({
+          variantId: variant._id,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          product: {
+            name: variant.productId.name,
+            thumbnail: variant.productId.thumbnail,
+            slug: variant.productId.slug,
+          },
+        })),
+        billSummary,
+      },
+    };
+
+    // Update cache instead of deleting
+    await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
+
+    res.status(200).json(response);
+
   } catch (error) {
     next(error);
   }
 };
 
-// Enhanced Get Cart
+
 export const getCart = async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -126,7 +126,7 @@ export const getCart = async (req, res, next) => {
         model: "Product",
         select: "name thumbnail slug",
       },
-    });
+    }).lean();
 
     if (!cart) {
       return next(new APIError(404, "Cart not found"));
@@ -201,7 +201,9 @@ export const updateCartItem = async (req, res, next) => {
     if (!cart) {
       return next(new APIError(404, "Cart not found"));
     }
+
     // console.log(cart);
+    
     const itemIndex = cart.items.findIndex(
       (item) => item.variant.toString() === variantId
     );
@@ -260,6 +262,7 @@ export const updateCartItem = async (req, res, next) => {
   }
 };
 
+
 export const removeCartItem = async (req, res, next) => {
   try {
     const { variantId } = req.params;
@@ -298,6 +301,97 @@ export const removeCartItem = async (req, res, next) => {
       message: "Item removed from cart",
       cart,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+export const similarProducts = async (req, res, next) => {
+  try {
+    const { productId } = req.params;
+
+    // ── Redis Cache ──────────────────────────────────────────────
+    const cacheKey = `similar:${productId}`;
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) return res.status(200).json(JSON.parse(cachedData));
+
+    // ── Find source product ──────────────────────────────────────
+    const product = await Product.findById(productId)
+      .select("subcategoryId categoryId")
+      .lean();
+
+    if (!product) {
+      return next(new APIError(404, "Product not found"));
+    }
+
+    // ── Aggregation pipeline ─────────────────────────────────────
+    const pipeline = [
+      {
+        $match: {
+          _id: { $ne: new mongoose.Types.ObjectId(productId) },
+          subcategoryId: product.subcategoryId, 
+          disable: false,
+          varified: true,
+        },
+      },
+      { $limit: 10 },
+
+      {
+        $lookup: {
+          from: "variants",
+          let: { pid: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$productId", "$$pid"] },
+                disable: false,
+              },
+            },
+            { $sort: { price: 1 } },
+            { $limit: 1 },
+            {
+              $project: {
+                price: 1,
+                mrp: 1,
+                discount: 1,
+                discountAmount: 1,
+                Type: 1,
+              },
+            },
+          ],
+          as: "defaultVariant",
+        },
+      },
+
+      { $match: { defaultVariant: { $ne: [] } } },
+
+      {
+        $project: {
+          name: 1,
+          slug: 1,
+          thumbnail: 1,
+          avgRating: 1,
+          reviewCount: 1,
+          sold: 1,
+          measurementUnit: 1,
+          defaultVariant: { $arrayElemAt: ["$defaultVariant", 0] },
+        },
+      },
+    ];
+
+    const products = await Product.aggregate(pipeline);
+
+    const response = {
+      success: true,
+      message: "Similar products fetched successfully",
+      results: products.length,
+      data: { products },
+    };
+
+    await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
+
+    return res.status(200).json(response);
   } catch (error) {
     next(error);
   }

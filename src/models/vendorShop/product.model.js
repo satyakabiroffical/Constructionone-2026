@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-
 const PROPERTY_KEYS = [
   "fire_resistance",
   "durability",

@@ -1,4 +1,4 @@
-import User from "../models/user/user.model.js"; 
+import User from "../models/user/user.model.js";
 import { VendorProfile } from "../models/vendorShop/vendor.model.js";
 import Notification from "../models/notification.model.js";
 import { notifyUser } from "../utils/notifyUser.js";
@@ -178,12 +178,9 @@ export const notifyAllVendorsAndUsers = async (req, res, next) => {
 //mark read
 export const markNotificationRead = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    const notification = await Notification.findByIdAndUpdate(
-      id,
-      { isRead: true },
-      { new: true },
+    const notification = await Notification.updateMany(
+      { isRead: false },
+      { $set: { isRead: true } },
     );
 
     if (!notification) {
@@ -266,11 +263,11 @@ export const getVendorNotifications = async (req, res) => {
 export const sendOrderNotificationToUser = async (order, status) => {
   try {
     const statusMessages = {
-      CONFIRMED: "Your order has been confirmed! ",
+      CONFIRMED: "Your order has been confirmed!",
       PENDING: "Your order is pending payment.",
       CANCELLED: "Your order has been cancelled.",
-      OUT_FOR_DELIVERY: "Your order is out for delivery! ",
-      DELIVERED: "Your order has been delivered. Enjoy! ",
+      OUT_FOR_DELIVERY: "Your order is out for delivery!",
+      DELIVERED: "Your order has been delivered. Enjoy!",
       VENDOR_CONFIRMED: "Your order has been accepted by the vendor.",
       VENDOR_CANCELLED: "Your order was rejected by the vendor.",
     };
@@ -286,11 +283,12 @@ export const sendOrderNotificationToUser = async (order, status) => {
       type: "ORDER",
     });
   } catch (err) {
-    // Never crash the main flow — just log silently
     console.error("sendOrderNotificationToUser failed:", err.message);
   }
 };
+
 // Internal helper — Send new order notification to a vendor
+
 export const sendOrderNotificationToVendor = async (subOrder) => {
   try {
     const vendorId = subOrder.vandorId;

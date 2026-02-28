@@ -822,8 +822,217 @@ class ProductController {
       next(err);
     }
   }
-}
 
-// trending Product
+  // trending Product
+  //asgar ---> flash sale
+  static async setFlashSale(req, res) {
+    try {
+      const { productId } = req.params;
+      const { discount, startDateTime, endDateTime, label } = req.body;
+      if (new Date(startDateTime) >= new Date(endDateTime)) {
+        return res.status(400).json({
+          success: false,
+          message: "End date/time must be greater than start date/time",
+        });
+      }
+
+      const product = await Product.findByIdAndUpdate(
+        productId,
+        {
+          flashSale: {
+            isActive: true,
+            discount,
+            startDateTime: new Date(startDateTime),
+            endDateTime: new Date(endDateTime),
+            label: label || "",
+          },
+        },
+        { new: true },
+      );
+
+      if (!product) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Product nahi mila" });
+      }
+
+      res.status(200).json({ success: true, product });
+    } catch (error) {
+      next(err);
+    }
+  }
+
+  static async cancelFlashSale(req, res) {
+    try {
+      const { productId } = req.params;
+      const product = await Product.findByIdAndUpdate(
+        productId,
+        { "flashSale.isActive": false },
+        { new: true },
+      );
+
+      res.status(200).json({ success: true, product });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  static async getFlashSaleProducts(req, res) {
+    try {
+      const now = new Date();
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+      const sortBy = req.query.sortBy || "flashSale.startDateTime"; // createdAt, discount, avgRating
+      const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+
+      const filter = {
+        "flashSale.isActive": true,
+        "flashSale.startDateTime": { $lte: now },
+        "flashSale.endDateTime": { $gte: now },
+        disable: false,
+      };
+
+      const [products, total] = await Promise.all([
+        Product.find(filter)
+          .populate("brandId categoryId subcategoryId")
+          .sort({ [sortBy]: sortOrder })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        Product.countDocuments(filter),
+      ]);
+
+      res.status(200).json({
+        success: true,
+        products,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPrevPage: page > 1,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+  //priyanshu
+  // ===================== TOP SELLING PRODUCTS =====================
+  static async getTopSellingProducts(req, res, next) {
+    try {
+      const { limit = 10, days, moduleId, pcategoryId } = req.query;
+
+      const safeLimit = Math.min(parseInt(limit), 50);
+      const cacheKey = `products:top-selling:v1:${JSON.stringify(req.query)}`;
+      const cached = await RedisCache.get(cacheKey);
+      if (cached) return res.status(200).json(cached);
+
+      const toObjectId = (id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null;
+
+      const matchStage = {
+        disable: false,
+        varified: true,
+        sold: { $gt: 0 },
+      };
+
+      if (moduleId) matchStage.moduleId = toObjectId(moduleId);
+      if (pcategoryId) matchStage.pcategoryId = toObjectId(pcategoryId);
+
+      if (days && !isNaN(Number(days))) {
+        matchStage.updatedAt = {
+          $gte: new Date(Date.now() - Number(days) * 24 * 60 * 60 * 1000),
+        };
+      }
+      // console.log(matchStage);
+
+      const pipeline = [
+        { $match: matchStage },
+        { $sort: { sold: -1 } },
+        { $limit: safeLimit },
+        {
+          $lookup: {
+            from: "variants",
+            let: { pid: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ["$productId", "$$pid"] },
+                  disable: false,
+                },
+              },
+              { $sort: { price: 1 } },
+              { $limit: 1 },
+              {
+                $project: {
+                  price: 1,
+                  mrp: 1,
+                  discount: 1,
+                  discountAmount: 1,
+                  Type: 1,
+                },
+              },
+            ],
+            as: "defaultVariant",
+          },
+        },
+
+        { $match: { defaultVariant: { $ne: [] } } },
+
+        {
+          $lookup: {
+            from: "brands",
+            localField: "brandId",
+            foreignField: "_id",
+            pipeline: [{ $project: { name: 1 } }],
+            as: "brandId",
+          },
+        },
+        { $unwind: { path: "$brandId", preserveNullAndEmptyArrays: true } },
+
+        {
+          $project: {
+            name: 1,
+            slug: 1,
+            thumbnail: 1,
+            images: 1,
+            sold: 1,
+            avgRating: 1,
+            reviewCount: 1,
+            measurementUnit: 1,
+            features: 1,
+            disable: 1,
+            varified: 1,
+            vendorId: 1,
+            categoryId: 1,
+            subcategoryId: 1,
+            "brandId.name": 1,
+            defaultVariant: { $arrayElemAt: ["$defaultVariant", 0] },
+          },
+        },
+      ];
+
+      const products = await Product.aggregate(pipeline);
+
+      const response = {
+        success: true,
+        message: "Top selling products fetched successfully",
+        results: products.length,
+        data: { products },
+      };
+
+      await RedisCache.set(cacheKey, response, 300);
+
+      return res.status(200).json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+}
 
 export default ProductController;
