@@ -8,13 +8,17 @@ import {
   deleteUser,
   getMe,
   updateMe,
+  saveFcmToken,
 } from "../../controllers/user/user.controller.js";
+
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";
 
 const router = express.Router();
-router.get("/me", getMe);
-router.put("/me", updateMe);
+router.get("/me", requireAuth, getMe);
+router.put("/me", requireAuth, updateMe);
+router.post("/saveFcmToken", requireAuth, saveFcmToken);
+
 
 // Admin routes — must be authenticated AND have ADMIN role
 router.get("/", requireAuth, requireRole("ADMIN"), getAllUsers);

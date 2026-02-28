@@ -173,6 +173,13 @@ userSchema.methods.generateRefreshToken = function () {
     process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET, // Fallback if strictly needed, but better separate
     { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "7d" },
   );
-};  
+};
+
+// ─── Performance Indexes ──────────────────────────────────────────────────────
+// getAllUsers: role filter + createdAt sort (bina index = full collection scan = slow!)
+userSchema.index({ role: 1, createdAt: -1 });
+// requireAuth: isDisabled check ke liye
+userSchema.index({ isDisabled: 1 });
 
 export default mongoose.model("User", userSchema);
+
