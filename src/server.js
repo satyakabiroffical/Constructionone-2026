@@ -6,17 +6,26 @@ import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import hpp from "hpp";
 import { connectDB } from "./config/database.js";
-import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { errorHandler, notFoundHandler } from "./middlewares/errorHandler.js";
 import apiRoutes from "./routes/index.js";
 import dotenv from "dotenv";
 dotenv.config();
 import logger from "./utils/logger.js";
 
 const app = express();
-
 // Security Middleware
 app.use(helmet());
-app.use(cors());
+
+app.use(
+  cors({
+    origin: process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(",")
+      : "*",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true,
+  }),
+);
+
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.use(mongoSanitize());
@@ -30,6 +39,10 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: "Too many requests from this IP, please try again after 15 minutes",
+});
+
+app.get("/", (req, res) => {
+  res.send("Welcome to constructionOne API");
 });
 
 app.use("/api", limiter);

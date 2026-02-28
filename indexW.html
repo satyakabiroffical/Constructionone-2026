@@ -1,0 +1,148 @@
+<!-- priyanshu -->
+<!DOCTYPE html>  
+<html>
+<head>
+  <title>Wallet Top-Up</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      width: 350px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      font-size: 16px;
+    }
+
+    button {
+      background: #3399cc;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+
+    button:hover {
+      background: #287ca8;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="card">
+  <h2>Add Money to Wallet</h2>
+  <input type="number" id="amount" placeholder="Enter Amount" />
+  <button onclick="addMoney()">Add Money</button>
+</div>
+
+<script>
+
+async function addMoney() {
+  const amount = document.getElementById("amount").value;
+
+  if (!amount) {
+    alert("Please enter amount");
+    return;
+  }
+
+  try {
+<<<<<<< HEAD
+    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTZhMTA3M2Y2OTBkMjFjYjkwOWNlMyIsInJvbGUiOiJVU0VSIiwiZW1haWwiOiJwcmFkZWVwQGV4YW1wbGUuY29tIiwiaWF0IjoxNzcxNTc4NDc2LCJleHAiOjE3NzQxNzA0NzZ9.HbfjwyfdiQqwuEgNaRfne5qO0x09V2xLX1G4LDa2Aco";
+    // 1️⃣ Call backend to create order
+    const response = await fetch("http://localhost:3000/api/v1/wallet/create-topup", {
+=======
+
+    // Call backend to create order
+    const response = await fetch("http://localhost:3000/api/v1/create-topup", {
+>>>>>>> cd8f0d8c88b2a5829b02e785936057d9b0f4c8db
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
+      },
+      body: JSON.stringify({ amount })
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      alert("Error creating order");
+      return;
+    }
+
+    const options = {
+      key: "rzp_test_Rfx6rVjyohb2Su", // Public Key Only
+      amount: data.order.amount,
+      currency: "INR",
+      name: "Your Company",
+      description: "Wallet Top-Up",
+      order_id: data.order.id,
+
+      handler: async function (response) {
+
+        // 2️⃣ Verify Payment
+        const verifyRes = await fetch("http://localhost:3000/api/v1/wallet/verify-topup", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature
+          })
+        });
+           
+            if (!verifyRes.ok) {
+      const errorText = await verifyRes.text();
+      console.error("Backend HTTP Error:", verifyRes.status);
+      console.error("Error Response:", errorText);
+      alert("Server Error! Check console.");
+      return;
+    }
+        const verifyData = await verifyRes.json();
+
+        if (verifyData.success) {
+          console.log("✅ Payment Verified:", verifyData);
+          alert("Wallet credited successfully!");
+        } else {
+          console.error("❌ Verification Failed:", verifyData);
+          alert("Payment verification failed");
+        }
+      },
+
+      theme: {
+        color: "#3399cc"
+      }
+    };
+
+    const rzp = new Razorpay(options);
+    rzp.open();
+
+  } catch (error) {
+    console.error(error);
+    alert("Something went wrong");
+  }
+}
+
+</script>
+
+</body>
+</html>
