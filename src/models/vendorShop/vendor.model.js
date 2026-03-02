@@ -3,6 +3,10 @@ import mongoose from "mongoose";
 
 const vendorProfile = new mongoose.Schema(
   {
+    moduleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Module",
+    },
     phoneNumber: {
       type: String,
       sparse: true,
@@ -53,6 +57,28 @@ const vendorProfile = new mongoose.Schema(
     fcmToken: {
       type: String,
       default: null,
+    },
+    avgRating: {
+      type: Number,
+      default: 0,
+    },
+
+    totalReviews: {
+      type: Number,
+      default: 0,
+    },
+
+    recommendationPercentage: {
+      type: Number,
+      default: 0,
+    },
+
+    ratingBreakdown: {
+      5: { type: Number, default: 0 },
+      4: { type: Number, default: 0 },
+      3: { type: Number, default: 0 },
+      2: { type: Number, default: 0 },
+      1: { type: Number, default: 0 },
     },
   },
   { timestamps: true },

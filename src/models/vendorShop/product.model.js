@@ -105,33 +105,37 @@ const productSchema = new mongoose.Schema(
         "roll",
       ],
     },
+
     leadTime: {
       type: String,
     },
 
-    city: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "City",
-      },
-    ],
+    // city: [
+    //   {
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     ref: "City",
+    //   },
+    // ],
 
-    state: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "State",
-      },
-    ],
+    // state: [
+    //   {
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     ref: "State",
+    //   },
+    // ],
+
     deliveryCharges: {
       type: String,
       enum: ["free", "fixedCharge", "distanceAndWeightBased", "customerPickup"],
       trim: true,
     },
+
     shippingCharges: {
       fixed: { type: Number },
       distancePerKm: { type: Number },
       weightPerKg: { type: Number },
     },
+
     returnPolicy: {
       type: String,
       enum: ["noReturn", "7day", "15day", "13day", "defectiveReplacement"],
@@ -197,6 +201,7 @@ const productSchema = new mongoose.Schema(
       type: Number,
       min: 0,
     },
+
     vendorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "VendorProfile",
@@ -232,13 +237,18 @@ const productSchema = new mongoose.Schema(
         message: "Duplicate properties are not allowed",
       },
     },
+    
+    status: {
+      type: String,
+      enum: ["DRAFT", "ACTIVE", "OUT_OF_STOCK"],
+      default: "DRAFT",
+    },
   },
   { timestamps: true },
 );
 
 // heavy-duty index for marketplace filtering
 // base category index
-
 productSchema.index({
   moduleId: 1,
   pcategoryId: 1,

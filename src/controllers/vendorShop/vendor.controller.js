@@ -401,15 +401,20 @@ export const saveFcmToken = async (req, res) => {
 
   const cacheKey = `vendor:v1:${JSON.stringify({})}`;
   await RedisCache.delete(cacheKey);
-
   res.status(200).json({ message: "FCM token saved" });
 };
 //vendorProfile
 export const upsertVendorInfo = async (req, res) => {
   try {
     const vendorProfileId = req.user.id;
-    const { firstName, lastName, email, governmentIdNumber, governmentIdType } =
-      req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      governmentIdNumber,
+      governmentIdType,
+      moduleId,
+    } = req.body;
 
     if (!req.files || !req.files.uploadId) {
       return res.status(400).json({
@@ -441,11 +446,13 @@ export const upsertVendorInfo = async (req, res) => {
           email,
           governmentIdNumber,
           governmentIdType,
+          moduleId,
         },
       },
       { new: true },
     );
-
+    const cacheKey = `vendor:v1:${JSON.stringify({})}`;
+    await RedisCache.delete(cacheKey);
     return res.status(200).json({
       success: true,
       message: "Vendor details saved successfully",
@@ -458,17 +465,20 @@ export const upsertVendorInfo = async (req, res) => {
     });
   }
 };
+
 export const getVendorProfile = async (req, res, next) => {
   try {
     const cacheKey = `vendor:v1:${JSON.stringify(req.query)}`;
     const cached = await RedisCache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    const vendorProfileId = req.user.id;
-    const vendor = await VendorCompany.findOne({ vendorId: vendorProfileId })
+    // const vendorProfileId = req.user.id;
+    const { vendorId } = req.params;
+    const vendor = await VendorCompany.findOne({ vendorId: vendorId })
       .populate({
         path: "vendorId",
-        select: "-password -phoneOtp -aadharOtp -__v",
+        select:
+          "-password -phoneOtp -aadharOtp -ratingBreakdown -totalReviews -avgRating -recommendationPercentage -__v",
       })
       .select("-__v")
       .lean();
@@ -492,12 +502,17 @@ export const getVendorProfile = async (req, res, next) => {
 export const updateUpsertVendorInfo = async (req, res) => {
   try {
     const vendorProfileId = req.user.id;
-    const { firstName, lastName, email, governmentIdNumber, governmentIdType } =
-      req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      governmentIdNumber,
+      governmentIdType,
+      moduleId,
+    } = req.body;
 
-    // Sirf wo fields lo jo actually bheje gaye hain
     const updateFields = {};
-
+    if (moduleId) updateFields.moduleId = moduleId;
     if (firstName) updateFields.firstName = firstName;
     if (lastName) updateFields.lastName = lastName;
     if (email) updateFields.email = email;
@@ -514,6 +529,9 @@ export const updateUpsertVendorInfo = async (req, res) => {
       { $set: updateFields },
       { new: true, select: "-aadharOtp -phoneOtp" },
     );
+
+    const cacheKey = `vendor:v1:${JSON.stringify({})}`;
+    await RedisCache.delete(cacheKey);
 
     return res.status(200).json({
       success: true,
@@ -709,7 +727,6 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
     });
     const cacheKey = `vendor:v1:${JSON.stringify({})}`;
     await RedisCache.delete(cacheKey);
-
     return res.status(200).json({
       success: true,
       message: "Company details saved successfully",
@@ -722,6 +739,8 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
     });
   }
 };
+
+//admin access functions
 export const getAllVendors = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -908,6 +927,7 @@ export const verifyVendorByAdmin = async (req, res, next) => {
     // Update admin verification
     vendor.isAdminVerified = true;
     await vendor.save();
+    await RedisCache.delete(`vendor:v1:${vendorId}:*`);
     return res.status(200).json({
       success: true,
       message: "Vendor admin verified successfully",
@@ -1057,6 +1077,7 @@ export const getCategoriesByVendorId = async (req, res) => {
     })),
   });
 };
+
 //dynamic-otp
 const generateOtp = () => {
   return Number(
@@ -1131,6 +1152,7 @@ const validatePhone = (phone) => {
   }
   return { valid: true, normalized };
 };
+
 //pending
 const assignAutoBadges = async (vendor) => {
   const badges = new Set(vendor.badges || []);

@@ -188,6 +188,7 @@ class ProductController {
       next(error);
     }
   }
+
   //products according to vendorshop - asgr
   static async getVendorProducts(req, res, next) {
     try {
@@ -204,6 +205,7 @@ class ProductController {
         categoryId,
         subcategoryId,
         brandId,
+        search,
       } = req.query;
 
       const { vendorId } = req.params;
@@ -221,11 +223,18 @@ class ProductController {
       if (cached) return res.json(cached);
 
       // ================= BASE MATCH =================
+
       const matchStage = {
         disable: false,
         vendorId: new mongoose.Types.ObjectId(vendorId),
       };
-
+      if (search) {
+        matchStage.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { slug: { $regex: search, $options: "i" } },
+          { description: { $regex: search, $options: "i" } },
+        ];
+      }
       // ================= CATEGORY FILTERS =================
       const toObjectId = (id) =>
         mongoose.Types.ObjectId.isValid(id)
@@ -334,6 +343,7 @@ class ProductController {
       next(error);
     }
   }
+
   //  CREATE PRODUCT
 
   //  static async createProduct(req, res, next) {

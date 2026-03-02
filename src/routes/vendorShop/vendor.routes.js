@@ -22,7 +22,12 @@ import {
   saveFcmToken,
   getCategoriesByVendorId,
 } from "../../controllers/vendorShop/vendor.controller.js";
-import { adminMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
+import {
+  adminMiddleware,
+  vendorMiddleware,
+  authMiddleware,
+} from "../../middlewares/auth.js";
+import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { validateRequest } from "../../middlewares/validation.js";
 import {
   vendorProfileValidation,
@@ -42,8 +47,8 @@ router.post("/verify-aadhar-otp/:vendorId", verifyAadharOtp);
 router.post("/resend-aadhar-otp/:vendorId", resendAadharOtp);
 
 //vendor profile
-router.get("/profile", vendorMiddleware, getVendorProfile);
-router.post("/logout", logoutVendor);
+router.get("/profile/:vendorId", authMiddleware, getVendorProfile);
+router.post("/logout", vendorMiddleware, logoutVendor);
 
 //vendor profile details
 router.post(
