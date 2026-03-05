@@ -237,7 +237,7 @@ const productSchema = new mongoose.Schema(
         message: "Duplicate properties are not allowed",
       },
     },
-    
+
     status: {
       type: String,
       enum: ["DRAFT", "ACTIVE", "OUT_OF_STOCK"],
