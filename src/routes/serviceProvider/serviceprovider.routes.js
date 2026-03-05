@@ -1,10 +1,9 @@
-import { Router } from 'express';
+import { Router } from "express";
+import { getVendorsByCategory } from "../../controllers/serviceProvider/serviceProviderVendor.controller.js";
 
 const router = Router();
 
 // Placeholder route
-router.get('/', (req, res) => {
-    res.json({ message: 'Service Provider routes working' });
-});
+router.get("/vendors/:categoryId", getVendorsByCategory);
 
 export default router;

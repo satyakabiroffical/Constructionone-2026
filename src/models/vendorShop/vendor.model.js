@@ -50,10 +50,7 @@ const vendorProfile = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    avgRating: {
-      type: Number,
-      default: 0,
-    },
+
     fcmToken: {
       type: String,
       default: null,
