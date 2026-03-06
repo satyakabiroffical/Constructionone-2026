@@ -25,6 +25,7 @@ const vendorProfile = new mongoose.Schema(
       type: String,
       enum: ["Aadhar Card", "Voter ID", "Driving License", "Other"],
     },
+    
     governmentIdNumber: { type: String },
     uploadId: { type: String },
 
@@ -46,6 +47,7 @@ const vendorProfile = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
     disable: {
       type: Boolean,
       default: false,
