@@ -21,7 +21,7 @@ router.get("/", authMiddleware, getAllServiceProviderVendors);
 router.get("/:categoryId", authMiddleware, getVendorsByCategory);
 router.post("/create", vendorMiddleware, createServiceProfile);
 router.put("/update", vendorMiddleware, updateServiceProfile);
-router.get("/profile", authMiddleware, getServiceProfile);
-router.get("/:vendorId", authMiddleware, getServiceVendorProfile);
+// router.get("/:vendorId", authMiddleware, getServiceVendorProfile);
+router.get("/:vendorId/profile", authMiddleware, getServiceProfile);
 
 export default router;

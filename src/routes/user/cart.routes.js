@@ -5,7 +5,7 @@ import {
   getCart,
   updateCartItem,
   removeCartItem,
-  similarProducts
+  similarProducts,
 } from "../../controllers/user/cart.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 

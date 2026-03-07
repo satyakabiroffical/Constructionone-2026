@@ -29,9 +29,10 @@ export const addService = async (req, res) => {
       });
     }
 
-    const serviceImages = req.files
-      ? req.files.map((file) => file.path || file.location)
-      : [];
+    const serviceImages =
+      req.files && req.files.serviceImages
+        ? req.files.serviceImages.map((file) => file.location)
+        : [];
 
     const newService = new Service({
       vendorId,

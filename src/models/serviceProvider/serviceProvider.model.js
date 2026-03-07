@@ -23,7 +23,6 @@ const serviceProviderSchema = new mongoose.Schema(
     description: String,
 
     experience: Number,
-
     skills: [String],
 
     teamSize: {

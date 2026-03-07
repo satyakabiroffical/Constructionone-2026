@@ -4,7 +4,11 @@ import ServiceProfile from "../../models/serviceProvider/serviceProvider.model.j
 export const createServiceProfile = async (req, res) => {
   try {
     const vendorId = req.user.id;
+    if (!vendorId) {
+      return res.status(404).json({ message: "user not authorized" });
+    }
     const {
+      title,
       categoryId,
       providerType,
       businessName,
@@ -38,6 +42,7 @@ export const createServiceProfile = async (req, res) => {
       serviceAreas,
       priceRange,
       description,
+      title,
       location,
       workingDayTime,
     });
@@ -58,6 +63,7 @@ export const createServiceProfile = async (req, res) => {
 export const updateServiceProfile = async (req, res) => {
   try {
     const vendorId = req.user.id;
+
     const profile = await ServiceProfile.findOneAndUpdate(
       { vendorId },
       req.body,
@@ -84,13 +90,13 @@ export const updateServiceProfile = async (req, res) => {
     });
   }
 };
+
 export const getServiceProfile = async (req, res) => {
   try {
-    const vendorId = req.user.id;
-    const profile = await ServiceProfile.findOne({ vendorId }).populate(
-      "categoryId",
-      "firstName lastName profileImage",
-    );
+    const { vendorId } = req.params;
+    const profile = await ServiceProfile.findOne({ vendorId })
+      .populate("vendorId", "firstName lastName profileImage email avgRating")
+      .populate("categoryId", "name isActive");
 
     res.status(200).json({
       success: true,
@@ -103,6 +109,7 @@ export const getServiceProfile = async (req, res) => {
     });
   }
 };
+
 export const getServiceVendorProfile = async (req, res) => {
   try {
     const { vendorId } = req.params;

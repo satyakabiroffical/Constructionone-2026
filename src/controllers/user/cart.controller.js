@@ -7,15 +7,11 @@ import Variant from "../../models/vendorShop/variant.model.js";
 import Product from "../../models/vendorShop/product.model.js";
 import redis from "../../config/redis.config.js";
 
-
-
-
-
-
 export const addToCart = async (req, res, next) => {
   try {
     const { variantId, quantity } = req.body;
     const userId = req.user.id;
+
     const cacheKey = `cart:${userId}`;
 
     if (!variantId || !quantity || quantity <= 0) {
@@ -39,19 +35,18 @@ export const addToCart = async (req, res, next) => {
 
       if (quantity % moq !== 0)
         return next(
-          new APIError(400, `Quantity must be multiple of MOQ (${moq})`)
+          new APIError(400, `Quantity must be multiple of MOQ (${moq})`),
         );
     }
 
     if (variant.stock < quantity)
       return next(new APIError(400, "Out of stock"));
 
-    
     let cart = await Cart.findOne({ userId });
     if (!cart) cart = new Cart({ userId, items: [] });
 
     const existingItem = cart.items.find(
-      (item) => item.variant.toString() === variantId
+      (item) => item.variant.toString() === variantId,
     );
 
     if (existingItem) {
@@ -59,7 +54,6 @@ export const addToCart = async (req, res, next) => {
 
       if (variant.stock < newQty)
         return next(new APIError(400, "Not enough stock"));
-
       existingItem.quantity = newQty;
       existingItem.totalPrice = newQty * existingItem.unitPrice;
     } else {
@@ -101,12 +95,10 @@ export const addToCart = async (req, res, next) => {
     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
 
     res.status(200).json(response);
-
   } catch (error) {
     next(error);
   }
 };
-
 
 export const getCart = async (req, res, next) => {
   try {
@@ -119,21 +111,23 @@ export const getCart = async (req, res, next) => {
       return res.status(200).json(JSON.parse(cachedCart));
     }
 
-    let cart = await Cart.findOne({ userId }).populate({
-      path: "items.variant",
-      populate: {
-        path: "productId",
-        model: "Product",
-        select: "name thumbnail slug",
-      },
-    }).lean();
+    let cart = await Cart.findOne({ userId })
+      .populate({
+        path: "items.variant",
+        populate: {
+          path: "productId",
+          model: "Product",
+          select: "name thumbnail slug",
+        },
+      })
+      .lean();
 
     if (!cart) {
-      return next(new APIError(404, "Cart not found"));
+      return res.status(404).json({ message: "Cart is empty" });
     }
 
     const validItems = cart.items.filter(
-      (item) => item.variant && item.variant.productId
+      (item) => item.variant && item.variant.productId,
     );
 
     const billSummary = await calculateBillSummary(validItems);
@@ -158,8 +152,6 @@ export const getCart = async (req, res, next) => {
       };
     });
 
-
-
     const response = {
       success: true,
       message: "Cart retrieved successfully",
@@ -179,12 +171,10 @@ export const getCart = async (req, res, next) => {
     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
 
     res.status(200).json(response);
-
   } catch (error) {
-    next(error);
+    return res.status(404).json({ message: error.message });
   }
 };
-
 
 export const updateCartItem = async (req, res, next) => {
   try {
@@ -203,9 +193,9 @@ export const updateCartItem = async (req, res, next) => {
     }
 
     // console.log(cart);
-    
+
     const itemIndex = cart.items.findIndex(
-      (item) => item.variant.toString() === variantId
+      (item) => item.variant.toString() === variantId,
     );
 
     if (itemIndex === -1) {
@@ -235,11 +225,15 @@ export const updateCartItem = async (req, res, next) => {
     }
 
     if (newQuantity < moq) {
-      return next(new APIError(400, `Quantity cannot be less than MOQ (${moq})`));
+      return next(
+        new APIError(400, `Quantity cannot be less than MOQ (${moq})`),
+      );
     }
 
     if (variant.stock < newQuantity) {
-      return next(new APIError(400, `Out of stock. Only ${variant.stock} available.`));
+      return next(
+        new APIError(400, `Out of stock. Only ${variant.stock} available.`),
+      );
     }
 
     item.quantity = newQuantity;
@@ -262,7 +256,6 @@ export const updateCartItem = async (req, res, next) => {
   }
 };
 
-
 export const removeCartItem = async (req, res, next) => {
   try {
     const { variantId } = req.params;
@@ -274,7 +267,7 @@ export const removeCartItem = async (req, res, next) => {
     }
 
     const itemIndex = cart.items.findIndex(
-      (item) => item.variant.toString() === variantId
+      (item) => item.variant.toString() === variantId,
     );
 
     if (itemIndex === -1) {
@@ -306,7 +299,6 @@ export const removeCartItem = async (req, res, next) => {
   }
 };
 
-
 export const similarProducts = async (req, res, next) => {
   try {
     const { productId } = req.params;
@@ -330,7 +322,7 @@ export const similarProducts = async (req, res, next) => {
       {
         $match: {
           _id: { $ne: new mongoose.Types.ObjectId(productId) },
-          subcategoryId: product.subcategoryId, 
+          subcategoryId: product.subcategoryId,
           disable: false,
           varified: true,
         },

@@ -527,7 +527,6 @@ class ProductController {
       }
 
       // ✅ CREATE PRODUCT (FIXED)
-
       const productArr = await Product.create(
         [
           {
