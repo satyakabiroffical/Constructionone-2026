@@ -22,7 +22,7 @@ export const requireAuth = async (req, res, next) => {
     // FIX: Sirf 3 fields fetch karo — poora document nahi
     // Pehle: full User doc (.lean() bhi nahi tha) = heavy memory + slow
     const currentUser = await User.findById(decoded.id)
-      .select('_id role isDisabled')
+      .select("_id role isDisabled")
       .lean();
 
     if (!currentUser) {

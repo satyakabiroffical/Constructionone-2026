@@ -3,6 +3,10 @@ import mongoose from "mongoose";
 
 const vendorProfile = new mongoose.Schema(
   {
+    moduleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Module",
+    },
     phoneNumber: {
       type: String,
       sparse: true,
@@ -21,6 +25,7 @@ const vendorProfile = new mongoose.Schema(
       type: String,
       enum: ["Aadhar Card", "Voter ID", "Driving License", "Other"],
     },
+    
     governmentIdNumber: { type: String },
     uploadId: { type: String },
 
@@ -42,13 +47,37 @@ const vendorProfile = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
     disable: {
       type: Boolean,
       default: false,
     },
+
+    fcmToken: {
+      type: String,
+      default: null,
+    },
     avgRating: {
       type: Number,
       default: 0,
+    },
+
+    totalReviews: {
+      type: Number,
+      default: 0,
+    },
+
+    recommendationPercentage: {
+      type: Number,
+      default: 0,
+    },
+
+    ratingBreakdown: {
+      5: { type: Number, default: 0 },
+      4: { type: Number, default: 0 },
+      3: { type: Number, default: 0 },
+      2: { type: Number, default: 0 },
+      1: { type: Number, default: 0 },
     },
   },
   { timestamps: true },
@@ -93,7 +122,8 @@ const vendorCompany = new mongoose.Schema(
       latitude: Number,
       longitude: Number,
     },
- location: {   //Sanvi
+    location: {
+      //Sanvi
       type: {
         type: String,
         enum: ["Point"],
@@ -143,16 +173,11 @@ const vendorCompany = new mongoose.Schema(
   { timestamps: true },
 );
 
-
-
 // ================= GEO AUTO SET =================
 
 // auto set location on create
 vendorCompany.pre("save", function (next) {
-  if (
-    this.businessAddress?.latitude &&
-    this.businessAddress?.longitude
-  ) {
+  if (this.businessAddress?.latitude && this.businessAddress?.longitude) {
     this.location = {
       type: "Point",
       coordinates: [
@@ -169,10 +194,7 @@ vendorCompany.pre("findOneAndUpdate", function (next) {
   const update = this.getUpdate();
   const data = update.$set || update;
 
-  if (
-    data?.businessAddress?.latitude &&
-    data?.businessAddress?.longitude
-  ) {
+  if (data?.businessAddress?.latitude && data?.businessAddress?.longitude) {
     update.$set = update.$set || {};
     update.$set.location = {
       type: "Point",

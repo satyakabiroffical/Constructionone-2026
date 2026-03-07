@@ -11,6 +11,9 @@ const MAX_OTP_ATTEMPTS = 3;
 const COOLDOWN_PERIOD = 50 * 1000;
 import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
+import { ApiResponse } from "../../utils/ApiResponse.js";
+import productModel from "../../models/vendorShop/product.model.js";
+import mongoose from "mongoose";
 
 //vendor auth
 export const vendorAuth = async (req, res) => {
@@ -223,7 +226,6 @@ export const resendOtp = async (req, res, next) => {
     });
   }
 };
-
 //aadhar-varification
 export const verifyAadharOtp = async (req, res) => {
   try {
@@ -387,12 +389,32 @@ export const resendAadharOtp = async (req, res) => {
   }
 };
 
+//saveFCM token After login
+export const saveFcmToken = async (req, res) => {
+  const userId = req.user.id;
+  const { fcmToken } = req.body;
+
+  if (!fcmToken) {
+    return res.status(400).json({ message: "FCM token required" });
+  }
+  await VendorProfile.findByIdAndUpdate(userId, { fcmToken });
+
+  const cacheKey = `vendor:v1:${JSON.stringify({})}`;
+  await RedisCache.delete(cacheKey);
+  res.status(200).json({ message: "FCM token saved" });
+};
 //vendorProfile
 export const upsertVendorInfo = async (req, res) => {
   try {
     const vendorProfileId = req.user.id;
-    const { firstName, lastName, email, governmentIdNumber, governmentIdType } =
-      req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      governmentIdNumber,
+      governmentIdType,
+      moduleId,
+    } = req.body;
 
     if (!req.files || !req.files.uploadId) {
       return res.status(400).json({
@@ -424,11 +446,13 @@ export const upsertVendorInfo = async (req, res) => {
           email,
           governmentIdNumber,
           governmentIdType,
+          moduleId,
         },
       },
       { new: true },
     );
-
+    const cacheKey = `vendor:v1:${JSON.stringify({})}`;
+    await RedisCache.delete(cacheKey);
     return res.status(200).json({
       success: true,
       message: "Vendor details saved successfully",
@@ -441,17 +465,20 @@ export const upsertVendorInfo = async (req, res) => {
     });
   }
 };
+
 export const getVendorProfile = async (req, res, next) => {
   try {
     const cacheKey = `vendor:v1:${JSON.stringify(req.query)}`;
     const cached = await RedisCache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    const vendorProfileId = req.user.id;
-    const vendor = await VendorCompany.findOne({ vendorId: vendorProfileId })
+    // const vendorProfileId = req.user.id;
+    const { vendorId } = req.params;
+    const vendor = await VendorCompany.findOne({ vendorId: vendorId })
       .populate({
         path: "vendorId",
-        select: "-password -phoneOtp -aadharOtp -__v",
+        select:
+          "-password -phoneOtp -aadharOtp -ratingBreakdown -totalReviews -avgRating -recommendationPercentage -__v",
       })
       .select("-__v")
       .lean();
@@ -475,12 +502,17 @@ export const getVendorProfile = async (req, res, next) => {
 export const updateUpsertVendorInfo = async (req, res) => {
   try {
     const vendorProfileId = req.user.id;
-    const { firstName, lastName, email, governmentIdNumber, governmentIdType } =
-      req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      governmentIdNumber,
+      governmentIdType,
+      moduleId,
+    } = req.body;
 
-    // Sirf wo fields lo jo actually bheje gaye hain
     const updateFields = {};
-
+    if (moduleId) updateFields.moduleId = moduleId;
     if (firstName) updateFields.firstName = firstName;
     if (lastName) updateFields.lastName = lastName;
     if (email) updateFields.email = email;
@@ -497,6 +529,9 @@ export const updateUpsertVendorInfo = async (req, res) => {
       { $set: updateFields },
       { new: true, select: "-aadharOtp -phoneOtp" },
     );
+
+    const cacheKey = `vendor:v1:${JSON.stringify({})}`;
+    await RedisCache.delete(cacheKey);
 
     return res.status(200).json({
       success: true,
@@ -692,7 +727,6 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
     });
     const cacheKey = `vendor:v1:${JSON.stringify({})}`;
     await RedisCache.delete(cacheKey);
-
     return res.status(200).json({
       success: true,
       message: "Company details saved successfully",
@@ -705,6 +739,8 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
     });
   }
 };
+
+//admin access functions
 export const getAllVendors = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -891,6 +927,7 @@ export const verifyVendorByAdmin = async (req, res, next) => {
     // Update admin verification
     vendor.isAdminVerified = true;
     await vendor.save();
+    await RedisCache.delete(`vendor:v1:${vendorId}:*`);
     return res.status(200).json({
       success: true,
       message: "Vendor admin verified successfully",
@@ -1006,6 +1043,41 @@ export const disableVendorStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+//vendorshop - catogry
+export const getCategoriesByVendorId = async (req, res) => {
+  const vendorId = req.params.vendorId;
+  const categories = await productModel.aggregate([
+    {
+      $match: {
+        vendorId: new mongoose.Types.ObjectId(vendorId),
+      },
+    },
+    {
+      $group: {
+        _id: "$categoryId",
+      },
+    },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "_id",
+        foreignField: "_id",
+        as: "category",
+      },
+    },
+    { $unwind: "$category" },
+    { $replaceRoot: { newRoot: "$category" } },
+  ]);
+  res.status(200).json({
+    data: categories.map((category) => ({
+      id: category._id,
+      name: category.name,
+      image: category.image,
+    })),
+  });
+};
+
 //dynamic-otp
 const generateOtp = () => {
   return Number(

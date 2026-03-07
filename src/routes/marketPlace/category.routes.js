@@ -3,7 +3,6 @@ import { getCategoryTree } from '../../controllers/marketPlace/category.controll
 
 const router = Router();
 
-// Public category tree endpoint
 router.get('/categories', getCategoryTree);
 
 export default router;

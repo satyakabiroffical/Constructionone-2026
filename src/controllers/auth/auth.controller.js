@@ -357,7 +357,6 @@ export const logout = catchAsync(async (req, res) => {
 
   res.status(200).json(new ApiResponse(200, null, "Logged out successfully"));
 });
-
 // Refresh Access Token
 export const refreshAccessToken = catchAsync(async (req, res, next) => {
   const { refreshToken } = req.body;
