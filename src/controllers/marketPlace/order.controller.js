@@ -16,6 +16,8 @@ import invoice from "../../middlewares/invoice.middleware.js";
 import vendorTaxInvoice from "../../middlewares/invoice.vendor.js";
 import creditNoteInvoice from "../../middlewares/creditNote.middleware.js";
 import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
+import { processReward } from "../../services/referral.service.js";
+
 
 /**
  * generateOrderInvoices — fire-and-forget helper
@@ -534,140 +536,140 @@ export const getOrdersByVendor = async (req, res, next) => {
 const NON_CANCELLABLE_STATUSES = ["DELIVERED", "CANCELLED", "RETURNED", "OUT_FOR_DELIVERY"];
 
 export const cancelOrder = async (req, res, next) => {
-  const session = await mongoose.startSession();
+    const session = await mongoose.startSession();
 
-  try {
-    const userId = req.user._id;
-    const orderId = req.params.orderId;
-    const { reason } = req.body;
+    try {
+        const userId = req.user._id;
+        const orderId = req.params.orderId;
+        const { reason } = req.body;
 
-    session.startTransaction();
+        session.startTransaction();
 
-    const masterOrder = await Order.findOne({
-      _id: orderId,
-      userId,
-      orderType: "MASTER"
-    }).session(session);
-
-    if (!masterOrder) throw new APIError(404, "Order not found");
-
-    if (NON_CANCELLABLE_STATUSES.includes(masterOrder.status)) {
-      throw new APIError(
-        400,
-        `Order cannot be cancelled — current status is "${masterOrder.status}"`
-      );
-    }
-
-    const subOrders = await Order.find({
-      parentId: masterOrder._id,
-      orderType: "SUB"
-    }).session(session);
-
-    const variantOps = [];
-    const productOps = [];
-
-    for (const sub of subOrders) {
-      for (const item of sub.items) {
-        variantOps.push({
-          updateOne: {
-            filter: { _id: item.variant },
-            update: { $inc: { stock: item.quantity, sold: -item.quantity } }
-          }
-        });
-
-        productOps.push({
-          updateOne: {
-            filter: { _id: item.product },
-            update: { $inc: { sold: -item.quantity } }
-          }
-        });
-      }
-    }
-
-    // Parallel stock restore
-    await Promise.all([
-      variantOps.length && Variant.bulkWrite(variantOps, { session }),
-      productOps.length && Product.bulkWrite(productOps, { session })
-    ]);
-
-    const subIds = subOrders.map(o => o._id);
-
-    // Single update for all orders
-    await Order.updateMany(
-      { _id: { $in: [masterOrder._id, ...subIds] } },
-      {
-        $set: {
-          status: "CANCELLED",
-          reason: reason || "Cancelled by customer",
-          cancleBy: "CUSTOMER",
-          "items.$[].status": "CANCELLED"
-        }
-      },
-      { session }
-    );
-
-    // Refund logic
-    if (
-      masterOrder.paymentStatus === "PAID" &&
-      ["WALLET", "ONLINE"].includes(masterOrder.paymentMethod)
-    ) {
-      await Promise.all([
-        Wallet.findOneAndUpdate(
-          { userId },
-          { $inc: { balance: masterOrder.totalAmount } },
-          { session, upsert: true }
-        ),
-
-        Transaction.create(
-          [{
+        const masterOrder = await Order.findOne({
+            _id: orderId,
             userId,
-            orderId: masterOrder._id,
-            amount: masterOrder.totalAmount,
-            paymentMethod: masterOrder.paymentMethod,
-            status: "SUCCESS",
-            payType: "CREDIT",
-            walletPurpose: "ORDER_REFUND"
-          }],
-          { session }
-        ),
+            orderType: "MASTER"
+        }).session(session);
 
-        Order.updateMany(
-          { _id: { $in: [masterOrder._id, ...subIds] } },
-          { $set: { paymentStatus: "REFUNDED" } },
-          { session }
-        )
-      ]);
-    }
+        if (!masterOrder) throw new APIError(404, "Order not found");
 
-    await session.commitTransaction();
-    session.endSession();
+        if (NON_CANCELLABLE_STATUSES.includes(masterOrder.status)) {
+            throw new APIError(
+                400,
+                `Order cannot be cancelled — current status is "${masterOrder.status}"`
+            );
+        }
 
+        const subOrders = await Order.find({
+            parentId: masterOrder._id,
+            orderType: "SUB"
+        }).session(session);
 
-    redis.del(`orders:user:${userId}`).catch(() => {});
+        const variantOps = [];
+        const productOps = [];
 
-    setImmediate(() => {
-      creditNoteInvoice(masterOrder)
-        .then(pdfUrl =>
-          Order.updateOne(
-            { _id: masterOrder._id },
-            { $set: { creditNote: pdfUrl } }
-          )
-        )
-        .catch(err =>
-          console.error("[CreditNote] Generation failed:", err.message)
+        for (const sub of subOrders) {
+            for (const item of sub.items) {
+                variantOps.push({
+                    updateOne: {
+                        filter: { _id: item.variant },
+                        update: { $inc: { stock: item.quantity, sold: -item.quantity } }
+                    }
+                });
+
+                productOps.push({
+                    updateOne: {
+                        filter: { _id: item.product },
+                        update: { $inc: { sold: -item.quantity } }
+                    }
+                });
+            }
+        }
+
+        // Parallel stock restore
+        await Promise.all([
+            variantOps.length && Variant.bulkWrite(variantOps, { session }),
+            productOps.length && Product.bulkWrite(productOps, { session })
+        ]);
+
+        const subIds = subOrders.map(o => o._id);
+
+        // Single update for all orders
+        await Order.updateMany(
+            { _id: { $in: [masterOrder._id, ...subIds] } },
+            {
+                $set: {
+                    status: "CANCELLED",
+                    reason: reason || "Cancelled by customer",
+                    cancleBy: "CUSTOMER",
+                    "items.$[].status": "CANCELLED"
+                }
+            },
+            { session }
         );
-    });
 
-    return res.status(200).json({
-      success: true,
-      message: "Order cancelled successfully"
-    });
+        // Refund logic
+        if (
+            masterOrder.paymentStatus === "PAID" &&
+            ["WALLET", "ONLINE"].includes(masterOrder.paymentMethod)
+        ) {
+            await Promise.all([
+                Wallet.findOneAndUpdate(
+                    { userId },
+                    { $inc: { balance: masterOrder.totalAmount } },
+                    { session, upsert: true }
+                ),
 
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    next(error);
-  }
+                Transaction.create(
+                    [{
+                        userId,
+                        orderId: masterOrder._id,
+                        amount: masterOrder.totalAmount,
+                        paymentMethod: masterOrder.paymentMethod,
+                        status: "SUCCESS",
+                        payType: "CREDIT",
+                        walletPurpose: "ORDER_REFUND"
+                    }],
+                    { session }
+                ),
+
+                Order.updateMany(
+                    { _id: { $in: [masterOrder._id, ...subIds] } },
+                    { $set: { paymentStatus: "REFUNDED" } },
+                    { session }
+                )
+            ]);
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+
+
+        redis.del(`orders:user:${userId}`).catch(() => { });
+
+        setImmediate(() => {
+            creditNoteInvoice(masterOrder)
+                .then(pdfUrl =>
+                    Order.updateOne(
+                        { _id: masterOrder._id },
+                        { $set: { creditNote: pdfUrl } }
+                    )
+                )
+                .catch(err =>
+                    console.error("[CreditNote] Generation failed:", err.message)
+                );
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Order cancelled successfully"
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        next(error);
+    }
 };
 
 
@@ -1035,6 +1037,11 @@ export const updateSingleProductStatus = async (req, res, next) => {
         if (buyerKeys.length) await redis.del(buyerKeys);
         await redis.incr(`order:version:${masterOrderId}`);
 
+        // Referral reward — fire-and-forget on DELIVERED
+        if (newMasterStatus === "DELIVERED") {
+            processReward(masterOrderId, refreshedSub.userId.toString()).catch(() => { });
+        }
+
         return res.status(200).json({
             success: true,
             message: `Item status updated to "${status}"`,
@@ -1126,6 +1133,11 @@ export const updateAllProductsStatus = async (req, res, next) => {
         const buyerKeys = await redis.keys(`orders:user:${subOrder.userId}:*`);
         if (buyerKeys.length) await redis.del(buyerKeys);
         await redis.incr(`order:version:${masterOrderId}`);
+
+        // Referral reward — fire-and-forget on DELIVERED
+        if (newMasterStatus === "DELIVERED") {
+            processReward(masterOrderId, subOrder.userId.toString()).catch(() => { });
+        }
 
         return res.status(200).json({
             success: true,

@@ -42,7 +42,7 @@ const transactionSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["CREATED", "SUCCESS", "FAILED", "REFUNDED","PENDING"],
+      enum: ["CREATED", "SUCCESS", "FAILED", "REFUNDED", "PENDING"],
       default: "FAILED",
     },
     paymentSessionId: String,
@@ -51,16 +51,17 @@ const transactionSchema = new mongoose.Schema(
       enum: ["CREDIT", "DEBIT", null],
       default: null,
     },
-    walletType:{
-    type: String,
-    enum: ["autoAdd", "addOnce", null],
-    default: null,
-  },
-    walletPurpose: {
+    walletType: {
       type: String,
-      enum: ["TOPUP", "ORDER_PAYMENT", "BOOKING_PAYMENT", "REFUND", "ORDER_REFUND", null],   
+      enum: ["autoAdd", "addOnce", null],
       default: null,
     },
+    walletPurpose: {
+      type: String,
+      enum: ["TOPUP", "ORDER_PAYMENT", "BOOKING_PAYMENT", "REFUND", "ORDER_REFUND", "REFERRAL_REWARD", null],
+      default: null,
+    },
+
 
     // rawResponse: {}, // webhook / gateway response
   },

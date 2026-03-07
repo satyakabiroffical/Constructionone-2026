@@ -19,6 +19,8 @@ import cityRoutes from "./admin/city.routes.js";
 import pincodeRoutes from "./admin/pincode.routes.js";
 import flashSalePublicRoutes from "./platform/flashSale.routes.js";
 import rfqRoutes from "./vendorShop/rfq.routes.js";
+import referralRoutes from "./referral/referral.routes.js";
+
 
 const router = Router();
 
@@ -48,5 +50,7 @@ router.use("/v1", rfqRoutes);
 router.use("/v1/material", brandRoutes);
 router.use("/v1/material", productRoutes);
 router.use("/v1/material", variantRoutes);
+router.use("/v1/referrals", referralRoutes);
 
 export default router;
+

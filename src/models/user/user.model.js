@@ -4,6 +4,8 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
+
 
 const userSchema = new mongoose.Schema(
   {
@@ -108,7 +110,20 @@ const userSchema = new mongoose.Schema(
       type: Date,
     },
 
+    referralCode: {
+      type: String,
+      unique: true,
+      sparse: true, // null values ko index se exclude karo
+    },
+
+    referredBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
     fcmToken: {
+
       type: String,
       trim: true,
     },
@@ -122,6 +137,15 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+
+// Pre-save hook: Generate unique referralCode on new user
+userSchema.pre("save", function (next) {
+  if (this.isNew && !this.referralCode) {
+    // 8-char alphanumeric code — e.g. "A3FG9K2M"
+    this.referralCode = crypto.randomBytes(4).toString("hex").toUpperCase();
+  }
+  next();
+});
 
 // Pre-save hook: Permissions for ADMIN
 userSchema.pre("save", function (next) {

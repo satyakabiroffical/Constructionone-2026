@@ -18,6 +18,8 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { generateOtp, sendOtpViaMSG91 } from "../../utils/otpUtils.js";
+import { createReferral } from "../../services/referral.service.js";
+
 
 // Register User
 export const register = catchAsync(async (req, res, next) => {
@@ -25,13 +27,29 @@ export const register = catchAsync(async (req, res, next) => {
   if (error) return next(new APIError(400, error.details[0].message));
 
   const { email, phone } = req.body;
+  const { referralCode } = req.query; // optional: ?referralCode=ABCD1234
 
   const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
   if (existingUser) {
     return next(new APIError(400, "Email or Phone already exists"));
   }
 
-  const newUser = await User.create(req.body);
+  // Check if referralCode is valid
+  let referrer = null;
+  if (referralCode) {
+    referrer = await User.findOne({ referralCode }).select("_id").lean();
+    // Invalid code — ignore silently (don't block registration)
+  }
+
+  const userData = { ...req.body };
+  if (referrer) userData.referredBy = referrer._id;
+
+  const newUser = await User.create(userData);
+
+  // Fire-and-forget: create PENDING referral record
+  if (referrer) {
+    createReferral(referrer._id, newUser._id).catch(() => { });
+  }
 
   const accessToken = newUser.generateAccessToken();
   const refreshToken = newUser.generateRefreshToken();
@@ -51,12 +69,14 @@ export const register = catchAsync(async (req, res, next) => {
           lastName: newUser.lastName,
           email: newUser.email,
           role: newUser.role,
+          referralCode: newUser.referralCode,
         },
       },
       "User registered successfully",
     ),
   );
 });
+
 
 // Login with Email/Password
 export const login = catchAsync(async (req, res, next) => {

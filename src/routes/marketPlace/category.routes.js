@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCategoryTree } from '../../controllers/marketplace/category.controller.js';
+import { getCategoryTree } from '../../controllers/marketPlace/category.controller.js';
 
 const router = Router();
 
