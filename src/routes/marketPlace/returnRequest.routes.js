@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
     submitReturnRequest,
-    vendorReviewReturn,
+    adminReviewReturn,
     performQC,
     getUserReturnRequests,
     getVendorReturnRequests,
@@ -16,7 +16,7 @@ router.get("/my", requireAuth, getUserReturnRequests);
 
 router.get("/vendor", requireAuth, getVendorReturnRequests);
 
-router.put("/:returnId/review", requireAuth, vendorReviewReturn);
+router.put("/:returnId/review", requireAuth, adminReviewReturn);
 
 router.put("/:returnId/qc", requireAuth, performQC);
 

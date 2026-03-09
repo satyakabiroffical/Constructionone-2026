@@ -9,6 +9,7 @@ import {
   getOrderById,
   updateSingleProductStatus,
   updateAllProductsStatus,
+  createShippingLabel,
 } from "../../controllers/marketPlace/order.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";
@@ -17,18 +18,24 @@ import { idempotencyMiddleware } from "../../middlewares/idempotency.middleware.
 
 const router = Router();
 
-router.post("/create", requireAuth, idempotencyMiddleware, createOrder);
+router.post(
+  "/create",
+  requireAuth,
+  // idempotencyMiddleware,
+  createOrder,
+);
 router.post("/verify-payment", requireAuth, verifyPayment);
 router.get("/my-orders", requireAuth, getAllOrders);
-router.get("/vendor-orders/:vendorId", requireAuth, getOrdersByVendor);
 router.put("/:orderId/cancel", requireAuth, cancelOrder);
+
+// vendor routes
+router.get("/vendor-orders/:vendorId", requireAuth, getOrdersByVendor);
 router.put(
   "/vendor/sub-order/:subOrderId",
   vendorMiddleware,
   vendorUpdateOrder,
 );
 
-// Vendor: update sub-order status  →  PUT /order/:orderId/status
 router.put(
   "/vendor/updateSingleProductStatus",
   vendorMiddleware,
@@ -39,6 +46,7 @@ router.put(
   vendorMiddleware,
   updateAllProductsStatus,
 );
+router.post("/vendor/generate-label/:orderId", createShippingLabel);
 
 router.get("/:orderId", requireAuth, getOrderById);
 

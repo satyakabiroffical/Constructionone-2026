@@ -32,7 +32,6 @@ const returnRequestSchema = new mongoose.Schema(
         vandorId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "vandorModel",
-            required: true,
             index: true,
         },
 
