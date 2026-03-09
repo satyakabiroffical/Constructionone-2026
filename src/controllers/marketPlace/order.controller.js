@@ -390,7 +390,7 @@ export const verifyPayment = async (req, res, next) => {
 
         await sendOrderNotificationToUser(masterOrder, "CONFIRMED");
 
-        
+
         subOrders.forEach(sub =>
             sendOrderNotificationToVendor(sub).catch(console.error)
         );

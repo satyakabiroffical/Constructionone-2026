@@ -1,8 +1,10 @@
+import mongoose from 'mongoose';
 import HomeSection from '../models/home/homeSection.model.js';
 import PlatformModule from '../models/platform/module.model.js';
 import { sectionResolvers } from '../resolvers/sectionResolvers.js';
 import { APIError } from '../middlewares/errorHandler.js';
 import RedisCache from '../utils/redisCache.js';
+
 
 const HOME_TTL = 300; // 5 minutes
 
@@ -15,12 +17,18 @@ export const invalidateHome = async (moduleId) => {
 };
 
 // ─── Public: build full home for a module ─────────────────────────────────────
-export const buildHome = async (moduleSlug) => {
-    // 1. Resolve module
-    const module = await PlatformModule.findOne({ slug: moduleSlug, isActive: true })
+export const buildHome = async (identifier) => {
+    // Smart detect: ObjectId hai ya slug — dono support karo
+    const isId = mongoose.Types.ObjectId.isValid(identifier);
+    const query = isId
+        ? { _id: identifier, isActive: true }
+        : { slug: identifier, isActive: true };
+
+    const module = await PlatformModule.findOne(query)
         .select('_id title slug')
         .lean();
-    if (!module) throw new APIError(404, `Module "${moduleSlug}" not found`);
+    if (!module) throw new APIError(404, `Module "${identifier}" not found`);
+
 
     // 2. Fetch active section configs — sorted by order
     const sections = await HomeSection.find({

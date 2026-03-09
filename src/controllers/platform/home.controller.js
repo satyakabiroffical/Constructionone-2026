@@ -15,20 +15,21 @@ export const getPublicModules = catchAsync(async (req, res) => {
 
 // ─── GET /api/v1/home/:moduleSlug ─────────────────────────────────────────────
 export const getHome = catchAsync(async (req, res) => {
-    const { moduleSlug } = req.params;
+    const { identifier } = req.params;
 
     // 1. Cache check — fast path
-    const cacheKey = homeSectionService.homeCacheKey(moduleSlug);
+    const cacheKey = homeSectionService.homeCacheKey(identifier);
     const cached = await RedisCache.get(cacheKey);
     if (cached) {
         return res.status(200).json(new ApiResponse(200, cached, 'Home fetched (cached)'));
     }
 
     // 2. Build full home — all sections resolved in parallel
-    const data = await homeSectionService.buildHome(moduleSlug);
+    const data = await homeSectionService.buildHome(identifier);
 
     // 3. Cache for 5 minutes
     await RedisCache.set(cacheKey, data, 300);
 
     return res.status(200).json(new ApiResponse(200, data, 'Home fetched successfully'));
 });
+
