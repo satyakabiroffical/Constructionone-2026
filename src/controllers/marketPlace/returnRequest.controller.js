@@ -28,16 +28,16 @@ export const submitReturnRequest = async (req, res, next) => {
         const { reason, description, items } = req.body;
 
         if (!reason) throw new APIError(400, "Return reason is required");
-        // if (!VALID_RETURN_REASONS.includes(reason)) {
-        //     throw new APIError(
-        //         400,
-        //         `Invalid reason. Allowed: ${VALID_RETURN_REASONS.join(", ")}`
-        //     );
-        // }
+        if (!VALID_RETURN_REASONS.includes(reason)) {
+            throw new APIError(
+                400,
+                `Invalid reason. Allowed: ${VALID_RETURN_REASONS.join(", ")}`
+            );
+        }
 
-        // if (description && description.trim().length > 500) {
-        //     throw new APIError(400, "Description must not exceed 500 characters");
-        // }
+        if (description && description.trim().length > 500) {
+            throw new APIError(400, "Description must not exceed 500 characters");
+        }
 
         if (!items || !Array.isArray(items) || items.length === 0) {
             throw new APIError(400, "At least one item must be specified for return");
@@ -107,7 +107,7 @@ export const submitReturnRequest = async (req, res, next) => {
             for (const oi of sub.items) {
                 if (!oi.variant) continue;
                 variantMetaMap.set(oi.variant.toString(), {
-                    vandorId: sub.vandorId,
+                    vendorId: sub.vendorId,
                     subOrderId: sub._id,
                     returnInDays: oi.returnInDays,
                     price: oi.price,
@@ -159,7 +159,7 @@ export const submitReturnRequest = async (req, res, next) => {
         const vendorMap = new Map();
         for (const reqItem of items) {
             const meta = variantMetaMap.get(reqItem.variant.toString());
-            const key = meta.vandorId.toString();
+            const key = meta.vandorId ? meta.vandorId.toString() : "ADMIN";
 
             if (!vendorMap.has(key)) {
                 vendorMap.set(key, {
@@ -183,17 +183,20 @@ export const submitReturnRequest = async (req, res, next) => {
 
         const masterReturnId = new mongoose.Types.ObjectId();
 
-        const returnDocs = [...vendorMap.values()].map((v) => ({
-            masterReturnId,
-            orderId,
-            subOrderId: v.subOrderId,
-            userId,
-            vandorId: v.vandorId,
-            reason,
-            description: description?.trim() || "",
-            items: v.items,
-            refundAmount: v.refundAmount,
-        }));
+        const returnDocs = [...vendorMap.values()].map((v) => {
+            const doc = {
+                masterReturnId,
+                orderId,
+                subOrderId: v.subOrderId,
+                userId,
+                reason,
+                description: description?.trim() || "",
+                items: v.items,
+                refundAmount: v.refundAmount,
+            };
+            if (v.vandorId) doc.vandorId = v.vandorId;
+            return doc;
+        });
 
         const createdReturns = await ReturnRequest.insertMany(returnDocs, { session });
 
@@ -289,29 +292,23 @@ export const submitReturnRequest = async (req, res, next) => {
     }
 };
 
-/* ══════════════════════════════════════════════════════════════════════════════
- * 2.  VENDOR REVIEW  (Vendor)
- *     PUT /return-request/:returnId/review
- *
- *     Body: { action: "APPROVE" | "REJECT", rejectionReason? }
- *
- *     • APPROVE → status: APPROVED + pickupScheduledAt (now + 2 days)
- *     • REJECT  → status: REJECTED + rejectionReason
- * ══════════════════════════════════════════════════════════════════════════════ */
-export const vendorReviewReturn = async (req, res, next) => {
+
+export const adminReviewReturn = async (req, res, next) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
-        const vandorId = req.user._id; // vendor authenticated
         const { returnId } = req.params;
         const { action, rejectionReason } = req.body;
+
+        if (req.user.role !== "ADMIN" && req.user.role !== "SUB_ADMIN") {
+            throw new APIError(403, "Access denied. Only Admins can review returns.");
+        }
 
         if (!["APPROVE", "REJECT"].includes(action)) {
             throw new APIError(400, "action must be APPROVE or REJECT");
         }
 
-        const returnReq = await ReturnRequest.findOne({
-            _id: returnId,
-            vandorId,
-        });
+        const returnReq = await ReturnRequest.findById(returnId);
 
         if (!returnReq) throw new APIError(404, "Return request not found");
 
@@ -321,6 +318,9 @@ export const vendorReviewReturn = async (req, res, next) => {
                 `Cannot review — current status is "${returnReq.status}"`
             );
         }
+        const order = await Order.findById(returnReq.orderId);
+        if (!order) throw new APIError(404, "Order not found");
+
 
         if (action === "REJECT") {
             if (!rejectionReason || !rejectionReason.trim()) {
@@ -329,15 +329,45 @@ export const vendorReviewReturn = async (req, res, next) => {
             returnReq.status = "REJECTED";
             returnReq.rejectionReason = rejectionReason.trim();
         } else {
-            // APPROVE — schedule pickup 2 days from now
+
             returnReq.status = "APPROVED";
             const pickup = new Date();
             pickup.setDate(pickup.getDate() + 2);
             returnReq.pickupScheduledAt = pickup;
         }
 
-        await returnReq.save();
+        await returnReq.save({ session });
 
+        if (action === "APPROVE") {
+            const itemStatuses = [...new Set(order.items.map((it) => it.status))];
+            const newSubStatus = itemStatuses.length === 1 ? itemStatuses[0] : "MULTI_STATE";
+            await order.updateOne(
+                { _id: returnReq.orderId },
+                { $set: { "items.$[elem].status": "RETURN_REQUESTED" } },
+                {
+                    session,
+                    arrayFilters: [{ "elem.variant": { $in: returnedVariantObjectIds } }],
+                }
+            );
+        } else {
+            const itemStatuses = [...new Set(order.items.map((it) => it.status))];
+            const newSubStatus = itemStatuses.length === 1 ? itemStatuses[0] : "MULTI_STATE";
+            await order.updateOne(
+                { _id: returnReq.orderId },
+                { $set: { "items.$[elem].status": "RETURN_REJECTED" } },
+                {
+                    session,
+                    arrayFilters: [{ "elem.variant": { $in: returnedVariantObjectIds } }],
+                }
+            );
+        }
+
+
+        await order.save({ session });
+
+
+        await session.commitTransaction();
+        session.endSession();
         return res.status(200).json({
             success: true,
             message: action === "APPROVE" ? "Return approved. Pickup scheduled." : "Return rejected.",
@@ -349,20 +379,13 @@ export const vendorReviewReturn = async (req, res, next) => {
             },
         });
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         next(error);
     }
 };
 
-/* ══════════════════════════════════════════════════════════════════════════════
- * 3.  QUALITY CHECK  (Vendor / Admin)
- *     PUT /return-request/:returnId/qc
- *
- *     Body: { result: "PASS" | "FAIL", qcNote? }
- *
- *     • PASS → QC_PASSED → create Refund → credit wallet → COMPLETED
- *     • FAIL → QC_FAILED (no refund)
- *     All in a MongoDB transaction for atomicity.
- * ══════════════════════════════════════════════════════════════════════════════ */
+
 export const performQC = async (req, res, next) => {
     const session = await mongoose.startSession();
     session.startTransaction();

@@ -11,6 +11,7 @@ import apiRoutes from "./routes/index.js";
 import dotenv from "dotenv";
 dotenv.config();
 import logger from "./utils/logger.js";
+import "./workers/shipping.worker.js";
 
 const app = express();
 

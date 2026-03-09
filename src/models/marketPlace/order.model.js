@@ -33,9 +33,9 @@ const orderSchema = new mongoose.Schema(
 
             },
         ],
-        vandorId: {
+        vendorId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "vandorModel",
+            ref: "vendorProfile",
             // required: false // Master order won't have this
         },
         parentId: {
@@ -83,6 +83,8 @@ const orderSchema = new mongoose.Schema(
             ref: "transactionModel",
         },
         transactionRef: String,
+        trackingNumber: String,
+        labelUrl:String,
         invoice: String,
         creditNote: String,
 

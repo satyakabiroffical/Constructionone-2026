@@ -16,6 +16,8 @@ import invoice from "../../middlewares/invoice.middleware.js";
 import vendorTaxInvoice from "../../middlewares/invoice.vendor.js";
 import creditNoteInvoice from "../../middlewares/creditNote.middleware.js";
 import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
+// generateShippingLabel import removed - now used in shipping.worker.js
+
 
 /**
  * generateOrderInvoices — fire-and-forget helper
@@ -64,6 +66,7 @@ const calculateVendorSplit = async (cartItems) => {
 
     for (const item of cartItems) {
         const vendorId = item.variant.productId.vendorId?.toString();
+        console.log("vendor Id"+vendorId);
         if (!vendorId) continue; // skip if product has no vendor assigned
         if (!vendorMap.has(vendorId)) vendorMap.set(vendorId, []);
         vendorMap.get(vendorId).push(item);
@@ -117,7 +120,7 @@ export const createOrder = async (req, res, next) => {
 
         const { splitdata, grandTotal } =
             await calculateVendorSplit(cart.items);
-
+        console.log(splitdata)
         const DeliveryDate = new Date();
         DeliveryDate.setDate(DeliveryDate.getDate() + 7);
 
@@ -1253,3 +1256,27 @@ export const updateAllProductsStatus = async (req, res, next) => {
     }
 };
 
+import { shippingQueue } from "../../config/bullmq.config.js";
+
+export const createShippingLabel = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      throw new APIError(404, "Order not found");
+    }
+
+    // Push job to the background queue
+    await shippingQueue.add("generate-label", { orderId: order._id });
+
+    return res.status(202).json({
+      success: true,
+      message: "Shipping label generation started in background",
+      orderId: order._id
+    });
+
+  } catch (error) {
+   next(error);
+  }
+};

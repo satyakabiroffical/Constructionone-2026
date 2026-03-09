@@ -1,7 +1,7 @@
 import { Router } from "express";
 import authRoutes from "./auth/index.js";
 import userRoutes from "./user/index.js";
-import marketplaceRoutes from "./marketPlace/index.js";
+import marketPlaceRoutes from "./marketPlace/index.js";
 import rentalRoutes from "./rental/index.js";
 import serviceProviderRoutes from "./serviceProvider/index.js";
 import vendorRoutes from "./vendorShop/index.js";
@@ -23,7 +23,7 @@ import rfqRoutes from "./vendorShop/rfq.routes.js";
 const router = Router();
 
 router.use("/v1", authRoutes);
-router.use("/v1", marketplaceRoutes);
+router.use("/v1", marketPlaceRoutes);
 router.use("/v1", rentalRoutes);
 router.use("/v1", serviceProviderRoutes);
 
