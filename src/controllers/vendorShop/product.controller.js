@@ -466,10 +466,10 @@ class ProductController {
     session.startTransaction();
 
     try {
-      //  support normal form-data (CHANGED)
+      // support normal form-data (CHANGED)
       let productData = { ...req.body };
 
-      //  prevent client from spoofing vendor
+      // prevent client from spoofing vendor
       delete productData.vendorId;
 
       // parse shippingCharges from form-data
@@ -526,19 +526,20 @@ class ProductController {
         vendorLocation = vendorCompany.location;
       }
 
-      // ✅ CREATE PRODUCT (FIXED)
+      // CREATE PRODUCT (FIXED)
       const productArr = await Product.create(
         [
           {
             ...productData,
             vendorId: req.user.id,
             vendorLocation,
-            // ✅ correct owner
+            // correct owner
           },
         ],
         { session },
       );
       const product = productArr[0];
+
       // SECURITY CLEANUP
       const forbiddenFields = [
         "productId",
@@ -647,7 +648,6 @@ class ProductController {
 
       // HANDLE FILES
       const uploadedImages = req.files?.images?.map((f) => f.location) || [];
-
       const uploadedThumbnail = req.files?.thumbnail?.[0]?.location || null;
 
       if (uploadedImages.length) {

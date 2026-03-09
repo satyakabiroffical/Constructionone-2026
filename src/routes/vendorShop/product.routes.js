@@ -3,7 +3,11 @@ import ProductController from "../../controllers/vendorShop/product.controller.j
 import validate from "../../middlewares/joiValidation.js";
 import { createProductWithVariantSchema } from "../../validations/product.validation.js";
 import { s3Uploader } from "../../middlewares/uploads.js";
-import { authMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
+import {
+  authMiddleware,
+  vendorMiddleware,
+  adminMiddleware,
+} from "../../middlewares/auth.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
@@ -13,7 +17,11 @@ const router = Router();
 router.get("/products", authMiddleware, ProductController.getProducts);
 
 // GET top selling products (must be BEFORE /product/:id to avoid wildcard conflict)
-router.get("/products/top-selling", authMiddleware, ProductController.getTopSellingProducts);
+router.get(
+  "/products/top-selling",
+  authMiddleware,
+  ProductController.getTopSellingProducts,
+);
 
 // CREATE product with variants (vendor only)
 router.post(
@@ -56,14 +64,26 @@ router.patch(
 // VERIFY product (vendor only)
 router.patch(
   "/verifyProduct/:id",
-  vendorMiddleware,
+  adminMiddleware,
   ProductController.verifyProduct,
 );
 
 // FLASH SALE routes
-router.post("/products/:productId/flash-sale", vendorMiddleware, ProductController.setFlashSale);
-router.patch("/products/:productId/flash-sale/cancel", vendorMiddleware, ProductController.cancelFlashSale);
-router.get("/products/flash-sale", authMiddleware, ProductController.getFlashSaleProducts);
+router.post(
+  "/products/:productId/flash-sale",
+  vendorMiddleware,
+  ProductController.setFlashSale,
+);
+router.patch(
+  "/products/:productId/flash-sale/cancel",
+  vendorMiddleware,
+  ProductController.cancelFlashSale,
+);
+router.get(
+  "/products/flash-sale",
+  authMiddleware,
+  ProductController.getFlashSaleProducts,
+);
 
 //get vendor products
 router.get(

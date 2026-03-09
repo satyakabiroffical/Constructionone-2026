@@ -1,4 +1,8 @@
-import { S3Client, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";   // priyanshu
+import {
+  S3Client,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3"; // priyanshu
 import multer from "multer";
 import multerS3 from "multer-s3";
 import fs from "fs";
@@ -51,7 +55,7 @@ export const s3Uploader = () =>
   multer({
     fileFilter: multerFilter,
     limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB max (video case)
+      fileSize: 50 * 1024 * 1024, //50MB max (video case)
     },
     storage: multerS3({
       s3,
@@ -119,12 +123,9 @@ export const getBuffer = async (bucketName, key) => {
  */
 export const categoryUpload = (() => {
   const upload = s3Uploader();
-
   // Define field configuration for category image upload
   // maxCount: 1 means only one image file allowed
-  return upload.fields([
-    { name: 'image', maxCount: 1 }
-  ]);
+  return upload.fields([{ name: "image", maxCount: 1 }]);
 })();
 
 /**

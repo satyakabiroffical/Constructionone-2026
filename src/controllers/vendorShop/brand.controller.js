@@ -67,8 +67,8 @@ class BrandController {
   static async getVendorBrands(req, res) {
     const { vendorId } = req.params;
     const { search } = req.query; //<-- brand name search
+    
     const cacheKey = `brands:${vendorId}:${search || ""}`;
-
     const cached = await RedisCache.get(cacheKey);
     if (cached) return res.json(cached);
 
