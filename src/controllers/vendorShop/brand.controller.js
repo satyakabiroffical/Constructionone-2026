@@ -103,7 +103,7 @@ class BrandController {
         },
       },
     ];
-    // 🔍 Optional brand name filter
+    //  Optional brand name filter
     if (search) {
       pipeline.push({
         $match: {

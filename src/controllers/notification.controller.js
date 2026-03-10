@@ -174,7 +174,6 @@ export const notifyAllVendorsAndUsers = async (req, res, next) => {
     next(err);
   }
 };
-
 //mark read
 export const markNotificationRead = async (req, res, next) => {
   try {

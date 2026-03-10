@@ -21,12 +21,15 @@ const serviceReviewSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "ServiceBooking",
     },
-
     rating: Number,
-
     review: String,
+    serviceName: String,
 
     images: [String],
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );

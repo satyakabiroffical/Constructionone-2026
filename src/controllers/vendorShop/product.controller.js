@@ -188,7 +188,6 @@ class ProductController {
       next(error);
     }
   }
-
   //products according to vendorshop - asgr
   static async getVendorProducts(req, res, next) {
     try {

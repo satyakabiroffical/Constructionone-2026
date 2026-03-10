@@ -86,7 +86,6 @@ export const authMiddleware = async (req, res, next) => {
 
 export const vendorMiddleware = async (req, res, next) => {
   try {
-    console.log(" vendorMiddleware hit");
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "Not authenticated" });
@@ -126,9 +125,7 @@ export const adminMiddleware = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Sirf role check ke liye minimal fields fetch karo
-    const user = await userModel.findById(decoded.id)
-      .select('_id role')
-      .lean();
+    const user = await userModel.findById(decoded.id).select("_id role").lean();
 
     if (!user || (user.role !== "ADMIN" && user.role !== "SUB_ADMIN")) {
       return res.status(403).json({ message: "Access denied" });

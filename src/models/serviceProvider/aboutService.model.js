@@ -43,11 +43,10 @@ const aboutServiceSchema = new mongoose.Schema(
 
 export default mongoose.model("AboutService", aboutServiceSchema);
 
-
 //exmp-Data
 // {
 //   "description": "We provide professional interior design services with modern concepts and premium quality work.",
-  
+
 //   "serviceOffers": [
 //     "Interior Design",
 //     "Home Renovation",

@@ -8,14 +8,14 @@ const serviceGallerySchema = new mongoose.Schema(
       required: true,
     },
 
-    serviceProfileId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "ServiceProfile",
-    },
+    // serviceProfileId: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "ServiceProfile",
+    // },
 
     images: [
       {
-        type: String, // image URL (S3 / Cloudinary)
+        type: String,
       },
     ],
 
@@ -27,15 +27,4 @@ const serviceGallerySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-export default mongoose.model("serviceGallery", serviceGallerySchema);
-
-//exmp-data
-
-// {
-//  "vendorId": "66aa1234abcd",
-//  "images": [
-//    "https://cdn.com/img1.jpg",
-//    "https://cdn.com/img2.jpg",
-//    "https://cdn.com/img3.jpg"
-//  ]
-// }
+export default mongoose.model("ServiceGallery", serviceGallerySchema);
