@@ -7,6 +7,210 @@ import { calculateDiscount } from "../../utils/priceCalculator.js";
 import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
 
 class ProductController {
+  //testing -asgr
+
+  //   static async getProducts(req, res, next) {
+  //   try {
+  //     const {
+  //       page = 1,
+  //       limit = 20,
+  //       sort,
+  //       minPrice,
+  //       maxPrice,
+  //       lat,
+  //       lng,
+  //       radius = 50000,
+  //       type,
+  //       newArrival,
+  //       moduleId,
+  //       pcategoryId,
+  //       categoryId,
+  //       subcategoryId,
+  //       brandId,
+  //     } = req.query;
+
+  //     const skip = (Number(page) - 1) * Number(limit);
+
+  //     // REDIS CACHE
+  //     const cacheKey = `products:public:v2:${JSON.stringify(req.query)}`;
+  //     const cached = await RedisCache.get(cacheKey);
+  //     if (cached) return res.json(cached);
+
+  //     const useGeo = lat && lng && sort === "nearest";
+
+  //     // ================= BASE MATCH =================
+  //     const matchStage = {
+  //       disable: false,
+  //       varified: true,
+  //     };
+
+  //     const toObjectId = (id) =>
+  //       mongoose.Types.ObjectId.isValid(id)
+  //         ? new mongoose.Types.ObjectId(id)
+  //         : null;
+
+  //     if (moduleId) matchStage.moduleId = toObjectId(moduleId);
+  //     if (pcategoryId) matchStage.pcategoryId = toObjectId(pcategoryId);
+  //     if (categoryId) matchStage.categoryId = toObjectId(categoryId);
+  //     if (subcategoryId) matchStage.subcategoryId = toObjectId(subcategoryId);
+  //     if (brandId) matchStage.brandId = toObjectId(brandId);
+
+  //     if (newArrival === "true") {
+  //       matchStage.createdAt = {
+  //         $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+  //       };
+  //     }
+
+  //     // ================= PIPELINE =================
+  //     const pipeline = [];
+
+  //     // ================= VARIANT LOOKUP =================
+  //     pipeline.push({ $match: matchStage });
+  //     pipeline.push({
+  //       $lookup: {
+  //         from: "variants",
+  //         let: { productId: "$_id" },
+  //         pipeline: [
+  //           {
+  //             $match: {
+  //               $expr: { $eq: ["$productId", "$$productId"] },
+  //               disable: false,
+  //               ...(type && { Type: type }),
+  //               ...((minPrice || maxPrice) && {
+  //                 price: {
+  //                   ...(minPrice && { $gte: Number(minPrice) }),
+  //                   ...(maxPrice && { $lte: Number(maxPrice) }),
+  //                 },
+  //               }),
+  //             },
+  //           },
+  //           { $sort: { price: 1 } },
+  //           { $limit: 1 },
+  //           { $project: { price: 1, Type: 1, mrp: 1, discount: 1 } },
+  //         ],
+  //         as: "defaultVariant",
+  //       },
+  //     });
+
+  //     pipeline.push({
+  //       $match: { defaultVariant: { $ne: [] } },
+  //     });
+
+  //     // ================= VENDOR LOOKUP =================
+  //     pipeline.push({
+  //       $lookup: {
+  //         from: "vendorcompanies",
+  //         localField: "vendorId",
+  //         foreignField: "vendorId",
+  //         as: "vendorCompany",
+  //       },
+  //     });
+  //     pipeline.push({
+  //       $unwind: { path: "$vendorCompany", preserveNullAndEmptyArrays: true },
+  //     });
+
+  //     // ================= ADDRESS LOOKUP =================
+  //     pipeline.push({
+  //       $lookup: {
+  //         from: "vendoraddresses",
+  //         localField: "vendorId",
+  //         foreignField: "vendorId",
+  //         as: "vendorAddresses",
+  //       },
+  //     });
+
+  //     // pick primary address
+  //     pipeline.push({
+  //       $addFields: {
+  //         primaryAddress: {
+  //           $first: {
+  //             $filter: {
+  //               input: "$vendorAddresses",
+  //               cond: { $eq: ["$$this.isPrimary", true] },
+  //             },
+  //           },
+  //         },
+  //       },
+  //     });
+
+  //     // ================= GEO NEAR (nearest sorting) =================
+  //     if (useGeo) {
+  //       pipeline.unshift({
+  //         $geoNear: {
+  //           near: { type: "Point", coordinates: [Number(lng), Number(lat)] },
+  //           distanceField: "distance",
+  //           maxDistance: Number(radius),
+  //           spherical: true,
+  //           key: "primaryAddress.location",
+  //         },
+  //       });
+  //     }
+
+  //     // ================= BRAND LOOKUP =================
+  //     pipeline.push({
+  //       $lookup: {
+  //         from: "brands",
+  //         localField: "brandId",
+  //         foreignField: "_id",
+  //         pipeline: [{ $project: { name: 1 } }],
+  //         as: "brand",
+  //       },
+  //     });
+  //     pipeline.push({
+  //       $unwind: { path: "$brand", preserveNullAndEmptyArrays: true },
+  //     });
+
+  //     // ================= SORT =================
+  //     pipeline.push({
+  //       $sort:
+  //         sort === "priceLowHigh"
+  //           ? { "defaultVariant.price": 1 }
+  //           : sort === "priceHighLow"
+  //           ? { "defaultVariant.price": -1 }
+  //           : sort === "nearest" && useGeo
+  //           ? { distance: 1 }
+  //           : sort === "newest"
+  //           ? { createdAt: -1 }
+  //           : { createdAt: -1 },
+  //     });
+
+  //     // ================= PAGINATION =================
+  //     pipeline.push({ $skip: skip }, { $limit: Number(limit) });
+
+  //     // ================= EXECUTE =================
+  //     const products = await Product.aggregate(pipeline);
+
+  //     // ================= FORMAT RESPONSE =================
+  //     const formatted = products.map((p) => ({
+  //       _id: p._id,
+  //       name: p.name,
+  //       defaultVariant: p.defaultVariant[0],
+  //       brand: p.brand,
+  //       distance: p.distance || null,
+  //       vendor: {
+  //         company: p.vendorCompany,
+  //         primaryAddress: p.primaryAddress,
+  //         allAddresses: p.vendorAddresses,
+  //       },
+  //       images: p.images || [],
+  //       createdAt: p.createdAt,
+  //     }));
+
+  //     const response = {
+  //       success: true,
+  //       message: "Products fetched successfully",
+  //       results: formatted.length,
+  //       data: formatted,
+  //     };
+
+  //     // CACHE RESULT
+  //     await RedisCache.set(cacheKey, response, 60);
+
+  //     return res.status(200).json(response);
+  //   } catch (error) {
+  //     next(error);
+  //   }
+  // }
   //users get all
   static async getProducts(req, res, next) {
     try {

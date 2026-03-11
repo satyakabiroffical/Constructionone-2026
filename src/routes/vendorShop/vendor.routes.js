@@ -3,6 +3,7 @@ import { s3Uploader } from "../../middlewares/uploads.js";
 import {
   vendorAuth,
   verifyOtp,
+  businessSetup,
   resendOtp,
   loginWithPhone,
   resendAadharOtp,
@@ -33,13 +34,14 @@ import {
   vendorProfileValidation,
   vendorCompanyValidation,
 } from "../../validations/vendorShop/vendor.validation.js";
-
 const router = express.Router();
 
 //vendorauth
 router.post("/auth", vendorAuth);
 router.post("/resend-otp", resendOtp);
 router.post("/verify-otp", verifyOtp);
+
+router.post("/business-type", vendorMiddleware, businessSetup); 
 router.post("/login/phone", loginWithPhone);
 
 //aadhar varify

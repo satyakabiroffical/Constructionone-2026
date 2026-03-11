@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 const vendorProfile = new mongoose.Schema(
   {
     moduleId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId, //business setup Id
       ref: "Module",
     },
     phoneNumber: {
@@ -25,7 +25,7 @@ const vendorProfile = new mongoose.Schema(
       type: String,
       enum: ["Aadhar Card", "Voter ID", "Driving License", "Other"],
     },
-    
+
     governmentIdNumber: { type: String },
     uploadId: { type: String },
 
@@ -111,6 +111,7 @@ const vendorCompany = new mongoose.Schema(
       selectedCities: [String],
       PinCodes: [String],
     },
+
     companyRegistrationNumber: { type: String },
 
     businessAddress: {
@@ -122,6 +123,7 @@ const vendorCompany = new mongoose.Schema(
       latitude: Number,
       longitude: Number,
     },
+
     location: {
       //Sanvi
       type: {
@@ -136,6 +138,7 @@ const vendorCompany = new mongoose.Schema(
 
     gstNumber: { type: String },
     contactNumber: { type: String },
+
     accountHolderName: { type: String },
     bankName: { type: String },
     accountNumber: { type: String },
@@ -147,10 +150,12 @@ const vendorCompany = new mongoose.Schema(
       default: "Other",
     },
     upiId: { type: String },
+
     shopImages: [String],
     certificates: [String],
     cancelledCheque: { type: String },
     companyWebsiteURl: { type: String },
+
     badges: [
       {
         type: String,
@@ -165,6 +170,7 @@ const vendorCompany = new mongoose.Schema(
         default: [""],
       },
     ],
+
     isOpen: {
       type: Boolean,
       default: true,
@@ -176,6 +182,7 @@ const vendorCompany = new mongoose.Schema(
 // ================= GEO AUTO SET =================
 
 // auto set location on create
+
 vendorCompany.pre("save", function (next) {
   if (this.businessAddress?.latitude && this.businessAddress?.longitude) {
     this.location = {
@@ -188,7 +195,6 @@ vendorCompany.pre("save", function (next) {
   }
   next();
 });
-
 // auto set location on update
 vendorCompany.pre("findOneAndUpdate", function (next) {
   const update = this.getUpdate();
@@ -210,6 +216,79 @@ vendorCompany.pre("findOneAndUpdate", function (next) {
 
 // geo index
 vendorCompany.index({ location: "2dsphere" });
-
 export const VendorProfile = mongoose.model("vendorProfile", vendorProfile);
 export const VendorCompany = mongoose.model("vendorCompany", vendorCompany);
+
+//demo test
+const vendorBankSchema = new mongoose.Schema(
+  {
+    vendorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "vendorProfile",
+      required: true,
+    },
+
+    accountHolderName: String,
+    bankName: String,
+    accountNumber: String,
+    ifscCode: String,
+    cancelledCheque: { type: String },
+
+    accountType: {
+      type: String,
+      enum: ["Saving", "Current", "NRO", "NRE", "Other"],
+      default: "Other",
+    },
+
+    upiId: String,
+
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { timestamps: true },
+);
+
+const vendorAddressSchema = new mongoose.Schema(
+  {
+    vendorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "vendorProfile",
+    },
+
+    addressType: {
+      type: String,
+      enum: ["Office", "Warehouse", "Shop", "Factory", "Other"],
+      default: "Other",
+    },
+
+    address: String,
+    city: String,
+    state: String,
+    country: String,
+    pincode: String,
+
+    latitude: Number,
+    longitude: Number,
+
+    isPrimary: {
+      type: Boolean,
+      default: false,
+    },
+
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [lng, lat]
+      },
+    },
+  },
+  { timestamps: true },
+);
+
+vendorAddressSchema.index({ location: "2dsphere" });

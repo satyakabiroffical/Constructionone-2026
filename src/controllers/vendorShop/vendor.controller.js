@@ -154,6 +154,41 @@ export const verifyOtp = async (req, res) => {
     return res.status(500).json({ success: false, error: e.message });
   }
 };
+
+export const businessSetup = async (req, res, next) => {
+  try {
+    const id = req.user.id;
+    const { moduleId } = req.body;
+
+    if (!moduleId) {
+      return res.status(400).json({
+        success: false,
+        message: "moduleId is required",
+      });
+    }
+
+    const updatedProfile = await VendorProfile.findByIdAndUpdate(
+      id,
+      { moduleId },
+      { new: true, runValidators: true },
+    );
+
+    if (!updatedProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Business setup updated successfully",
+      data: updatedProfile,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 export const resendOtp = async (req, res, next) => {
   try {
     const { phoneNumber } = req.body;
@@ -388,7 +423,6 @@ export const resendAadharOtp = async (req, res) => {
     });
   }
 };
-
 //saveFCM token After login
 export const saveFcmToken = async (req, res) => {
   const userId = req.user.id;
