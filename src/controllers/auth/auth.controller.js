@@ -19,6 +19,7 @@ import crypto from "crypto";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { generateOtp, sendOtpViaMSG91 } from "../../utils/otpUtils.js";
 import { createReferral } from "../../services/referral.service.js";
+import { sendEmailOtp } from "../../utils/emailUtils.js";
 
 
 // Register User
@@ -226,22 +227,20 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email });
   if (!user) return next(new APIError(404, "User not found"));
 
-  // ─── DEV MODE: static OTP ────────────────────────────────────────────────────
-  // TODO (PRODUCTION): Uncomment the real block below and delete the static otp line.
-  //
-  // const otp = Math.floor(1000 + Math.random() * 9000).toString();
-  // user.otp = otp;
-  // user.otpExpiry = Date.now() + 5 * 60 * 1000;
-  // await user.save({ validateBeforeSave: false });
-  // // TODO: integrate email OTP service here (e.g. Nodemailer / SendGrid)
-  // ─────────────────────────────────────────────────────────────────────────────
-  const otp = "1234"; // DEV ONLY — static OTP. Replace with Math.random() in production.
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
   user.otp = otp;
   user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 mins
   await user.save({ validateBeforeSave: false });
-  console.log(`[DEV MODE] Static Forgot Password OTP for ${email}: ${otp}`);
 
-  res.status(200).json(new ApiResponse(200, { otp }, "OTP sent to email"));
+  try {
+    await sendEmailOtp(user.email, otp);
+    res.status(200).json(new ApiResponse(200, null, "OTP sent successfully to your registered email"));
+  } catch (error) {
+    user.otp = undefined;
+    user.otpExpiry = undefined;
+    await user.save({ validateBeforeSave: false });
+    return next(new APIError(500, "Failed to send OTP email. Please try again later."));
+  }
 });
 
 // Verify Reset OTP & Get Token
