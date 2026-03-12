@@ -4,7 +4,7 @@ import {
   createOrUpdateAboutService,
   getVendorAboutService,
   toggleAboutServiceStatus,
-} from "../../controllers/vendorShop/aboutService.controller.js";
+} from "../../controllers/serviceProvider/aboutService.controller.js";
 const router = Router();
 
 router.post("/about-service", vendorMiddleware, createOrUpdateAboutService);

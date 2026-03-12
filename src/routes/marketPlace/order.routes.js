@@ -10,6 +10,7 @@ import {
   updateSingleProductStatus,
   updateAllProductsStatus,
   createShippingLabel,
+  updateOrderToDelivered,
 } from "../../controllers/marketPlace/order.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";
@@ -47,7 +48,8 @@ router.put(
   updateAllProductsStatus,
 );
 router.post("/vendor/generate-label/:orderId", createShippingLabel);
-
 router.get("/:orderId", requireAuth, getOrderById);
+
+router.patch("/:orderId/delivered", updateOrderToDelivered);
 
 export default router;

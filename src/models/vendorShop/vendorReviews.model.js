@@ -46,5 +46,4 @@ const vendorReviewsSchema = new mongoose.Schema(
 
 // One review per user per vendor
 vendorReviewsSchema.index({ userId: 1, vendorId: 1 }, { unique: true });
-
 export default mongoose.model("vendorReviews", vendorReviewsSchema);

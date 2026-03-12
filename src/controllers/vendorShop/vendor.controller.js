@@ -423,7 +423,7 @@ export const resendAadharOtp = async (req, res) => {
     });
   }
 };
-//saveFCM token After login
+//saveFCM token when phone otp varified
 export const saveFcmToken = async (req, res) => {
   const userId = req.user.id;
   const { fcmToken } = req.body;

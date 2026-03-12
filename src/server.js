@@ -12,7 +12,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import logger from "./utils/logger.js";
 import "./workers/shipping.worker.js";
-
+import "./workers/settlement.worker.js";
 const app = express();
 // Security Middleware
 app.use(helmet());
