@@ -1719,6 +1719,105 @@ class ProductController {
   //   }
   // }
 
+  // static async getProductBySubCategory(req, res) {
+  //   try {
+  //     const { subcategoryId } = req.params;
+  //     const { page = 1, limit = 10, type } = req.query;
+
+  //     const cacheKey = `products:subcat:${subcategoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
+
+  //     // 1. CHECK CACHE
+  //     // const cachedData = await RedisCache.get(cacheKey);
+  //     // if (cachedData) {
+  //     //   // console.log("CACHE HIT");
+  //     //   return res.json(JSON.parse(cachedData));
+  //     // }
+
+  //     // console.log("CACHE MISS");
+
+  //     const skip = (page - 1) * limit;
+
+  //     const filter = { subcategoryId };
+
+  //     if (type) {
+  //       const variantIds = await Variant.find({
+  //         Type: { $regex: new RegExp(`^${type}$`, "i") },
+  //       }).select("_id");
+
+  //       filter.defaultVariantId = {
+  //         $in: variantIds.map((v) => v._id),
+  //       };
+  //     }
+
+  //     // const products = await Product.find(filter)
+  //     //   .select(
+  //     //     "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
+  //     //   )
+  //     //   .populate({
+  //     //     path: "vendorId",
+  //     //     select: "firstName lastName",
+  //     //   })
+  //     //   .populate({
+  //     //     path: "defaultVariantId",
+  //     //     select: "price discount Type",
+  //     //   })
+  //     //   .skip(skip)
+  //     //   .limit(Number(limit));
+
+  //     const products = await Product.find(filter)
+  //       .select(
+  //         "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
+  //       )
+  //       .populate({
+  //         path: "vendorId",
+  //         select: "firstName lastName",
+  //       })
+  //       .populate({
+  //         path: "defaultVariantId", // full data
+  //       })
+  //       .skip(skip)
+  //       .limit(Number(limit));
+
+  //     const formattedProducts = products.map((p) => ({
+  //       id: p._id,
+  //       name: p.name,
+  //       images: p.images,
+  //       avgRating: p.avgRating,
+  //       reviewCount: p.reviewCount,
+  //       slug: p.slug,
+  //       properties: p.properties,
+  //       minDiscount: p.minDiscount,
+  //       maxDiscount: p.maxDiscount,
+  //       vendor: {
+  //         firstName: p.vendorId?.firstName,
+  //         lastName: p.vendorId?.lastName,
+  //       },
+  //       price: p.defaultVariantId?.price ?? null,
+  //       discount: p.defaultVariantId?.discount ?? null,
+  //       type: p.defaultVariantId?.Type ?? null,
+  //     }));
+
+  //     const total = await Product.countDocuments(filter);
+
+  //     const response = {
+  //       success: true,
+  //       page: Number(page),
+  //       totalPages: Math.ceil(total / limit),
+  //       totalProducts: total,
+  //       products: formattedProducts,
+  //     };
+
+  //     //  2. SET CACHE
+  //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+
+  //     res.json(response);
+  //   } catch (error) {
+  //     // console.error(error);
+  //     res.status(500).json({ message: error.message });
+  //   }
+  // }
+
+  //draft product for vendor
   static async getProductBySubCategory(req, res) {
     try {
       const { subcategoryId } = req.params;
@@ -1729,11 +1828,8 @@ class ProductController {
       // 1. CHECK CACHE
       const cachedData = await RedisCache.get(cacheKey);
       if (cachedData) {
-        // console.log("CACHE HIT");
         return res.json(JSON.parse(cachedData));
       }
-
-      // console.log("CACHE MISS");
 
       const skip = (page - 1) * limit;
 
@@ -1759,7 +1855,6 @@ class ProductController {
         })
         .populate({
           path: "defaultVariantId",
-          select: "price discount Type",
         })
         .skip(skip)
         .limit(Number(limit));
@@ -1774,13 +1869,18 @@ class ProductController {
         properties: p.properties,
         minDiscount: p.minDiscount,
         maxDiscount: p.maxDiscount,
+
         vendor: {
           firstName: p.vendorId?.firstName,
           lastName: p.vendorId?.lastName,
         },
+
+        // quick access fields (frontend fast rendering)
         price: p.defaultVariantId?.price ?? null,
         discount: p.defaultVariantId?.discount ?? null,
         type: p.defaultVariantId?.Type ?? null,
+
+        defaultVariant: p.defaultVariantId || null,
       }));
 
       const total = await Product.countDocuments(filter);
@@ -1793,17 +1893,15 @@ class ProductController {
         products: formattedProducts,
       };
 
-      //  2. SET CACHE
+      // 2. SET CACHE (5 min)
       await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
       res.json(response);
     } catch (error) {
-      // console.error(error);
       res.status(500).json({ message: error.message });
     }
   }
 
-  //draft product for vendor
   static async getDraftProducts(req, res, next) {
     try {
       const { page = 1, limit = 20, search } = req.query;
@@ -1941,7 +2039,7 @@ class ProductController {
       next(err);
     }
   }
-  //withour all type filter
+
   // static async getProductByCategory(req, res) {
   //   try {
   //     const { categoryId } = req.params;
@@ -1949,7 +2047,6 @@ class ProductController {
 
   //     const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
 
-  //     // 1. CHECK CACHE
   //     const cachedData = await RedisCache.get(cacheKey);
   //     if (cachedData) {
   //       return res.json(JSON.parse(cachedData));
@@ -1957,9 +2054,14 @@ class ProductController {
 
   //     const skip = (page - 1) * limit;
 
-  //     const filter = { categoryId };
+  //     const filter = {};
 
-  //     //  TYPE FILTER (same as before)
+  //     // 👉 agar "all" nahi hai tabhi category filter lagao
+  //     if (categoryId !== "all") {
+  //       filter.categoryId = categoryId;
+  //     }
+
+  //     // 🔥 TYPE FILTER
   //     if (type) {
   //       const variantIds = await Variant.find({
   //         Type: { $regex: new RegExp(`^${type}$`, "i") },
@@ -2014,7 +2116,6 @@ class ProductController {
   //       products: formattedProducts,
   //     };
 
-  //     // 2. SET CACHE
   //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
   //     res.json(response);
@@ -2022,6 +2123,7 @@ class ProductController {
   //     res.status(500).json({ message: error.message });
   //   }
   // }
+
   static async getProductByCategory(req, res) {
     try {
       const { categoryId } = req.params;
@@ -2029,21 +2131,20 @@ class ProductController {
 
       const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
 
-      const cachedData = await RedisCache.get(cacheKey);
-      if (cachedData) {
-        return res.json(JSON.parse(cachedData));
-      }
+      // 1. CACHE CHECK
+      // const cachedData = await RedisCache.get(cacheKey);
+      // if (cachedData) {
+      //   return res.json(JSON.parse(cachedData));
+      // }
 
       const skip = (page - 1) * limit;
 
       const filter = {};
 
-      // 👉 agar "all" nahi hai tabhi category filter lagao
       if (categoryId !== "all") {
         filter.categoryId = categoryId;
       }
 
-      // 🔥 TYPE FILTER
       if (type) {
         const variantIds = await Variant.find({
           Type: { $regex: new RegExp(`^${type}$`, "i") },
@@ -2064,7 +2165,6 @@ class ProductController {
         })
         .populate({
           path: "defaultVariantId",
-          select: "price discount Type",
         })
         .skip(skip)
         .limit(Number(limit));
@@ -2075,17 +2175,21 @@ class ProductController {
         images: p.images,
         avgRating: p.avgRating,
         reviewCount: p.reviewCount,
-        slug: p.slug,
         properties: p.properties,
         minDiscount: p.minDiscount,
         maxDiscount: p.maxDiscount,
+
         vendor: {
           firstName: p.vendorId?.firstName,
           lastName: p.vendorId?.lastName,
         },
+
+        // quick access fields
         price: p.defaultVariantId?.price ?? null,
         discount: p.defaultVariantId?.discount ?? null,
         type: p.defaultVariantId?.Type ?? null,
+
+        defaultVariant: p.defaultVariantId || null,
       }));
 
       const total = await Product.countDocuments(filter);
@@ -2098,6 +2202,7 @@ class ProductController {
         products: formattedProducts,
       };
 
+      // 2. SET CACHE
       await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
       res.json(response);

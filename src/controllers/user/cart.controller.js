@@ -8,6 +8,7 @@ import Product from "../../models/vendorShop/product.model.js";
 import Address from "../../models/user/address.model.js";
 import redis from "../../config/redis.config.js";
 import { getDistanceInKm } from "../../utils/getDistanceInKm.js";
+import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
 
 export const addToCart = async (req, res, next) => {
   try {
@@ -102,58 +103,338 @@ export const addToCart = async (req, res, next) => {
   }
 };
 
+// export const getCart = async (req, res, next) => {
+//   try {
+//     const userId = req.user.id;
+//     const cacheKey = `cart:${userId}`;
+
+//     // Check Cache
+//     // const cachedCart = await redis.get(cacheKey);
+//     // if (cachedCart) {
+//     //   return res.status(200).json(JSON.parse(cachedCart));
+//     // }
+//     let deliveryOptions = [];
+//     let cart = await Cart.findOne({ userId });
+//     populate: [
+//       {
+//         path: "productId",
+//         model: "Product",
+//         select:
+//           "name images thumbnail slug description vendorId measurementUnit avgRating leadTime productTypeId subcategoryId",
+//       },
+//       {
+//         path: "productId.productTypeId", // agar Product schema mein ye field reference hai
+//         model: "ProductType",
+//         select: "typeName",
+//       },
+//       {
+//         path: "productId.subcategoryId", // agar Subcategory schema mein ye field reference hai
+//         model: "SubCategory",
+//         select: "name",
+//       },
+//     ];
+
+//     if (!cart) {
+//       return res.status(404).json({ message: "Cart is empty" });
+//     }
+
+//     const validItems = cart.items.filter(
+//       (item) => item.variant && item.variant.productId,
+//     );
+
+//     const billSummary = await calculateBillSummary(validItems);
+
+//     const enrichedItems = validItems.map((item) => {
+//       const product = item.variant.productId;
+
+//       return {
+//         itemId: item._id,
+//         variantId: item.variant._id,
+//         productId: product._id,
+//         quantity: item.quantity,
+//         unitPrice: item.unitPrice,
+//         mrp: item.mrp,
+//         discount: item.discount,
+//         totalPrice: item.totalPrice,
+//         product: {
+//           name: product.name,
+//           thumbnail: product.thumbnail,
+//           slug: product.slug,
+//           images: product.images,
+//           description: product.description,
+//           vendorId: product.vendorId,
+//           avgRating: product.avgRating,
+//           measurementUnit: product.measurementUnit,
+//           leadTime: product.leadTime,
+//           deliveryOptions,
+//           productTypeId: product.productTypeId,
+//           subcategoryId: product.subcategoryId,
+//         },
+//       };
+//     });
+
+//     const response = {
+//       success: true,
+//       message: "Cart retrieved successfully",
+//       cart: {
+//         _id: cart._id,
+//         items: enrichedItems,
+//         billSummary: {
+//           itemsTotal: billSummary.itemsTotal,
+//           taxPercentage: billSummary.taxPercentage,
+//           gstAmount: billSummary.gstAmount,
+//           deliveryCharge: billSummary.deliveryCharge,
+//           grandTotal: billSummary.grandTotal,
+//         },
+//       },
+//     };
+
+//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
+
+//     res.status(200).json(response);
+//   } catch (error) {
+//     return res.status(404).json({ message: error.message });
+//   }
+// };
+
+// ----------------
+
+// export const getCart = async (req, res, next) => {
+//   try {
+//     const userId = req.user.id;
+//     const cacheKey = `cart:${userId}`;
+
+//     // Proper populate chain
+//     let cart = await Cart.findOne({ userId })
+//       .populate({
+//         path: "items.variant",
+//         model: "Variant",
+//         populate: {
+//           path: "productId",
+//           model: "Product",
+//           select:
+//             "name images thumbnail vendorId measurementUnit avgRating leadTime productTypeId subcategoryId",
+//           populate: [
+//             {
+//               path: "productTypeId",
+//               model: "ProductType",
+//               select: "typeName",
+//             },
+//             {
+//               path: "subcategoryId",
+//               model: "SubCategory",
+//               select: "name",
+//             },
+
+//             {
+//               path: "vendorId", // Vendor/Company populate
+//               model: "vendorCompany", // Maan lo aapka model Company hai
+//               select: "companyName  address", // shopName aur other fields
+//             },
+//           ],
+//         },
+//       })
+//       .lean();
+
+//     if (!cart || !cart.items || cart.items.length === 0) {
+//       return res.status(404).json({ message: "Cart is empty" });
+//     }
+
+//     let deliveryOptions = [];
+//     const validItems = cart.items.filter(
+//       (item) => item.variant && item.variant.productId,
+//     );
+
+//     if (validItems.length === 0) {
+//       return res.status(404).json({ message: "No valid items in cart" });
+//     }
+
+//     const billSummary = await calculateBillSummary(validItems);
+
+//     const enrichedItems = validItems.map((item) => {
+//       const variant = item.variant;
+//       const product = variant.productId;
+
+//       let vendorData = null;
+
+//       if (product.vendorId) {
+//         vendorData = {
+//           _id: product.vendorId._id,
+//           companyName: product.vendorId.companyName,
+//           address: product.vendorId.address,
+//         };
+//       }
+
+//       return {
+//         itemId: item._id,
+//         variantId: variant._id,
+//         Type: variant.Type,
+//         packageWeight: variant.packageWeight,
+//         packageDimensions: variant.packageDimensions,
+//         size: variant.size,
+//         productId: product._id,
+//         quantity: item.quantity,
+//         unitPrice: item.unitPrice,
+//         mrp: item.mrp,
+//         discount: item.discount,
+//         totalPrice: item.totalPrice,
+//         product: {
+//           name: product.name,
+//           thumbnail: product.thumbnail,
+//           images: product.images[0],
+//           vendorId: product.vendorId,
+//           avgRating: product.avgRating,
+//           measurementUnit: product.measurementUnit,
+//           leadTime: product.leadTime,
+//           deliveryOptions,
+//           productTypeId: product.productTypeId,
+//           subcategoryId: product.subcategoryId,
+//         },
+//         vendor: vendorData,
+//       };
+//     });
+
+//     const response = {
+//       success: true,
+//       message: "Cart retrieved successfully",
+//       cart: {
+//         _id: cart._id,
+//         items: enrichedItems,
+//         billSummary: {
+//           itemsTotal: billSummary.itemsTotal,
+//           taxPercentage: billSummary.taxPercentage,
+//           gstAmount: billSummary.gstAmount,
+//           deliveryCharge: billSummary.deliveryCharge,
+//           grandTotal: billSummary.grandTotal,
+//         },
+//       },
+//     };
+
+//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
+//     res.status(200).json(response);
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({ message: error.message });
+//   }
+// };
+
 export const getCart = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const cacheKey = `cart:${userId}`;
 
     // Check Cache
-    const cachedCart = await redis.get(cacheKey);
-    if (cachedCart) {
-      return res.status(200).json(JSON.parse(cachedCart));
-    }
-
+    // const cachedCart = await redis.get(cacheKey);
+    // if (cachedCart) {
+    //   return res.status(200).json(JSON.parse(cachedCart));
+    // }
     let cart = await Cart.findOne({ userId })
       .populate({
         path: "items.variant",
+        model: "Variant",
         populate: {
           path: "productId",
           model: "Product",
-          select: "name thumbnail slug",
+          select:
+            "name images thumbnail vendorId measurementUnit avgRating leadTime productTypeId subcategoryId",
+          populate: [
+            {
+              path: "productTypeId",
+              model: "ProductType",
+              select: "typeName",
+            },
+            {
+              path: "subcategoryId",
+              model: "SubCategory",
+              select: "name",
+            },
+          ],
         },
       })
       .lean();
 
-    if (!cart) {
+    if (!cart || !cart.items || cart.items.length === 0) {
       return res.status(404).json({ message: "Cart is empty" });
     }
 
+    // Collect all unique vendorIds from products
+    const vendorIds = new Set();
+    cart.items.forEach((item) => {
+      if (item.variant?.productId?.vendorId) {
+        vendorIds.add(item.variant.productId.vendorId.toString());
+      }
+    });
+
+    // Directly find companies using vendorId match
+    const companies = await VendorCompany.find({
+      vendorId: { $in: Array.from(vendorIds) },
+    })
+      .select("companyName address vendorId")
+      .lean();
+
+    // Create mapping of vendorId -> company
+    const companyMap = new Map();
+    companies.forEach((company) => {
+      if (company.vendorId) {
+        companyMap.set(company.vendorId.toString(), {
+          _id: company._id,
+          companyName: company.companyName,
+          address: company.address,
+        });
+      }
+    });
+
+    // let deliveryOptions = [];
     const validItems = cart.items.filter(
       (item) => item.variant && item.variant.productId,
     );
 
+    if (validItems.length === 0) {
+      return res.status(404).json({ message: "No valid items in cart" });
+    }
+
     const billSummary = await calculateBillSummary(validItems);
 
     const enrichedItems = validItems.map((item) => {
-      const product = item.variant.productId;
+      const variant = item.variant;
+      const product = variant.productId;
+
+      // Get company directly from vendorId
+      const vendorIdStr = product.vendorId?.toString();
+      const company = companyMap.get(vendorIdStr);
+      console.log("item.deliveryOptions", item.deliveryOptions);
 
       return {
         itemId: item._id,
-        variantId: item.variant._id,
+        variantId: variant._id,
+        Type: variant.Type,
+        packageWeight: variant.packageWeight,
+        packageDimensions: variant.packageDimensions,
+        size: variant.size,
         productId: product._id,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         mrp: item.mrp,
         discount: item.discount,
         totalPrice: item.totalPrice,
+        deliveryOptions: item.deliveryOptions || [],
         product: {
           name: product.name,
           thumbnail: product.thumbnail,
-          slug: product.slug,
+          images:
+            product.images && product.images[0]
+              ? product.images[0]
+              : product.images,
+          avgRating: product.avgRating,
+          measurementUnit: product.measurementUnit,
+          leadTime: product.leadTime,
+          productTypeId: product.productTypeId,
+          subcategoryId: product.subcategoryId,
+          shopName: company ? company.companyName : null,
         },
+        // company: company,
       };
     });
-
     const response = {
       success: true,
       message: "Cart retrieved successfully",
@@ -171,10 +452,10 @@ export const getCart = async (req, res, next) => {
     };
 
     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
-
     res.status(200).json(response);
   } catch (error) {
-    return res.status(404).json({ message: error.message });
+    console.error(error);
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -476,6 +757,89 @@ export const similarProducts = async (req, res, next) => {
 //   }
 // };
 
+// export const checkoutPreview = async (req, res, next) => {
+//   try {
+//     const userId = req.user.id;
+//     const { addressId } = req.body;
+
+//     if (!addressId) {
+//       throw new APIError(400, "addressId is required");
+//     }
+//     // user selected address check
+//     const address = await Address.findOne({
+//       _id: addressId,
+//       userId,
+//     });
+
+//     if (!address) {
+//       throw new APIError(404, "Address not found");
+//     }
+
+//     // get cart
+//     const cart = await Cart.findOne({ userId }).populate({
+//       path: "items.variant",
+//       populate: {
+//         path: "productId",
+//         model: "Product",
+//         select: `
+//           name
+//           slug
+//           images
+//           serviceableDeliveryPincode
+//           deliveryOptions
+//           deliveryCharges
+//           shippingCharges
+//           vendorLocation
+//         `,
+//       },
+//     });
+
+//     if (!cart || !cart.items.length) {
+//       throw new APIError(400, "Cart is empty");
+//     }
+//     const responseItems = [];
+//     for (const item of cart.items) {
+//       const variant = item.variant;
+//       const product = variant.productId;
+
+//       let availableDeliveryTypes = ["self", "logistic"];
+
+//       // vendor delivery check by pincode
+//       const isVendorAvailable = product.serviceableDeliveryPincode?.includes(
+//         String(address.pincode),
+//       );
+
+//       if (isVendorAvailable) {
+//         availableDeliveryTypes.push("vendor");
+//       }
+
+//       responseItems.push({
+//         itemId: item._id,
+//         productId: product._id,
+//         variantId: variant._id,
+//         productName: product.name,
+//         quantity: item.quantity,
+//         unitPrice: item.unitPrice,
+//         totalPrice: item.totalPrice,
+//         availableDeliveryTypes,
+//       });
+//       item.deliveryOptions = availableDeliveryTypes;
+//     }
+//     await cart.save();
+//     return res.status(200).json({
+//       success: true,
+//       message: "Select delivery type for products",
+//       address: {
+//         addressId: address._id,
+//         pincode: address.pincode,
+//       },
+//       items: responseItems,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const checkoutPreview = async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -484,17 +848,13 @@ export const checkoutPreview = async (req, res, next) => {
     if (!addressId) {
       throw new APIError(400, "addressId is required");
     }
-    // user selected address check
-    const address = await Address.findOne({
-      _id: addressId,
-      userId,
-    });
+
+    const address = await Address.findOne({ _id: addressId, userId });
 
     if (!address) {
       throw new APIError(404, "Address not found");
     }
 
-    // get cart
     const cart = await Cart.findOne({ userId }).populate({
       path: "items.variant",
       populate: {
@@ -505,7 +865,6 @@ export const checkoutPreview = async (req, res, next) => {
           slug
           images
           serviceableDeliveryPincode
-          deliveryOptions
           deliveryCharges
           shippingCharges
           vendorLocation
@@ -516,14 +875,15 @@ export const checkoutPreview = async (req, res, next) => {
     if (!cart || !cart.items.length) {
       throw new APIError(400, "Cart is empty");
     }
+
     const responseItems = [];
+
     for (const item of cart.items) {
       const variant = item.variant;
       const product = variant.productId;
 
       let availableDeliveryTypes = ["self", "logistic"];
 
-      // vendor delivery check by pincode
       const isVendorAvailable = product.serviceableDeliveryPincode?.includes(
         String(address.pincode),
       );
@@ -531,6 +891,9 @@ export const checkoutPreview = async (req, res, next) => {
       if (isVendorAvailable) {
         availableDeliveryTypes.push("vendor");
       }
+
+      // cart me save
+      item.deliveryOptions = availableDeliveryTypes;
 
       responseItems.push({
         itemId: item._id,
@@ -543,6 +906,8 @@ export const checkoutPreview = async (req, res, next) => {
         availableDeliveryTypes,
       });
     }
+
+    await cart.save();
 
     return res.status(200).json({
       success: true,
@@ -614,6 +979,7 @@ export const calculateDeliveryFee = async (req, res, next) => {
       throw new APIError(400, "Cart is empty");
     }
 
+    const comapnyBillSummary = await calculateBillSummary(cart.items);
     let subtotal = 0;
     let totalDeliveryFee = 0;
     const finalItems = [];
@@ -664,7 +1030,14 @@ export const calculateDeliveryFee = async (req, res, next) => {
       billSummary: {
         subtotal,
         deliveryFee: totalDeliveryFee,
-        grandTotal: subtotal + totalDeliveryFee,
+        gstAmount: comapnyBillSummary.gstAmount,
+        taxPercentage: comapnyBillSummary.taxPercentage,
+        handlingCharge: comapnyBillSummary.handlingCharge,
+        grandTotal:
+          subtotal +
+          totalDeliveryFee +
+          comapnyBillSummary.gstAmount +
+          comapnyBillSummary.handlingCharge,
       },
       items: finalItems,
     });
@@ -673,7 +1046,7 @@ export const calculateDeliveryFee = async (req, res, next) => {
   }
 };
 
-import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
+// import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
 import logger from "../../utils/logger.js";
 
 export const calculateSingleItemDeliveryFee = async ({
@@ -688,25 +1061,23 @@ export const calculateSingleItemDeliveryFee = async ({
   let distanceMeter = 0;
   let duration = "";
 
-  // self pickup
-  if (deliveryType === "self") {
-    return {
-      deliveryFee: 0,
-      distanceKm,
-      distanceMeter,
-      duration,
-    };
-  }
-
+  //  if (deliveryType === "self") {
+  //     return {
+  //       deliveryFee: 0,
+  //       distanceKm,
+  //       distanceMeter,
+  //       duration,
+  //     };
+  //   }
   // free delivery
-  if (product.deliveryCharges === "free") {
-    return {
-      deliveryFee: 0,
-      distanceKm,
-      distanceMeter,
-      duration,
-    };
-  }
+  // if (product.deliveryCharges === "free") {
+  //   return {
+  //     deliveryFee: 0,
+  //     distanceKm,
+  //     distanceMeter,
+  //     duration,
+  //   };
+  // }
 
   const shipping = product.shippingCharges || {};
 
@@ -750,6 +1121,28 @@ export const calculateSingleItemDeliveryFee = async ({
     duration = roadDistance.durationText || "";
   }
 
+  // self pickup
+  if (deliveryType === "self") {
+    return {
+      deliveryFee: 0,
+      distanceKm,
+      distanceMeter,
+      duration,
+    };
+  }
+
+  // =========================
+  // free delivery
+  // =========================
+
+  if (product.deliveryCharges === "free") {
+    return {
+      deliveryFee: 0,
+      distanceKm,
+      distanceMeter,
+      duration,
+    };
+  }
   // =========================
   // measurementUnit based logic
   // =========================

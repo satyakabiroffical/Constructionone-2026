@@ -1,3 +1,4 @@
+import subCategoryModel from "../../models/category/subCategory.model.js";
 import {
   getCategoryTreeService,
   getCategoryTreeServiceForAdmin,
@@ -34,6 +35,22 @@ export const getAllCategories = async (req, res, next) => {
       );
   } catch (error) {
     next(error);
+  }
+};
+
+//getAllSubCatogrybyCatogryId
+export const getsubCategoriesByCategoryId = async (req, res) => {
+  try {
+    const categoryId = req.params.id;
+    const subCategories = await subCategoryModel
+      .find({
+        categoryId,
+        isActive: true,
+      })
+      .select("name image");
+    res.status(200).json(subCategories);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 

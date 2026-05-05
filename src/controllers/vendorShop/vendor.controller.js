@@ -27,15 +27,12 @@ export const vendorAuth = async (req, res) => {
         error: phoneValidation.error,
       });
     }
+
     const validatedPhone = phoneValidation.normalized;
 
-    // Check ANY user (verified or not)
     let user = await VendorProfile.findOne({
       phoneNumber: validatedPhone,
-      isPhoneVerified: true,
-      isAdminVerified: true,
     });
-
     // const otp = generateOtp();
     const otp = 1234; // testing
     const hashedOtp = await bcrypt.hash(otp.toString(), 10);
@@ -47,28 +44,42 @@ export const vendorAuth = async (req, res) => {
       lastSentAt: new Date(),
     };
 
-    // CASE 1: User exists + verified → LOGIN
+    // ✅ USER EXISTS
     if (user) {
-      return res.status(200).json({
-        success: true,
-        type: "LOGIN",
-        message: "User exists. Please verify OTP to login.",
-      });
-    }
+      // Admin verified → LOGIN
+      if (user.isAdminVerified) {
+        return res.status(200).json({
+          success: true,
+          type: "LOGIN",
+          message: "Account already exists. Please login.",
+        });
+      }
 
-    // CASE 2: User exists but NOT verified → resend OTP
-    if (user && !user.isPhoneVerified) {
+      // All completed but admin false → UNDER REVIEW
+      if (
+        user.isPhoneVerified &&
+        user.isAadharVerified &&
+        user.isProfileCompleted
+      ) {
+        return res.status(200).json({
+          success: true,
+          type: "UNDER_REVIEW",
+          message: "Your profile is under review. Please wait.",
+        });
+      }
+
+      // Otherwise → continue (OTP resend)
+
       user.phoneOtp = phoneOtpData;
       await user.save();
 
       return res.status(200).json({
         success: true,
         type: "REGISTER",
-        message: "OTP resent. Please verify to complete registration.",
+        message: "OTP sent. Continue registration.",
       });
     }
 
-    // CASE 3: New User → create
     await VendorProfile.create({
       phoneNumber: validatedPhone,
       moduleId,
@@ -87,9 +98,10 @@ export const vendorAuth = async (req, res) => {
     });
   }
 };
+
 export const verifyOtp = async (req, res) => {
   try {
-    const { phoneNumber, otp, deviceId } = req.body;
+    const { phoneNumber, otp } = req.body;
 
     const user = await VendorProfile.findOne({ phoneNumber });
     if (!user) {
@@ -147,36 +159,36 @@ export const verifyOtp = async (req, res) => {
     user.isPhoneVerified = true;
     await user.save();
 
-    // const jwtToken = jwt.sign(
-    //   { id: user._id, role: "vendor" },
-    //   process.env.JWT_SECRET,
-    //   { expiresIn: "365d" },
-    // );
-
-    const accessToken = jwt.sign(
+    const jwtToken = jwt.sign(
       { id: user._id, role: "vendor" },
       process.env.JWT_SECRET,
-      { expiresIn: "15m" },
+      { expiresIn: "365d" },
     );
 
-    const refreshToken = jwt.sign(
-      { id: user._id },
-      process.env.REFRESH_TOKEN_SECRET,
-      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY },
-    );
+    // const accessToken = jwt.sign(
+    //   { id: user._id, role: "vendor" },
+    //   process.env.JWT_SECRET,
+    //   { expiresIn: "15m" },
+    // );
 
-    // remove old token for same device
-    await refreshTokenModel.deleteMany({
-      vendorId: user._id,
-      deviceId,
-    });
+    // const refreshToken = jwt.sign(
+    //   { id: user._id },
+    //   process.env.REFRESH_TOKEN_SECRET,
+    //   { expiresIn: process.env.REFRESH_TOKEN_EXPIRY },
+    // );
 
-    await refreshTokenModel.create({
-      vendorId: user._id,
-      token: refreshToken,
-      deviceId,
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    });
+    // // remove old token for same device
+    // await refreshTokenModel.deleteMany({
+    //   vendorId: user._id,
+    //   deviceId,
+    // });
+
+    // await refreshTokenModel.create({
+    //   vendorId: user._id,
+    //   token: refreshToken,
+    //   deviceId,
+    //   expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    // });
 
     const safeUser = {
       id: user._id,
@@ -193,14 +205,15 @@ export const verifyOtp = async (req, res) => {
       success: true,
       message: "OTP verified successfully",
       user: safeUser,
-      // token: jwtToken,
-      accessToken,
-      refreshToken,
+      token: jwtToken,
+      // accessToken,
+      // refreshToken,
     });
   } catch (e) {
     return res.status(500).json({ success: false, error: e.message });
   }
 };
+
 //vendor select a business types according to module.
 export const businessSetup = async (req, res, next) => {
   try {
@@ -236,6 +249,7 @@ export const businessSetup = async (req, res, next) => {
     next(error);
   }
 };
+
 export const resendOtp = async (req, res, next) => {
   try {
     const { phoneNumber } = req.body;
@@ -308,6 +322,7 @@ export const resendOtp = async (req, res, next) => {
     });
   }
 };
+
 //aadhar-varification
 export const verifyAadharOtp = async (req, res) => {
   try {
@@ -488,14 +503,8 @@ export const saveFcmToken = async (req, res) => {
 export const upsertVendorInfo = async (req, res) => {
   try {
     const vendorProfileId = req.user.id;
-    const {
-      firstName,
-      lastName,
-      email,
-      governmentIdNumber,
-      governmentIdType,
-      moduleId,
-    } = req.body;
+    const { firstName, lastName, email, governmentIdNumber, governmentIdType } =
+      req.body;
 
     if (!req.files || !req.files.uploadId) {
       return res.status(400).json({
@@ -504,7 +513,7 @@ export const upsertVendorInfo = async (req, res) => {
       });
     }
 
-    const uploadIdPath = req.files.uploadId[0].location;
+    const uploadIdPaths = req.files.uploadId.map((file) => file.location);
 
     const otp = 1234; //For testing purposes, replace with generateOtp() in production
     const hashedOtp = await bcrypt.hash(otp.toString(), 10);
@@ -520,14 +529,13 @@ export const upsertVendorInfo = async (req, res) => {
       vendorProfileId,
       {
         $set: {
-          uploadId: uploadIdPath,
+          uploadId: uploadIdPaths,
           aadharOtp: aadharOtpData,
           firstName,
           lastName,
           email,
           governmentIdNumber,
           governmentIdType,
-          moduleId,
         },
       },
       { new: true },
@@ -602,7 +610,7 @@ export const updateUpsertVendorInfo = async (req, res) => {
     if (governmentIdType) updateFields.governmentIdType = governmentIdType;
 
     if (req.files && req.files.uploadId) {
-      updateFields.uploadId = req.files.uploadId[0].location;
+      updateFields.uploadId = req.files.uploadId.map((file) => file.location);
     }
 
     const vendorProfileInfo = await VendorProfile.findByIdAndUpdate(

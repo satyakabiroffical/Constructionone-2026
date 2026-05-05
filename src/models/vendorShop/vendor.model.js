@@ -27,7 +27,7 @@ const vendorProfile = new mongoose.Schema(
     },
 
     governmentIdNumber: { type: String },
-    uploadId: { type: String },
+    uploadId: [String],
 
     aadharOtp: {
       codeHash: String,

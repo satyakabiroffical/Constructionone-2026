@@ -102,6 +102,7 @@ export const createWalletTopup = async (req, res, next) => {
       success: true,
       order,
       transaction,
+      key: process.env.RAZORPAY_KEY_ID,
     });
   } catch (error) {
     await session.abortTransaction();

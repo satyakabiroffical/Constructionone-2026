@@ -63,7 +63,7 @@ router.post("/logout", vendorMiddleware, logoutVendor);
 router.post(
   "/profile",
   vendorMiddleware,
-  s3Uploader().fields([{ name: "uploadId", maxCount: 1 }]),
+  s3Uploader().fields([{ name: "uploadId", maxCount: 2 }]),
   validateRequest(vendorProfileValidation),
   upsertVendorInfo,
 );
@@ -72,7 +72,7 @@ router.post(
 router.put(
   "/profile/:vendorProfileId",
   vendorMiddleware,
-  s3Uploader().fields([{ name: "uploadId", maxCount: 1 }]),
+  s3Uploader().fields([{ name: "uploadId", maxCount: 2 }]),
   updateUpsertVendorInfo,
 );
 

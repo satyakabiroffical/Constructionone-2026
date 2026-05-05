@@ -130,3 +130,6 @@ export const toggle = async (id) => {
   await subCategory.save();
   return subCategory;
 };
+
+//get all subcategories by category id
+

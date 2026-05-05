@@ -16,6 +16,7 @@ import {
   sendOrderNotificationToVendor,
 } from "../notification.controller.js";
 import invoice from "../../middlewares/invoice.middleware.js";
+import { prepareOrderForInvoice } from "../../middlewares/invoice.middleware.js";
 import vendorTaxInvoice from "../../middlewares/invoice.vendor.js";
 import creditNoteInvoice from "../../middlewares/creditNote.middleware.js";
 import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
@@ -92,7 +93,9 @@ async function generateOrderInvoices(masterOrder, subOrders) {
       .populate("items.variantId")
       .lean();
 
-    const userPdfUrl = await invoice(populatedMaster);
+    // const userPdfUrl = await invoice(populatedMaster);
+    const fullOrder = await prepareOrderForInvoice(masterOrder._id);
+    const userPdfUrl = await invoice(fullOrder);
 
     await Order.updateOne(
       { _id: masterOrder._id },
@@ -158,10 +161,13 @@ async function generateOrderInvoices(masterOrder, subOrders) {
             .join(", "),
         };
 
-        const vendorPdfUrl = await vendorTaxInvoice(
-          populatedSubOrder,
-          vendorData,
-        );
+        // const vendorPdfUrl = await vendorTaxInvoice(
+        //   populatedSubOrder,
+        //   vendorData,
+        // );
+
+        const fullSubOrder = await prepareOrderForInvoice(subOrder._id);
+        const vendorPdfUrl = await vendorTaxInvoice(fullSubOrder, vendorData);
 
         await Order.updateOne(
           { _id: subOrder._id },
@@ -998,6 +1004,7 @@ export const createOrder = async (req, res, next) => {
     // ------------------------------------------------
     // PREPARE ITEMS
     // ------------------------------------------------
+    const comapnyBillSummary = await calculateBillSummary(cart.items);
 
     let subtotal = 0;
     let totalDeliveryFee = 0;
@@ -1046,6 +1053,8 @@ export const createOrder = async (req, res, next) => {
         deliveryType: selected.deliveryType,
         deliveryFee,
         status: "PENDING",
+        vendorAmount: totalDeliveryFee + finalPrice,
+        gstAmount: comapnyBillSummary.gstAmount,
       };
 
       if (!vendorMap.has(vendorId)) {
@@ -1054,8 +1063,11 @@ export const createOrder = async (req, res, next) => {
 
       vendorMap.get(vendorId).push(preparedItem);
     }
+    subtotal = subtotal + comapnyBillSummary.gstAmount;
 
-    const grandTotal = subtotal + totalDeliveryFee;
+    // const grandTotal = subtotal + totalDeliveryFee;
+    const grandTotal =
+      subtotal + totalDeliveryFee + comapnyBillSummary.handlingCharge;
 
     // ------------------------------------------------
     // WALLET CHECK
@@ -1115,6 +1127,7 @@ export const createOrder = async (req, res, next) => {
           paymentStatus,
           status: orderStatus,
           transactionRef,
+          handlingCharge: comapnyBillSummary.handlingCharge,
         },
       ],
       { session },
@@ -1162,7 +1175,6 @@ export const createOrder = async (req, res, next) => {
 
     if (paymentMethod === "WALLET") {
       const wallet = await Wallet.findOne({ userId }).session(session);
-
       wallet.balance -= grandTotal;
       await wallet.save({ session });
 
@@ -1178,9 +1190,7 @@ export const createOrder = async (req, res, next) => {
         ],
         { session },
       );
-
       transactionId = transaction[0]._id;
-
       // master update
       await Order.findByIdAndUpdate(
         masterOrderId,
@@ -1209,7 +1219,6 @@ export const createOrder = async (req, res, next) => {
         },
         { session },
       );
-
       // stock update
       const variantOps = [];
       const productOps = [];
@@ -1246,7 +1255,6 @@ export const createOrder = async (req, res, next) => {
       if (productOps.length) {
         await Product.bulkWrite(productOps, { session });
       }
-
       // clear cart
       await Cart.findOneAndUpdate(
         { userId },
@@ -1263,7 +1271,6 @@ export const createOrder = async (req, res, next) => {
 
     if (paymentMethod === "WALLET") {
       const freshMasterOrder = await Order.findById(masterOrderId);
-
       const freshSubOrders = await Order.find({
         parentId: masterOrderId,
         orderType: "SUB",
@@ -1275,11 +1282,13 @@ export const createOrder = async (req, res, next) => {
         );
       }
     }
+
     return res.status(201).json({
       success: true,
       message: "Order created successfully",
       masterOrder: masterOrder[0],
       transactionRef,
+      key: paymentMethod === "WALLET" ? null : process.env.RAZORPAY_KEY_ID,
     });
   } catch (error) {
     await session.abortTransaction();
@@ -1442,7 +1451,7 @@ export const verifyPayment = async (req, res, next) => {
       },
       { session },
     );
-
+    await redis.del(`cart:${userId}`);
     // -----------------------------------
     // COMMIT
     // -----------------------------------
@@ -1466,9 +1475,21 @@ export const verifyPayment = async (req, res, next) => {
       sendOrderNotificationToVendor(subOrder).catch(console.error);
     });
 
-    generateOrderInvoices(masterOrder, subOrders).catch((err) =>
-      console.error("[Invoice Generation Failed]", err.message),
-    );
+    const freshMasterOrder = await Order.findById(masterOrder._id);
+    const freshSubOrders = await Order.find({
+      parentId: masterOrder._id,
+      orderType: "SUB",
+    });
+
+    if (freshMasterOrder) {
+      generateOrderInvoices(freshMasterOrder, freshSubOrders).catch((err) =>
+        console.error("[Invoice Generation Failed]", err.message),
+      );
+    }
+
+    // generateOrderInvoices(masterOrder, subOrders).catch((err) =>
+    //   console.error("[Invoice Generation Failed]", err.message),
+    // );
 
     // -----------------------------------
     // RESPONSE
@@ -1897,8 +1918,6 @@ export const getAllOrders = async (req, res, next) => {
 
 // Statuses from which a user is NOT allowed to cancel
 
-
-
 const NON_CANCELLABLE_STATUSES = [
   "DELIVERED",
   "CANCELLED",
@@ -2042,12 +2061,13 @@ export const cancelOrder = async (req, res, next) => {
     next(error);
   }
 };
+
 export const vendorUpdateOrder = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const vandorId = req.user._id;
+    const vandorId = req.user.id;
     const { subOrderId } = req.params;
     const { action, reason } = req.body;
 
@@ -2408,6 +2428,7 @@ export const vendorUpdateOrder = async (req, res, next) => {
 //   }
 // };
 
+//user get own order with details
 export const getOrderById = async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -2553,11 +2574,14 @@ export const getOrderById = async (req, res, next) => {
     })
       .select(
         `
-        companyName
-        contactNumber
-        businessAddress
-        vendorId
-      `,
+    companyName
+    companyType
+    businessAddress
+    contactNumber
+    companyRegistrationNumber
+    gstNumber
+    vendorId
+  `,
       )
       .lean();
 
@@ -2597,7 +2621,7 @@ export const getOrderById = async (req, res, next) => {
 
     masterOrder.transactionId = transaction;
     // Debug check
-    console.log("invoice =>", masterOrder.invoice);
+    // console.log("invoice =>", masterOrder.invoice);
 
     const response = {
       success: true,
@@ -2612,6 +2636,7 @@ export const getOrderById = async (req, res, next) => {
     next(error);
   }
 };
+
 export const adminGetAllOrders = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;

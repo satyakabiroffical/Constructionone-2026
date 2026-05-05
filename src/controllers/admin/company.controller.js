@@ -301,7 +301,7 @@ export const getLandingPage = async (req, res, next) => {
 
       // Recent Products
       Product.find({ varified: true })
-        .select("name images createdAt")   // ← only needed fields
+        .select("name images createdAt") // ← only needed fields
         .sort({ createdAt: -1 })
         .limit(10)
         .lean(),
@@ -327,36 +327,43 @@ export const getLandingPage = async (req, res, next) => {
       message: "Landing page data retrieved successfully",
       data: {
         company: {
-          name:           resolvedCompany.siteName,
-          tagline:        resolvedCompany.description,
-          title:          resolvedCompany.siteName,
-          paragraph:      resolvedCompany.description,
-          email:          resolvedCompany.email,
-          phone:          resolvedCompany.phone,
+          name: resolvedCompany.siteName,
+          tagline: resolvedCompany.description,
+          title: resolvedCompany.siteName,
+          paragraph: resolvedCompany.description,
+          email: resolvedCompany.email,
+          phone: resolvedCompany.phone,
           alternatePhone: resolvedCompany.alternatePhone,
-          officeAddress:  resolvedCompany.address,
-          whatsapp:       socialMedia.whatsapp ?? resolvedCompany.phone,
-          gstNumber:      resolvedCompany.gstNumber,
+          officeAddress: resolvedCompany.address,
+          whatsapp: socialMedia.whatsapp ?? resolvedCompany.phone,
+          gstNumber: resolvedCompany.gstNumber,
           socialMedia,
           appLinks: {
-            appStore:  resolvedCompany.appStoreLink,
+            appStore: resolvedCompany.appStoreLink,
             playStore: resolvedCompany.playStoreLink,
           },
-          banner:      resolvedCompany.banner,
-          headerLogo:  resolvedCompany.headerLogo,
-          footerLogo:  resolvedCompany.footerLogo,
+          banner: resolvedCompany.banner,
+          headerLogo: resolvedCompany.headerLogo,
+          footerLogo: resolvedCompany.footerLogo,
+          policy: resolvedCompany.policy,
         },
 
         pcategories: pcategories.map(({ _id, name, image }) => ({
-          id: _id, name, img: image,
+          id: _id,
+          name,
+          img: image,
         })),
 
         categories: categories.map(({ _id, name, image }) => ({
-          id: _id, name, img: image,
+          id: _id,
+          name,
+          img: image,
         })),
 
         brands: brands.map(({ _id, name, logo }) => ({
-          id: _id, name, img: logo,
+          id: _id,
+          name,
+          img: logo,
         })),
 
         stats: {
@@ -369,12 +376,14 @@ export const getLandingPage = async (req, res, next) => {
           totalBrands,
         },
 
-        recentProducts: recentProducts.map(({ _id, name, images, createdAt }) => ({
-          productId: _id,
-          name,
-          image: images?.[0] ?? "",
-          createdAt,
-        })),
+        recentProducts: recentProducts.map(
+          ({ _id, name, images, createdAt }) => ({
+            productId: _id,
+            name,
+            image: images?.[0] ?? "",
+            createdAt,
+          }),
+        ),
       },
     };
 

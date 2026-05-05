@@ -147,7 +147,7 @@ export const approveWithdraw = async (req, res) => {
       .session(session);
     wallet.availableBalance -= withdrawal.amount;
     //ye baad me final dikhana hai jab vendor app done ho jayega
-    // wallet.totalBalance -= withdrawal.amount;
+    wallet.totalBalance -= withdrawal.amount;
     await wallet.save({ session });
 
     withdrawal.status = "APPROVED";

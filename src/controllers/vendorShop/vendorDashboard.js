@@ -13,6 +13,10 @@ import {
   sendOrderNotificationToVendor,
 } from "../notification.controller.js";
 import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
+import { addSettlement } from "../vendorShop/vendorWallet.controller.js";
+import vendorTransactionModel from "../../models/vendorShop/vendorTransaction.model.js";
+import companyModel from "../../models/admin/company.model.js";
+
 //latest-with all details
 
 // export const getOrdersByVendor = async (req, res, next) => {
@@ -157,31 +161,27 @@ import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
 // };
 
 //get single order with details
+
 export const getOrderByIdForVendor = async (req, res, next) => {
   try {
-    const vendorId = req.user.id;
+    const vendorId = req.user.id || "699c16b0e4bbd8cf25acc76b";
     const orderId = req.params.orderId;
 
-    const version = (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
+    // const version = (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
 
-    const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
-      req.query,
-    )}`;
+    // const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
+    //   req.query,
+    // )}`;
 
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return res.status(200).json(JSON.parse(cached));
-    }
+    // const cached = await redis.get(cacheKey);
+    // if (cached) {
+    //   return res.status(200).json(JSON.parse(cached));
+    // }
 
     const filter = {
-      "items.vendorId": vendorId,
-      orderType: "SUB",
       _id: new mongoose.Types.ObjectId(orderId),
-    };
-
-    const statsFilter = {
-      "items.vendorId": new mongoose.Types.ObjectId(vendorId),
       orderType: "SUB",
+      "items.vendorId": new mongoose.Types.ObjectId(vendorId),
     };
 
     const [orders] = await Promise.all([
@@ -235,6 +235,44 @@ export const getOrderByIdForVendor = async (req, res, next) => {
         })
         .lean(),
     ]);
+
+    const vendorIds = [];
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        const vId = item.vendorId?._id?.toString() || item.vendorId?.toString();
+        if (vId) vendorIds.push(vId);
+      });
+    });
+
+    const vendorCompanies = await VendorCompany.find({
+      vendorId: { $in: vendorIds },
+    })
+      .select(
+        `
+    companyName
+    companyType
+    businessAddress
+    contactNumber
+    companyRegistrationNumber
+    gstNumber
+    vendorId
+  `,
+      )
+      .lean();
+
+    const companyMap = {};
+
+    vendorCompanies.forEach((company) => {
+      companyMap[company.vendorId.toString()] = company;
+    });
+
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        const vId = item.vendorId?._id?.toString() || item.vendorId?.toString();
+        item.vendorCompany = companyMap[vId] || null;
+      });
+    });
+
     const response = {
       success: true,
       message: "Vendor orders fetched successfully",
@@ -344,6 +382,7 @@ export const getAllOrdersForVendor = async (req, res, next) => {
       paymentStatus: order.paymentStatus,
       totalAmount: order.netAmount,
       createdAt: order.createdAt,
+      deliveryType: order.items?.[0]?.deliveryType || "",
 
       customer: {
         name: order.userId?.name || "",
@@ -357,6 +396,7 @@ export const getAllOrdersForVendor = async (req, res, next) => {
           productName: item.productId?.name || item.productName,
           image: item.productId?.images?.[0] || "",
           quantity: item.quantity,
+          deliveryType: item.deliveryType || "",
         })) || [],
     }));
 
@@ -571,3 +611,187 @@ export const getVendorOverview = async (req, res, next) => {
     next(error);
   }
 };
+
+//accept order and updates all order status
+export const vendorUpdateOrder = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const vendorId = req.user.id;
+
+    // console.log("vendorId-middleware", vendorId);
+    const { subOrderId } = req.params;
+    const { action, reason } = req.body;
+
+    const allowedActions = [
+      "ACCEPT",
+      "REJECT",
+      "READY_FOR_SHIP",
+      "SHIP",
+      "DELIVER",
+    ];
+
+    if (!allowedActions.includes(action)) {
+      throw new APIError(400, "Invalid action");
+    }
+
+    const subOrder = await Order.findOne({
+      _id: subOrderId,
+      orderType: "SUB",
+    }).session(session);
+
+    if (!subOrder) throw new APIError(404, "Sub order not found");
+
+    // // vendor check
+    const isValidVendor = subOrder.items.some(
+      (item) => item.vendorId.toString() === vendorId.toString(),
+    );
+
+    if (!isValidVendor) {
+      throw new APIError(
+        403,
+        "You do not have permission to update this order",
+      );
+    }
+
+    const currentStatus = subOrder.items[0].status;
+
+    const validTransitions = {
+      PENDING: ["ACCEPT", "REJECT"],
+      ACCEPTED: ["READY_FOR_SHIP"],
+      PACKED: ["SHIP"],
+      SHIPPED: ["DELIVER"],
+    };
+
+    if (!validTransitions[currentStatus]?.includes(action)) {
+      throw new APIError(
+        400,
+        `Cannot ${action} when status is ${currentStatus}`,
+      );
+    }
+
+    const actionMap = {
+      ACCEPT: { item: "ACCEPTED", order: "CONFIRMED" },
+      REJECT: { item: "CANCELLED", order: "CANCELLED" },
+      READY_FOR_SHIP: { item: "PACKED", order: "PROCESSING" },
+      SHIP: { item: "SHIPPED", order: "OUT_FOR_DELIVERY" },
+      DELIVER: { item: "DELIVERED", order: "DELIVERED" },
+    };
+
+    const { item: itemStatus, order: orderStatus } = actionMap[action];
+
+    //  SELF delivery check
+    // if (action === "SHIP") {
+    //   const isSelf = subOrder.items.some((i) => i.deliveryType === "self");
+
+    //   if (!isSelf) {
+    //     throw new APIError(
+    //       400,
+    //       "Only SELF delivery orders can be shipped by vendor",
+    //     );
+    //   }
+    // }
+
+    await Order.updateOne(
+      { _id: subOrder._id },
+      {
+        $set: {
+          status: orderStatus,
+          reason: reason || null,
+          cancleBy: action === "REJECT" ? "VENDOR" : null,
+          "items.$[].status": itemStatus,
+        },
+      },
+      { session },
+    );
+
+    if (action === "REJECT") {
+      const variantOps = subOrder.items.map((item) => ({
+        updateOne: {
+          filter: { _id: item.variantId },
+          update: { $inc: { stock: item.quantity, sold: -item.quantity } },
+        },
+      }));
+
+      if (variantOps.length) {
+        await Variant.bulkWrite(variantOps, { session });
+      }
+    }
+
+    const subOrders = await Order.find({
+      parentId: subOrder.parentId,
+      orderType: "SUB",
+    }).session(session);
+
+    let masterStatus = "PROCESSING";
+
+    if (subOrders.every((o) => o.status === "DELIVERED")) {
+      masterStatus = "DELIVERED";
+      // for (const sub of subOrders) {
+      //   const vendorId = sub.items[0].vendorId;
+      //   const alreadySettled = await vendorTransactionModel
+      //     .findOne({
+      //       orderId: sub._id,
+      //       type: "ORDER_SETTLEMENT",
+      //     })
+      //     .session(session);
+
+      //   if (!alreadySettled) {
+      //     await addSettlement(vendorId, sub._id, sub.netAmount, session);
+      //   }
+      // }
+
+      for (const sub of subOrders) {
+        const vendorId = sub.items[0].vendorId;
+
+        const alreadySettled = await vendorTransactionModel
+          .findOne({
+            orderId: sub._id,
+            type: "ORDER_SETTLEMENT",
+          })
+          .session(session);
+
+        if (!alreadySettled) {
+          const vendorTotal = sub.items.reduce((sum, item) => {
+            return sum + (item.vendorAmount || 0);
+          }, 0);
+
+          await addSettlement(vendorId, sub._id, vendorTotal, session);
+        }
+      }
+    } else if (subOrders.some((o) => o.status === "OUT_FOR_DELIVERY")) {
+      masterStatus = "OUT_FOR_DELIVERY";
+    } else if (subOrders.some((o) => o.status === "CONFIRMED")) {
+      masterStatus = "CONFIRMED";
+    }
+
+    await Order.updateOne(
+      { _id: subOrder.parentId },
+      { $set: { status: masterStatus } },
+      { session },
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    await redis.incr(`vendor:orders:version:${vendorId}`);
+
+    return res.status(200).json({
+      success: true,
+      message: `${action} successful`,
+      itemStatus,
+      orderStatus,
+      masterStatus,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    next(error);
+  }
+};
+
+// const vendorFinalAmount (netAmount) => {
+//   const {gstAmount , handllingFee} = await companyModel.findOne();
+//   return netAmount - (gstAmount + handllingFee);
+// }

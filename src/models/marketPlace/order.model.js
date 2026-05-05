@@ -211,6 +211,7 @@ const orderItemSchema = new mongoose.Schema(
       ref: "vendorProfile",
       required: true,
     },
+
     vendorCompanyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "vendorCompany",
@@ -224,6 +225,8 @@ const orderItemSchema = new mongoose.Schema(
     price: Number,
     finalPrice: Number,
     packageWeight: Number,
+    vendorAmount: Number,
+    gstAmount: Number,
 
     deliveryType: {
       type: String,
@@ -247,6 +250,7 @@ const orderItemSchema = new mongoose.Schema(
         "DELIVERED",
         "CANCELLED",
       ],
+
       default: "PENDING",
     },
   },
@@ -284,6 +288,7 @@ const orderSchema = new mongoose.Schema(
     subTotal: Number,
     totalDeliveryFee: Number,
     netAmount: Number,
+    handlingCharge: Number,
 
     status: {
       type: String,
@@ -301,7 +306,7 @@ const orderSchema = new mongoose.Schema(
     paymentStatus: {
       type: String,
       enum: ["UNPAID", "PAID", "FAILED"],
-      default: "UNPAID",
+      // default: "UNPAID",
     },
 
     paymentMethod: {
