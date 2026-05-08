@@ -1282,7 +1282,7 @@ function buildInvoiceHtml(order) {
   </table>
 
   <div class="totals">
-    Subtotal: ₹${subtotal.toFixed(2)}<br/>
+    vendorAmount: ₹${subtotal.toFixed(2)}<br/>
     Delivery: ₹${deliveryTotal.toFixed(2)}<br/>
     GST: ₹${gstTotal.toFixed(2)}<br/>
 

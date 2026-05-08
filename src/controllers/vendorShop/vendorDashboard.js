@@ -728,6 +728,7 @@ export const vendorUpdateOrder = async (req, res, next) => {
 
     if (subOrders.every((o) => o.status === "DELIVERED")) {
       masterStatus = "DELIVERED";
+
       // for (const sub of subOrders) {
       //   const vendorId = sub.items[0].vendorId;
       //   const alreadySettled = await vendorTransactionModel
@@ -742,22 +743,58 @@ export const vendorUpdateOrder = async (req, res, next) => {
       //   }
       // }
 
+      // for (const sub of subOrders) {
+      //   const vendorId = sub.items[0].vendorId;
+
+      //   const alreadySettled = await vendorTransactionModel
+      //     .findOne({
+      //       orderId: sub._id,
+      //       type: "ORDER_SETTLEMENT",
+      //     })
+      //     .session(session);
+
+      //   if (!alreadySettled) {
+      //     const vendorTotal = sub.items.reduce((sum, item) => {
+      //       return sum + (item.vendorAmount || 0);
+      //     }, 0);
+
+      //     await addSettlement(vendorId, sub._id, vendorTotal, session);
+      //   }
+      // }
+
       for (const sub of subOrders) {
-        const vendorId = sub.items[0].vendorId;
+        // ======================================================
+        // GROUP ITEMS BY VENDOR
+        // ======================================================
 
-        const alreadySettled = await vendorTransactionModel
-          .findOne({
-            orderId: sub._id,
-            type: "ORDER_SETTLEMENT",
-          })
-          .session(session);
+        const vendorMap = {};
 
-        if (!alreadySettled) {
-          const vendorTotal = sub.items.reduce((sum, item) => {
-            return sum + (item.vendorAmount || 0);
-          }, 0);
+        for (const item of sub.items) {
+          const vendorId = item.vendorId.toString();
 
-          await addSettlement(vendorId, sub._id, vendorTotal, session);
+          if (!vendorMap[vendorId]) {
+            vendorMap[vendorId] = 0;
+          }
+
+          vendorMap[vendorId] += item.vendorAmount || 58;
+        }
+
+        // ======================================================
+        // CREATE SETTLEMENT FOR EACH VENDOR
+        // ======================================================
+
+        for (const [vendorId, vendorTotal] of Object.entries(vendorMap)) {
+          const alreadySettled = await vendorTransactionModel
+            .findOne({
+              orderId: sub._id,
+              vendorId,
+              type: "ORDER_SETTLEMENT",
+            })
+            .session(session);
+
+          if (!alreadySettled) {
+            await addSettlement(vendorId, sub._id, vendorTotal, session);
+          }
         }
       }
     } else if (subOrders.some((o) => o.status === "OUT_FOR_DELIVERY")) {
@@ -791,7 +828,19 @@ export const vendorUpdateOrder = async (req, res, next) => {
   }
 };
 
-// const vendorFinalAmount (netAmount) => {
-//   const {gstAmount , handllingFee} = await companyModel.findOne();
-//   return netAmount - (gstAmount + handllingFee);
+// if (action === "ACCEPT") {
+//   const subOrders = await Order.find({
+//     parentId: subOrder.parentId,
+//     orderType: "SUB",
+//   }).session(session);
+
+//   const allAccepted = subOrders.every(
+//     (o) => o.status === "CONFIRMED"
+//   );
+
+//   if (allAccepted) {
+//     const masterOrder = await Order.findById(subOrder.parentId).session(session);
+
+//     await generateOrderInvoices(masterOrder, subOrders);
+//   }
 // }

@@ -237,7 +237,6 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-
     // returnDays: {
     //   type: Number,
     //   default: 7, // days after delivery within which return is allowed

@@ -3,11 +3,13 @@ import {
   adminGetAllOrders,
   updateSingleProductStatus,
   updateAllProductsStatus,
+  adminGetOrderDetails,
 } from "../../controllers/marketPlace/order.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";
 import { validateRequest } from "../../middlewares/validation.js";
 import { orderValidation } from "../../validations/productOrder.validation.js";
+import { exportOrders } from "../../controllers/marketPlace/exportDataInFiles.controller.js";
 
 const router = Router();
 
@@ -16,6 +18,7 @@ router.use(requireRole("ADMIN"));
 
 // GET  /api/v1/admin/orders            — list all orders (with filters & pagination)
 router.get("/orders", adminGetAllOrders);
+router.get("/orders/export", exportOrders);
 
 // PATCH /api/v1/admin/orders/item-status
 // body: { subOrderId, variantId, status }
@@ -29,10 +32,12 @@ router.patch(
 // PATCH /api/v1/admin/orders/all-items-status
 // body: { subOrderId, status }
 // Updates every item in a sub-order; restores stock on CANCELLED / RETURNED
+
 router.patch(
   "/orders/all-items-status",
   validateRequest(orderValidation.updateStatusValidation),
   updateAllProductsStatus,
 );
+router.get("/:orderId", adminGetOrderDetails);
 
 export default router;

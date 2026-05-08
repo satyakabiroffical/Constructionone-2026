@@ -933,6 +933,442 @@ const calculateVendorSplit = async (cartItems) => {
 // CREATE ORDER
 // ======================================================
 
+// export const createOrder = async (req, res, next) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   let transactionRef = null;
+//   let transactionId = null;
+
+//   try {
+//     const userId = req.user.id;
+//     const { addressId, paymentMethod, items } = req.body;
+
+//     if (!addressId || !paymentMethod || !items?.length) {
+//       throw new APIError(
+//         400,
+//         "addressId, paymentMethod and items are required",
+//       );
+//     }
+
+//     // ------------------------------------------------
+//     // ADDRESS
+//     // ------------------------------------------------
+
+//     const address = await Address.findOne({
+//       _id: addressId,
+//       userId,
+//     }).session(session);
+
+//     if (!address) {
+//       throw new APIError(404, "Address not found");
+//     }
+
+//     // ------------------------------------------------
+//     // CART
+//     // ------------------------------------------------
+
+//     const cart = await Cart.findOne({ userId })
+//       .populate({
+//         path: "items.variant",
+//         populate: {
+//           path: "productId",
+//           model: "Product",
+//           select: `
+//             name
+//             images
+//             vendorId
+//             measurementUnit
+//           `,
+//         },
+//       })
+//       .session(session);
+
+//     if (!cart || !cart.items.length) {
+//       throw new APIError(400, "Cart is empty");
+//     }
+
+//     // ------------------------------------------------
+//     // STOCK VALIDATION
+//     // ------------------------------------------------
+
+//     for (const cartItem of cart.items) {
+//       if (cartItem.quantity > cartItem.variant.stock) {
+//         throw new APIError(
+//           400,
+//           `Out of stock: ${cartItem.variant.productId.name}`,
+//         );
+//       }
+//     }
+
+//     // ------------------------------------------------
+//     // PREPARE ITEMS
+//     // ------------------------------------------------
+//     const comapnyBillSummary = await calculateBillSummary(cart.items);
+
+//     let subtotal = 0;
+//     let totalDeliveryFee = 0;
+
+//     let paymentStatus = "UNPAID";
+//     let orderStatus = "PENDING";
+
+//     const vendorMap = new Map();
+
+//     for (const cartItem of cart.items) {
+//       const variant = cartItem.variant;
+//       const product = variant.productId;
+
+//       const selected = items.find(
+//         (i) => i.variantId === variant._id.toString(),
+//       );
+
+//       if (!selected) continue;
+
+//       // const itemTotal = cartItem.quantity * cartItem.unitPrice;
+//       // subtotal += itemTotal;
+
+//       // let deliveryFee = 0;
+
+//       // if (selected.deliveryType === "self") {
+//       //   deliveryFee = 0;
+//       // }
+
+//       // if (
+//       //   selected.deliveryType === "vendor" ||
+//       //   selected.deliveryType === "logistic"
+//       // ) {
+//       //   deliveryFee = Number(selected.deliveryFee || 0);
+//       // }
+
+//       // totalDeliveryFee += deliveryFee;
+//       // const vendorId = product.vendorId.toString();
+
+//       // const preparedItem = {
+//       //   productId: product._id,
+//       //   variantId: variant._id,
+//       //   vendorId: product.vendorId,
+//       //   quantity: cartItem.quantity,
+//       //   price: cartItem.unitPrice,
+//       //   finalPrice: itemTotal,
+//       //   deliveryType: selected.deliveryType,
+//       //   deliveryFee,
+//       //   status: "PENDING",
+//       //   vendorAmount: totalDeliveryFee + finalPrice,
+//       //   gstAmount: comapnyBillSummary.gstAmount,
+//       // };
+
+//       const itemTotal = cartItem.quantity * cartItem.unitPrice;
+//       subtotal += itemTotal;
+
+//       // ======================================================
+//       // DELIVERY FEE
+//       // ======================================================
+
+//       let deliveryFee = 0;
+
+//       if (
+//         selected.deliveryType === "vendor" ||
+//         selected.deliveryType === "logistic"
+//       ) {
+//         deliveryFee = Number(selected.deliveryFee || 0);
+//       }
+
+//       totalDeliveryFee += deliveryFee;
+
+//       // ======================================================
+//       // GST
+//       // PRODUCT WISE
+//       // ======================================================
+
+//       const itemWiseGST = (itemTotal * comapnyBillSummary.taxPercentage) / 100;
+
+//       // ======================================================
+//       // VENDOR AMOUNT
+//       // product price + vendor/self delivery
+//       // GST excluded
+//       // ======================================================
+
+//       let vendorAmount = itemTotal;
+
+//       if (
+//         selected.deliveryType === "self" ||
+//         selected.deliveryType === "vendor"
+//       ) {
+//         vendorAmount += deliveryFee;
+//       }
+
+//       const vendorId = product.vendorId.toString();
+
+//       // ======================================================
+//       // PREPARED ITEM
+//       // ======================================================
+
+//       const preparedItem = {
+//         productId: product._id,
+
+//         variantId: variant._id,
+
+//         vendorId: product.vendorId,
+
+//         quantity: cartItem.quantity,
+
+//         price: cartItem.unitPrice,
+
+//         finalPrice: Number(itemTotal.toFixed(2)),
+
+//         packageWeight: variant.packageWeight || 0,
+
+//         vendorAmount: Number(vendorAmount.toFixed(2)),
+
+//         gstAmount: Number(itemWiseGST.toFixed(2)),
+
+//         deliveryType: selected.deliveryType,
+
+//         deliveryFee,
+
+//         status: "PENDING",
+//       };
+
+//       if (!vendorMap.has(vendorId)) {
+//         vendorMap.set(vendorId, []);
+//       }
+
+//       vendorMap.get(vendorId).push(preparedItem);
+//     }
+//     subtotal = subtotal + comapnyBillSummary.gstAmount;
+//     // const grandTotal = subtotal + totalDeliveryFee;
+//     const grandTotal =
+//       subtotal + totalDeliveryFee + comapnyBillSummary.handlingCharge;
+
+//     // ------------------------------------------------
+//     // WALLET CHECK
+//     // ------------------------------------------------
+
+//     if (paymentMethod === "WALLET") {
+//       const wallet = await Wallet.findOne({ userId }).session(session);
+
+//       if (!wallet) {
+//         throw new APIError(404, "Wallet not found");
+//       }
+
+//       if (wallet.balance < grandTotal) {
+//         throw new APIError(400, "Insufficient wallet balance");
+//       }
+
+//       paymentStatus = "PAID";
+//       orderStatus = "CONFIRMED";
+//     }
+
+//     // ------------------------------------------------
+//     // ONLINE PAYMENT -> RAZORPAY ORDER
+//     // ------------------------------------------------
+
+//     if (paymentMethod === "ONLINE") {
+//       const razorpayOrder = await razorpayInstance.orders.create({
+//         amount: Math.round(grandTotal * 100),
+//         currency: "INR",
+//         receipt: `order_${Date.now()}`,
+//         notes: {
+//           userId: userId.toString(),
+//         },
+//       });
+
+//       if (!razorpayOrder) {
+//         throw new APIError(400, "Failed to create Razorpay order");
+//       }
+
+//       transactionRef = razorpayOrder.id;
+//     }
+
+//     // ------------------------------------------------
+//     // MASTER ORDER
+//     // ------------------------------------------------
+
+//     const masterOrder = await Order.create(
+//       [
+//         {
+//           userId,
+//           orderType: "MASTER",
+//           shippingAddressId: addressId,
+//           items: Array.from(vendorMap.values()).flat(),
+//           subTotal: subtotal,
+//           totalDeliveryFee,
+//           netAmount: grandTotal,
+//           paymentMethod,
+//           paymentStatus,
+//           status: orderStatus,
+//           transactionRef,
+//           handlingCharge: comapnyBillSummary.handlingCharge,
+//         },
+//       ],
+//       { session },
+//     );
+
+//     const masterOrderId = masterOrder[0]._id;
+
+//     // ------------------------------------------------
+//     // SUB ORDERS
+//     // ------------------------------------------------
+
+//     const subOrders = [];
+
+//     for (const [vendorId, vendorItems] of vendorMap.entries()) {
+//       const vendorSubTotal = vendorItems.reduce(
+//         (sum, item) => sum + item.finalPrice,
+//         0,
+//       );
+
+//       const vendorDeliveryFee = vendorItems.reduce(
+//         (sum, item) => sum + item.deliveryFee,
+//         0,
+//       );
+
+//       subOrders.push({
+//         userId,
+//         orderType: "SUB",
+//         parentId: masterOrderId,
+//         shippingAddressId: addressId,
+//         items: vendorItems,
+//         subTotal: vendorSubTotal,
+//         totalDeliveryFee: vendorDeliveryFee,
+//         netAmount: vendorSubTotal + vendorDeliveryFee,
+//         paymentMethod,
+//         paymentStatus,
+//         status: orderStatus,
+//       });
+//     }
+
+//     await Order.insertMany(subOrders, { session });
+
+//     // ------------------------------------------------
+//     // WALLET FINAL PROCESS
+//     // ------------------------------------------------
+
+//     if (paymentMethod === "WALLET") {
+//       const wallet = await Wallet.findOne({ userId }).session(session);
+//       wallet.balance -= grandTotal;
+//       await wallet.save({ session });
+
+//       const transaction = await Transaction.create(
+//         [
+//           {
+//             userId,
+//             orderId: masterOrderId,
+//             amount: grandTotal,
+//             paymentMethod: "WALLET",
+//             status: "SUCCESS",
+//           },
+//         ],
+//         { session },
+//       );
+//       transactionId = transaction[0]._id;
+//       // master update
+//       await Order.findByIdAndUpdate(
+//         masterOrderId,
+//         {
+//           paymentStatus: "PAID",
+//           status: "CONFIRMED",
+//           transactionId,
+//           "items.$[].status": "CONFIRMED",
+//         },
+//         { session },
+//       );
+
+//       // sub orders update
+//       await Order.updateMany(
+//         {
+//           parentId: masterOrderId,
+//           orderType: "SUB",
+//         },
+//         {
+//           $set: {
+//             paymentStatus: "PAID",
+//             status: "CONFIRMED",
+//             transactionId,
+//             "items.$[].status": "CONFIRMED",
+//           },
+//         },
+//         { session },
+//       );
+//       // stock update
+//       const variantOps = [];
+//       const productOps = [];
+
+//       for (const cartItem of cart.items) {
+//         variantOps.push({
+//           updateOne: {
+//             filter: { _id: cartItem.variant._id },
+//             update: {
+//               $inc: {
+//                 stock: -cartItem.quantity,
+//                 sold: cartItem.quantity,
+//               },
+//             },
+//           },
+//         });
+
+//         productOps.push({
+//           updateOne: {
+//             filter: { _id: cartItem.variant.productId._id },
+//             update: {
+//               $inc: {
+//                 sold: cartItem.quantity,
+//               },
+//             },
+//           },
+//         });
+//       }
+
+//       if (variantOps.length) {
+//         await Variant.bulkWrite(variantOps, { session });
+//       }
+
+//       if (productOps.length) {
+//         await Product.bulkWrite(productOps, { session });
+//       }
+//       // clear cart
+//       await Cart.findOneAndUpdate(
+//         { userId },
+//         {
+//           items: [],
+//           totalAmount: 0,
+//         },
+//         { session },
+//       );
+//     }
+
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     if (paymentMethod === "WALLET") {
+//       const freshMasterOrder = await Order.findById(masterOrderId);
+//       const freshSubOrders = await Order.find({
+//         parentId: masterOrderId,
+//         orderType: "SUB",
+//       });
+
+//       if (freshMasterOrder) {
+//         generateOrderInvoices(freshMasterOrder, freshSubOrders).catch((err) =>
+//           console.error("[Invoice Generation Failed]", err.message),
+//         );
+//       }
+//     }
+
+//     const cacheKey = `admin:orders:${JSON.stringify(req.query)}`;
+//     return res.status(201).json({
+//       success: true,
+//       message: "Order created successfully",
+//       masterOrder: masterOrder[0],
+//       transactionRef,
+//       key: paymentMethod === "WALLET" ? null : process.env.RAZORPAY_KEY_ID,
+//     });
+//   } catch (error) {
+//     await session.abortTransaction();
+//     session.endSession();
+//     next(error);
+//   }
+// };
+
 export const createOrder = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -942,8 +1378,8 @@ export const createOrder = async (req, res, next) => {
 
   try {
     const userId = req.user.id;
-    const { addressId, paymentMethod, items } = req.body;
 
+    const { addressId, paymentMethod, items } = req.body;
     if (!addressId || !paymentMethod || !items?.length) {
       throw new APIError(
         400,
@@ -951,9 +1387,9 @@ export const createOrder = async (req, res, next) => {
       );
     }
 
-    // ------------------------------------------------
+    // =====================================================
     // ADDRESS
-    // ------------------------------------------------
+    // =====================================================
 
     const address = await Address.findOne({
       _id: addressId,
@@ -964,9 +1400,9 @@ export const createOrder = async (req, res, next) => {
       throw new APIError(404, "Address not found");
     }
 
-    // ------------------------------------------------
+    // =====================================================
     // CART
-    // ------------------------------------------------
+    // =====================================================
 
     const cart = await Cart.findOne({ userId })
       .populate({
@@ -988,9 +1424,9 @@ export const createOrder = async (req, res, next) => {
       throw new APIError(400, "Cart is empty");
     }
 
-    // ------------------------------------------------
+    // =====================================================
     // STOCK VALIDATION
-    // ------------------------------------------------
+    // =====================================================
 
     for (const cartItem of cart.items) {
       if (cartItem.quantity > cartItem.variant.stock) {
@@ -1001,21 +1437,35 @@ export const createOrder = async (req, res, next) => {
       }
     }
 
-    // ------------------------------------------------
-    // PREPARE ITEMS
-    // ------------------------------------------------
+    // =====================================================
+    // COMPANY BILL SUMMARY
+    // =====================================================
+
     const comapnyBillSummary = await calculateBillSummary(cart.items);
 
+    // =====================================================
+    // TOTALS
+    // =====================================================
+
     let subtotal = 0;
+
     let totalDeliveryFee = 0;
 
+    let totalGST = 0;
+
     let paymentStatus = "UNPAID";
+
     let orderStatus = "PENDING";
 
     const vendorMap = new Map();
 
+    // =====================================================
+    // PREPARE ITEMS
+    // =====================================================
+
     for (const cartItem of cart.items) {
       const variant = cartItem.variant;
+
       const product = variant.productId;
 
       const selected = items.find(
@@ -1024,14 +1474,19 @@ export const createOrder = async (req, res, next) => {
 
       if (!selected) continue;
 
-      const itemTotal = cartItem.quantity * cartItem.unitPrice;
+      // =====================================================
+      // ITEM TOTAL
+      // =====================================================
+
+      const itemTotal = Number(cartItem.quantity) * Number(cartItem.unitPrice);
+
       subtotal += itemTotal;
 
-      let deliveryFee = 0;
+      // =====================================================
+      // DELIVERY FEE
+      // =====================================================
 
-      if (selected.deliveryType === "self") {
-        deliveryFee = 0;
-      }
+      let deliveryFee = 0;
 
       if (
         selected.deliveryType === "vendor" ||
@@ -1041,21 +1496,65 @@ export const createOrder = async (req, res, next) => {
       }
 
       totalDeliveryFee += deliveryFee;
+
+      // =====================================================
+      // GST
+      // =====================================================
+
+      const itemWiseGST = (itemTotal * comapnyBillSummary.taxPercentage) / 100;
+
+      totalGST += itemWiseGST;
+
+      // =====================================================
+      // VENDOR AMOUNT
+      // product price + self/vendor delivery
+      // logistic excluded
+      // =====================================================
+
+      let vendorAmount = itemTotal;
+
+      if (
+        selected.deliveryType === "self" ||
+        selected.deliveryType === "vendor"
+      ) {
+        vendorAmount += deliveryFee;
+      }
+
       const vendorId = product.vendorId.toString();
+
+      // =====================================================
+      // PREPARED ITEM
+      // =====================================================
 
       const preparedItem = {
         productId: product._id,
+
         variantId: variant._id,
+
         vendorId: product.vendorId,
+
         quantity: cartItem.quantity,
-        price: cartItem.unitPrice,
-        finalPrice: itemTotal,
+
+        price: Number(cartItem.unitPrice.toFixed(2)),
+
+        finalPrice: Number(itemTotal.toFixed(2)),
+
+        packageWeight: variant.packageWeight || 0,
+
+        vendorAmount: Number(vendorAmount.toFixed(2)),
+
+        gstAmount: Number(itemWiseGST.toFixed(2)),
+
         deliveryType: selected.deliveryType,
-        deliveryFee,
+
+        deliveryFee: Number(deliveryFee.toFixed(2)),
+
         status: "PENDING",
-        vendorAmount: totalDeliveryFee + finalPrice,
-        gstAmount: comapnyBillSummary.gstAmount,
       };
+
+      // =====================================================
+      // GROUP BY VENDOR
+      // =====================================================
 
       if (!vendorMap.has(vendorId)) {
         vendorMap.set(vendorId, []);
@@ -1063,18 +1562,25 @@ export const createOrder = async (req, res, next) => {
 
       vendorMap.get(vendorId).push(preparedItem);
     }
-    subtotal = subtotal + comapnyBillSummary.gstAmount;
 
-    // const grandTotal = subtotal + totalDeliveryFee;
+    // =====================================================
+    // GRAND TOTAL
+    // =====================================================
+
     const grandTotal =
-      subtotal + totalDeliveryFee + comapnyBillSummary.handlingCharge;
+      subtotal +
+      totalDeliveryFee +
+      totalGST +
+      comapnyBillSummary.handlingCharge;
 
-    // ------------------------------------------------
+    // =====================================================
     // WALLET CHECK
-    // ------------------------------------------------
+    // =====================================================
 
     if (paymentMethod === "WALLET") {
-      const wallet = await Wallet.findOne({ userId }).session(session);
+      const wallet = await Wallet.findOne({
+        userId,
+      }).session(session);
 
       if (!wallet) {
         throw new APIError(404, "Wallet not found");
@@ -1083,20 +1589,22 @@ export const createOrder = async (req, res, next) => {
       if (wallet.balance < grandTotal) {
         throw new APIError(400, "Insufficient wallet balance");
       }
-
       paymentStatus = "PAID";
       orderStatus = "CONFIRMED";
     }
 
-    // ------------------------------------------------
-    // ONLINE PAYMENT -> RAZORPAY ORDER
-    // ------------------------------------------------
+    // =====================================================
+    // ONLINE PAYMENT
+    // =====================================================
 
     if (paymentMethod === "ONLINE") {
       const razorpayOrder = await razorpayInstance.orders.create({
         amount: Math.round(grandTotal * 100),
+
         currency: "INR",
+
         receipt: `order_${Date.now()}`,
+
         notes: {
           userId: userId.toString(),
         },
@@ -1109,25 +1617,38 @@ export const createOrder = async (req, res, next) => {
       transactionRef = razorpayOrder.id;
     }
 
-    // ------------------------------------------------
+    // =====================================================
     // MASTER ORDER
-    // ------------------------------------------------
+    // =====================================================
 
     const masterOrder = await Order.create(
       [
         {
           userId,
+
           orderType: "MASTER",
+
           shippingAddressId: addressId,
+
           items: Array.from(vendorMap.values()).flat(),
-          subTotal: subtotal,
-          totalDeliveryFee,
-          netAmount: grandTotal,
+
+          subTotal: Number(subtotal.toFixed(2)),
+
+          totalDeliveryFee: Number(totalDeliveryFee.toFixed(2)),
+
+          gstAmount: Number(totalGST.toFixed(2)),
+
+          handlingCharge: Number(comapnyBillSummary.handlingCharge.toFixed(2)),
+
+          netAmount: Number(grandTotal.toFixed(2)),
+
           paymentMethod,
+
           paymentStatus,
+
           status: orderStatus,
+
           transactionRef,
-          handlingCharge: comapnyBillSummary.handlingCharge,
         },
       ],
       { session },
@@ -1135,101 +1656,153 @@ export const createOrder = async (req, res, next) => {
 
     const masterOrderId = masterOrder[0]._id;
 
-    // ------------------------------------------------
+    // =====================================================
     // SUB ORDERS
-    // ------------------------------------------------
+    // =====================================================
 
     const subOrders = [];
 
     for (const [vendorId, vendorItems] of vendorMap.entries()) {
-      const vendorSubTotal = vendorItems.reduce(
-        (sum, item) => sum + item.finalPrice,
-        0,
-      );
+      const vendorSubTotal = vendorItems.reduce((sum, item) => {
+        return sum + item.finalPrice;
+      }, 0);
 
-      const vendorDeliveryFee = vendorItems.reduce(
-        (sum, item) => sum + item.deliveryFee,
-        0,
-      );
+      const vendorDeliveryFee = vendorItems.reduce((sum, item) => {
+        return sum + item.deliveryFee;
+      }, 0);
+
+      const vendorGST = vendorItems.reduce((sum, item) => {
+        return sum + item.gstAmount;
+      }, 0);
+
+      const vendorNetAmount = vendorSubTotal + vendorDeliveryFee + vendorGST;
 
       subOrders.push({
         userId,
+
         orderType: "SUB",
+
         parentId: masterOrderId,
+
         shippingAddressId: addressId,
+
         items: vendorItems,
-        subTotal: vendorSubTotal,
-        totalDeliveryFee: vendorDeliveryFee,
-        netAmount: vendorSubTotal + vendorDeliveryFee,
+
+        subTotal: Number(vendorSubTotal.toFixed(2)),
+
+        totalDeliveryFee: Number(vendorDeliveryFee.toFixed(2)),
+
+        gstAmount: Number(vendorGST.toFixed(2)),
+
+        netAmount: Number(vendorNetAmount.toFixed(2)),
+
         paymentMethod,
+
         paymentStatus,
+
         status: orderStatus,
       });
     }
 
-    await Order.insertMany(subOrders, { session });
+    await Order.insertMany(subOrders, {
+      session,
+    });
 
-    // ------------------------------------------------
-    // WALLET FINAL PROCESS
-    // ------------------------------------------------
+    // =====================================================
+    // WALLET PAYMENT PROCESS
+    // =====================================================
 
     if (paymentMethod === "WALLET") {
-      const wallet = await Wallet.findOne({ userId }).session(session);
+      const wallet = await Wallet.findOne({
+        userId,
+      }).session(session);
+
       wallet.balance -= grandTotal;
+
       await wallet.save({ session });
 
       const transaction = await Transaction.create(
         [
           {
             userId,
+
             orderId: masterOrderId,
-            amount: grandTotal,
+
+            amount: Number(grandTotal.toFixed(2)),
+
             paymentMethod: "WALLET",
             status: "SUCCESS",
+            payType: "DEBIT",
+            walletPurpose: "ORDER_PAYMENT",
           },
         ],
         { session },
       );
+
       transactionId = transaction[0]._id;
-      // master update
+      await RedisCache.deletePattern(`wallet:history:${userId}:*`);
+
+      // =====================================================
+      // MASTER UPDATE
+      // =====================================================
+
       await Order.findByIdAndUpdate(
         masterOrderId,
         {
           paymentStatus: "PAID",
+
           status: "CONFIRMED",
+
           transactionId,
+
           "items.$[].status": "CONFIRMED",
         },
         { session },
       );
 
-      // sub orders update
+      // =====================================================
+      // SUB ORDER UPDATE
+      // =====================================================
+
       await Order.updateMany(
         {
           parentId: masterOrderId,
+
           orderType: "SUB",
         },
         {
           $set: {
             paymentStatus: "PAID",
+
             status: "CONFIRMED",
+
             transactionId,
+
             "items.$[].status": "CONFIRMED",
           },
         },
         { session },
       );
-      // stock update
+
+      // =====================================================
+      // STOCK UPDATE
+      // =====================================================
+
       const variantOps = [];
+
       const productOps = [];
 
       for (const cartItem of cart.items) {
         variantOps.push({
           updateOne: {
-            filter: { _id: cartItem.variant._id },
+            filter: {
+              _id: cartItem.variant._id,
+            },
+
             update: {
               $inc: {
                 stock: -cartItem.quantity,
+
                 sold: cartItem.quantity,
               },
             },
@@ -1238,7 +1811,10 @@ export const createOrder = async (req, res, next) => {
 
         productOps.push({
           updateOne: {
-            filter: { _id: cartItem.variant.productId._id },
+            filter: {
+              _id: cartItem.variant.productId._id,
+            },
+
             update: {
               $inc: {
                 sold: cartItem.quantity,
@@ -1255,24 +1831,40 @@ export const createOrder = async (req, res, next) => {
       if (productOps.length) {
         await Product.bulkWrite(productOps, { session });
       }
-      // clear cart
+
+      // =====================================================
+      // CLEAR CART
+      // =====================================================
+
       await Cart.findOneAndUpdate(
         { userId },
         {
           items: [],
+
           totalAmount: 0,
         },
         { session },
       );
     }
 
+    // =====================================================
+    // COMMIT
+    // =====================================================
+
     await session.commitTransaction();
+
     session.endSession();
+
+    // =====================================================
+    // INVOICE
+    // =====================================================
 
     if (paymentMethod === "WALLET") {
       const freshMasterOrder = await Order.findById(masterOrderId);
+
       const freshSubOrders = await Order.find({
         parentId: masterOrderId,
+
         orderType: "SUB",
       });
 
@@ -1283,16 +1875,26 @@ export const createOrder = async (req, res, next) => {
       }
     }
 
+    // =====================================================
+    // RESPONSE
+    // =====================================================
+
     return res.status(201).json({
       success: true,
+
       message: "Order created successfully",
+
       masterOrder: masterOrder[0],
+
       transactionRef,
+
       key: paymentMethod === "WALLET" ? null : process.env.RAZORPAY_KEY_ID,
     });
   } catch (error) {
     await session.abortTransaction();
+
     session.endSession();
+
     next(error);
   }
 };
@@ -1515,167 +2117,7 @@ export const verifyPayment = async (req, res, next) => {
   }
 };
 
-// export const getAllOrders = async (req, res, next) => {
-//   try {
-//     const userId = req.user.id;
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 10;
-//     const skip = (page - 1) * limit;
-
-//     // Version-based cache: incr version on any order change — no redis.keys() needed
-//     const version = (await redis.get(`user:orders:version:${userId}`)) || 1;
-//     const cacheKey = `orders:user:${userId}:v${version}:${JSON.stringify(req.query)}`;
-
-//     const cached = await redis.get(cacheKey);
-//     if (cached) {
-//       return res.status(200).json(JSON.parse(cached));
-//     }
-//     const filter = { userId, orderType: "MASTER" };
-//     if (req.query.status) filter.status = req.query.status;
-
-//     const [orders, total] = await Promise.all([
-//       Order.find(filter)
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(limit)
-//         .populate({ path: "items.product", select: "name thumbnail " })
-//         .lean(),
-//       Order.countDocuments(filter),
-//     ]);
-
-//     const response = {
-//       success: true,
-//       message: "Orders fetched successfully",
-//       data: {
-//         orders,
-//         pagination: {
-//           total,
-//           page,
-//           limit,
-//           totalPages: Math.ceil(total / limit),
-//         },
-//       },
-//     };
-
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
-
-//     res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
-//asgar
-// export const getAllOrders = async (req, res, next) => {
-//   try {
-//     const userId = req.user.id;
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 10;
-//     const skip = (page - 1) * limit;
-
-//     // const version = (await redis.get(`user:orders:version:${userId}`)) || 1;
-//     // const cacheKey = `orders:user:${userId}:v${version}:${JSON.stringify(
-//     //   req.query,
-//     // )}`;
-
-//     // const cached = await redis.get(cacheKey);
-
-//     // if (cached) {
-//     //   return res.status(200).json(JSON.parse(cached));
-//     // }
-
-//     const filter = {
-//       userId,
-//       orderType: "MASTER",
-//     };
-
-//     if (req.query.status) {
-//       filter.status = req.query.status;
-//     }
-
-//     const [orders, total] = await Promise.all([
-//       Order.find(filter)
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(limit)
-//         .populate({
-//           path: "items.productId",
-//           select: "name images",
-//         })
-//         .populate({
-//           path: "items.variantId",
-//           select: "price packageWeight packageDimensions",
-//         })
-
-//         .populate({
-//           path: "items.vendorId",
-//           select: "firstName email phoneNumber",
-//         })
-
-//         .populate({
-//           path: "userId",
-//           select: "name email phone",
-//         })
-
-//         .populate({
-//           path: "shippingAddressId",
-//           select: "label userName addressLine city state pincode",
-//         }),
-
-//       Order.countDocuments(filter),
-//     ]);
-
-//     const vendorIds = [];
-
-//     orders.forEach((order) => {
-//       order.items.forEach((item) => {
-//         if (item.vendorId?._id) {
-//           vendorIds.push(item.vendorId._id.toString());
-//         }
-//       });
-//     });
-
-//     const vendorCompanies = await VendorCompany.find({
-//       vendorId: { $in: vendorIds },
-//     }).select("companyName contactNumber businessAddress vendorId");
-//     // .lean();
-
-//     const companyMap = {};
-//     vendorCompanies.forEach((company) => {
-//       companyMap[company.vendorId.toString()] = company;
-//     });
-
-//     orders.forEach((order) => {
-//       order.items.forEach((item) => {
-//         const vendorProfileId =
-//           item.vendorId?._id?.toString() || item.vendorId?.toString();
-//         item.vendorCompany = companyMap[vendorProfileId] || null;
-//       });
-//     });
-
-//     // console.log(" companyMap", companyMap);
-//     const response = {
-//       success: true,
-//       message: "Orders fetched successfully",
-//       data: {
-//         orders,
-//         pagination: {
-//           total,
-//           page,
-//           limit,
-//           totalPages: Math.ceil(total / limit),
-//         },
-//       },
-//     };
-
-//     // await redis.set(cacheKey, JSON.stringify(response));
-
-//     return res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
+//user get all order
 export const getAllOrders = async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -2637,6 +3079,99 @@ export const getOrderById = async (req, res, next) => {
   }
 };
 
+//admin get all orders
+// export const adminGetAllOrders = async (req, res, next) => {
+//   try {
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 20;
+//     const skip = (page - 1) * limit;
+
+//     const cacheKey = `admin:orders:${JSON.stringify(req.query)}`;
+//     const cached = await redis.get(cacheKey);
+//     if (cached) return res.status(200).json(JSON.parse(cached));
+
+//     const filter = {};
+//     if (req.query.orderType) filter.orderType = req.query.orderType;
+//     if (req.query.status) filter.status = req.query.status;
+//     if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
+//     if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
+
+//     if (req.query.search) {
+//       filter._id = { $regex: `^${req.query.search}`, $options: "i" };
+//     }
+
+//     const now = new Date();
+//     const dateRangeMap = {
+//       today: () => {
+//         const s = new Date(now);
+//         s.setHours(0, 0, 0, 0);
+//         return { $gte: s };
+//       },
+//       last7days: () => {
+//         const s = new Date(now);
+//         s.setDate(s.getDate() - 7);
+//         return { $gte: s };
+//       },
+//       last30days: () => {
+//         const s = new Date(now);
+//         s.setDate(s.getDate() - 30);
+//         return { $gte: s };
+//       },
+//       last90days: () => {
+//         const s = new Date(now);
+//         s.setDate(s.getDate() - 90);
+//         return { $gte: s };
+//       },
+//       custom: () => {
+//         const range = {};
+//         if (req.query.startDate) range.$gte = new Date(req.query.startDate);
+//         if (req.query.endDate) {
+//           const end = new Date(req.query.endDate);
+//           end.setHours(23, 59, 59, 999);
+//           range.$lte = end;
+//         }
+//         return Object.keys(range).length ? range : null;
+//       },
+//     };
+
+//     const { dateRange } = req.query;
+//     if (dateRange && dateRangeMap[dateRange]) {
+//       const range = dateRangeMap[dateRange]();
+//       if (range) filter.createdAt = range;
+//     }
+
+//     const [orders, total] = await Promise.all([
+//       Order.find(filter)
+//         .sort({ createdAt: -1 })
+//         .skip(skip)
+//         .limit(limit)
+//         .populate({ path: "userId", select: "name email phone" })
+//         .populate({ path: "items.product", select: "name thumbnail" })
+//         // .populate({ path: "vandorId", select: "name email" })
+//         .lean(),
+//       Order.countDocuments(filter),
+//     ]);
+
+//     const response = {
+//       success: true,
+//       message: "Orders fetched successfully",
+//       data: {
+//         orders,
+//         pagination: {
+//           total,
+//           page,
+//           limit,
+//           totalPages: Math.ceil(total / limit),
+//         },
+//       },
+//     };
+
+//     await redis.set(cacheKey, JSON.stringify(response), "EX", 120);
+//     res.status(200).json(response);
+//   } catch (error) {
+//     next(error);
+//   }
+// };
 export const adminGetAllOrders = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -2644,76 +3179,159 @@ export const adminGetAllOrders = async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     const cacheKey = `admin:orders:${JSON.stringify(req.query)}`;
+
+    // Check Redis Cache
     const cached = await redis.get(cacheKey);
-    if (cached) return res.status(200).json(JSON.parse(cached));
 
-    const filter = {};
-    if (req.query.orderType) filter.orderType = req.query.orderType;
-    if (req.query.status) filter.status = req.query.status;
-    if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
-    if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
-
-    if (req.query.search) {
-      filter._id = { $regex: `^${req.query.search}`, $options: "i" };
+    if (cached) {
+      return res.status(200).json(JSON.parse(cached));
     }
 
+    // Filters
+    const filter = {};
+
+    if (req.query.orderType) {
+      filter.orderType = req.query.orderType;
+    }
+
+    if (req.query.status) {
+      filter.status = req.query.status;
+    }
+
+    if (req.query.paymentStatus) {
+      filter.paymentStatus = req.query.paymentStatus;
+    }
+
+    if (req.query.paymentMethod) {
+      filter.paymentMethod = req.query.paymentMethod;
+    }
+
+    // Search by Order ID
+    if (req.query.search) {
+      filter._id = {
+        $regex: `^${req.query.search}`,
+        $options: "i",
+      };
+    }
+
+    // Date Filters
     const now = new Date();
+
     const dateRangeMap = {
       today: () => {
-        const s = new Date(now);
-        s.setHours(0, 0, 0, 0);
-        return { $gte: s };
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+
+        return {
+          $gte: start,
+        };
       },
+
       last7days: () => {
-        const s = new Date(now);
-        s.setDate(s.getDate() - 7);
-        return { $gte: s };
+        const start = new Date(now);
+        start.setDate(start.getDate() - 7);
+
+        return {
+          $gte: start,
+        };
       },
+
       last30days: () => {
-        const s = new Date(now);
-        s.setDate(s.getDate() - 30);
-        return { $gte: s };
+        const start = new Date(now);
+        start.setDate(start.getDate() - 30);
+
+        return {
+          $gte: start,
+        };
       },
+
       last90days: () => {
-        const s = new Date(now);
-        s.setDate(s.getDate() - 90);
-        return { $gte: s };
+        const start = new Date(now);
+        start.setDate(start.getDate() - 90);
+
+        return {
+          $gte: start,
+        };
       },
+
       custom: () => {
         const range = {};
-        if (req.query.startDate) range.$gte = new Date(req.query.startDate);
+
+        if (req.query.startDate) {
+          range.$gte = new Date(req.query.startDate);
+        }
+
         if (req.query.endDate) {
           const end = new Date(req.query.endDate);
           end.setHours(23, 59, 59, 999);
+
           range.$lte = end;
         }
+
         return Object.keys(range).length ? range : null;
       },
     };
 
     const { dateRange } = req.query;
+
     if (dateRange && dateRangeMap[dateRange]) {
       const range = dateRangeMap[dateRange]();
-      if (range) filter.createdAt = range;
+
+      if (range) {
+        filter.createdAt = range;
+      }
     }
 
+    // Fetch Orders + Count
     const [orders, total] = await Promise.all([
       Order.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate({ path: "userId", select: "name email phone" })
-        .populate({ path: "items.product", select: "name thumbnail" })
-        // .populate({ path: "vandorId", select: "name email" })
+
+        // User Details
+        .populate({
+          path: "userId",
+          select: "name email phone",
+        })
+
+        // Product Details
+        .populate({
+          path: "items.productId",
+          select: "name thumbnail",
+        })
+
+        // Variant Details
+        .populate({
+          path: "items.variantId",
+          select: "Type price finalPrice",
+        })
+
+        // Vendor Details
+        .populate({
+          path: "items.vendorId",
+          select: "firstName lastName email phoneNumber",
+        })
+
+        // Address
+        .populate({
+          path: "shippingAddressId",
+        })
+
         .lean(),
+
       Order.countDocuments(filter),
     ]);
 
+    // Response
     const response = {
       success: true,
+
       message: "Orders fetched successfully",
+
       data: {
         orders,
+
         pagination: {
           total,
           page,
@@ -2723,8 +3341,180 @@ export const adminGetAllOrders = async (req, res, next) => {
       },
     };
 
+    // Store in Redis
     await redis.set(cacheKey, JSON.stringify(response), "EX", 120);
-    res.status(200).json(response);
+
+    return res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const adminGetOrderDetails = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const cacheKey = `admin:order-details:${orderId}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(JSON.parse(cached));
+    }
+
+    // Find order by _id or items._id
+    let order = await Order.findOne({
+      $or: [{ _id: orderId }, { "items._id": orderId }],
+    })
+      .populate({
+        path: "userId",
+        select: "name firstName lastName email phone gender",
+      })
+      .populate({
+        path: "items.productId",
+        select: "name images",
+      })
+      .populate({
+        path: "items.variantId",
+        select: "name Type moq price mrp ",
+      })
+      .populate({
+        path: "items.vendorId",
+        select: "firstName lastName email phoneNumber avgRating",
+      })
+      .populate({
+        path: "shippingAddressId",
+      })
+      .lean();
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Check if the orderId is a sub-order (item._id)
+    let isSubOrder = false;
+    let matchedItem = null;
+    if (order.items && Array.isArray(order.items)) {
+      matchedItem = order.items.find(
+        (item) => String(item?._id) === String(orderId),
+      );
+      isSubOrder = !!matchedItem;
+    }
+
+    // Format items
+    const itemsToFormat = isSubOrder ? [matchedItem] : order.items || [];
+    const formattedItems = itemsToFormat.map((item) => ({
+      itemId: item?._id || null,
+      product: item?.productId
+        ? {
+            id: item.productId?._id || null,
+            name: item.productId?.name || "N/A",
+            images: item.productId?.images || null,
+          }
+        : {
+            id: null,
+            name: "Product Deleted",
+            images: null,
+          },
+      variant: item?.variantId
+        ? {
+            id: item.variantId?._id || null,
+            type: item.variantId?.Type || "N/A",
+            price: item.variantId?.price || "N/A",
+            moq: item.variantId?.moq || "N/A",
+          }
+        : {
+            id: null,
+            name: "Variant Deleted",
+            type: "N/A",
+            price: item.variantId?.price || "N/A",
+          },
+      vendor: item?.vendorId
+        ? {
+            id: item.vendorId?._id || null,
+            name:
+              `${item.vendorId?.firstName || ""} ${item.vendorId?.lastName || ""}`.trim() ||
+              "Vendor Name Not Found",
+            email: item.vendorId?.email || "N/A",
+            phone: item.vendorId?.phoneNumber || "N/A",
+            avgRating: item.vendorId?.avgRating || 0,
+          }
+        : {
+            id: null,
+            name: "Vendor Deleted",
+            email: "N/A",
+            phone: "N/A",
+            avgRating: 0,
+          },
+      quantity: item?.quantity || 0,
+      price: item?.price || 0,
+      finalPrice: item?.finalPrice || 0,
+      vendorAmount: item?.vendorAmount || 0,
+      gstAmount: item?.gstAmount || 0,
+      deliveryFee: item?.deliveryFee || 0,
+      deliveryType: item?.deliveryType || "N/A",
+      status: item?.status || "N/A",
+    }));
+
+    // Build response
+    const response = {
+      success: true,
+      message: isSubOrder
+        ? "Sub order details fetched successfully"
+        : "Master order details fetched successfully",
+      data: {
+        isSubOrder,
+        masterOrderId: order?._id || null,
+        requestedId: orderId,
+        orderType: order?.orderType || "N/A",
+        status: order?.status || "N/A",
+        paymentStatus: order?.paymentStatus || "N/A",
+        paymentMethod: order?.paymentMethod || "N/A",
+        createdAt: order?.createdAt || null,
+        updatedAt: order?.updatedAt || null,
+        transactionId: order?.transactionId || null,
+        invoice: order?.invoice || null,
+        pricing: {
+          subTotal: order?.subTotal || 0,
+          totalDeliveryFee: order?.totalDeliveryFee || 0,
+          handlingCharge: order?.handlingCharge || 0,
+          discountAmount: order?.discountAmount || 0,
+          netAmount: order?.netAmount || 0,
+        },
+        customer: order?.userId
+          ? {
+              id: order.userId?._id || null,
+              name:
+                order.userId?.name ||
+                `${order.userId?.firstName || ""} ${order.userId?.lastName || ""}`.trim() ||
+                "N/A",
+              email: order.userId?.email || "N/A",
+              phone: order.userId?.phone || "N/A",
+              gender: order.userId?.gender || "N/A",
+            }
+          : {
+              id: null,
+              name: "User Deleted",
+              email: "N/A",
+              phone: "N/A",
+              gender: "N/A",
+            },
+        shippingAddress: order?.shippingAddressId
+          ? {
+              id: order.shippingAddressId?._id || null,
+              fullName: order.shippingAddressId?.userName || "N/A",
+              addressLine: order.shippingAddressId?.addressLine || "N/A",
+              city: order.shippingAddressId?.city || "N/A",
+              country: order.shippingAddressId?.country || "N/A",
+              location: order.shippingAddressId?.location || "N/A",
+            }
+          : null,
+        items: formattedItems,
+      },
+    };
+
+    await redis.set(cacheKey, JSON.stringify(response), "EX", 120);
+    return res.status(200).json(response);
   } catch (error) {
     next(error);
   }
@@ -3025,6 +3815,7 @@ export const createShippingLabel = async (req, res, next) => {
   }
 };
 import { addSettlement } from "../vendorShop/vendorWallet.controller.js";
+import RedisCache from "../../utils/redisCache.js";
 export const updateOrderToDelivered = async (req, res, next) => {
   const { orderId } = req.params;
   try {

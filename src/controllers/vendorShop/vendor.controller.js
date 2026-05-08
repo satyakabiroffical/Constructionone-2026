@@ -1,4 +1,4 @@
-//asgr
+//asgrDevv
 import {
   VendorProfile,
   VendorCompany,
@@ -15,6 +15,7 @@ import productModel from "../../models/vendorShop/product.model.js";
 import mongoose from "mongoose";
 import refreshTokenModel from "../../models/vendorShop/refreshToken.model.js";
 import VendorBankAccount from "../../models/vendorShop/vendorBankAccount.model.js";
+
 //vendor auth
 export const vendorAuth = async (req, res) => {
   try {
@@ -44,7 +45,6 @@ export const vendorAuth = async (req, res) => {
       lastSentAt: new Date(),
     };
 
-    // ✅ USER EXISTS
     if (user) {
       // Admin verified → LOGIN
       if (user.isAdminVerified) {
@@ -555,14 +555,15 @@ export const upsertVendorInfo = async (req, res) => {
   }
 };
 
+//vendor profile with company details
 export const getVendorProfile = async (req, res, next) => {
   try {
     const cacheKey = `vendor:v1:${JSON.stringify(req.query)}`;
     const cached = await RedisCache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    // const vendorProfileId = req.user.id;
-    const { vendorId } = req.params;
+    const vendorId = req.user.id;
+    // const { vendorId } = req.params; testing
     const vendor = await VendorCompany.findOne({ vendorId: vendorId })
       .populate({
         path: "vendorId",
@@ -743,123 +744,6 @@ export const logoutVendor = async (req, res, next) => {
   }
 };
 
-//vendor add Shop details
-// export const upsertVendorCompanyInfo = async (req, res) => {
-//   try {
-//     const { vendorId, ...companyData } = req.body;
-
-//     if (req.files) {
-//       if (req.files.shopImages) {
-//         companyData.shopImages = req.files.shopImages.map(
-//           (file) => file.location,
-//         );
-//       }
-
-//       if (req.files.certificates) {
-//         companyData.certificates = req.files.certificates.map(
-//           (file) => file.location,
-//         );
-//       }
-
-//       if (req.files.cancelledCheque) {
-//         companyData.cancelledCheque = req.files.cancelledCheque[0].location;
-//       }
-//     }
-
-//     await VendorCompany.create({
-//       vendorId,
-//       ...companyData,
-//     });
-//     const vendor = await VendorProfile.findById(vendorId);
-//     vendor.isProfileCompleted = true;
-//     await vendor.save();
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Company details saved successfully",
-//       data: companyData,
-//     });
-//   } catch (e) {
-//     return res.status(500).json({
-//       success: false,
-//       error: e.message,
-//     });
-//   }
-// };
-
-//bank details issues!
-// import VendorBankAccount from "../models/vendorBankAccount.model.js";
-// export const upsertVendorCompanyInfo = async (req, res) => {
-//   try {
-//     const { vendorId, bankDetails, ...companyData } = req.body;
-
-//     // Handle files
-//     if (req.files) {
-//       if (req.files.shopImages) {
-//         companyData.shopImages = req.files.shopImages.map(
-//           (file) => file.location
-//         );
-//       }
-
-//       if (req.files.certificates) {
-//         companyData.certificates = req.files.certificates.map(
-//           (file) => file.location
-//         );
-//       }
-
-//       if (req.files.cancelledCheque) {
-//         companyData.cancelledCheque =
-//           req.files.cancelledCheque[0].location;
-//       }
-//     }
-
-//     // Save Company
-//     const company = await VendorCompany.create({
-//       vendorId,
-//       ...companyData,
-//     });
-
-//     //  Save Bank (IMPORTANT)
-//     if (bankDetails) {
-//       const {
-//         accountHolderName,
-//         accountNumber,
-//         ifscCode,
-//         bankName,
-//       } = bankDetails;
-
-//       // check existing bank count
-//       const count = await VendorBankAccount.countDocuments({ vendorId });
-
-//       await VendorBankAccount.create({
-//         vendorId,
-//         accountHolderName,
-//         accountNumber,
-//         ifscCode,
-//         bankName,
-//         isDefault: count === 0, // first bank auto default
-//       });
-//     }
-
-//     // 🟢 Update Vendor Profile
-//     const vendor = await VendorProfile.findById(vendorId);
-//     vendor.isProfileCompleted = true;
-//     await vendor.save();
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Company & bank details saved successfully",
-//       data: company,
-//     });
-//   } catch (e) {
-//     return res.status(500).json({
-//       success: false,
-//       error: e.message,
-//     });
-//   }
-// };
-//update Shop details
-
 export const upsertVendorCompanyInfo = async (req, res) => {
   try {
     if (req.body.bankDetails && typeof req.body.bankDetails === "string") {
@@ -993,7 +877,6 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
     });
   }
 };
-
 //admin access functions
 export const getAllVendors = async (req, res) => {
   try {
@@ -1421,43 +1304,6 @@ export const getAllVendorsViaModuleId = async (req, res) => {
   }
 };
 
-// export const getVendorById = async (req, res) => {
-//   try {
-//     const { vendorId } = req.params;
-
-//     const cacheKey = `vendor:id:v1:${vendorId}`;
-//     const cached = await RedisCache.get(cacheKey);
-//     if (cached) return res.status(200).json(cached);
-
-//     const vendor = await VendorCompany.findOne({ vendorId })
-//       .populate({
-//         path: "vendorId",
-//         select: "-password -phoneOtp -aadharOtp -__v",
-//       })
-//       .lean();
-
-//     if (!vendor) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Vendor not found",
-//       });
-//     }
-//     const response = { success: true, data: vendor };
-//     await RedisCache.set(cacheKey, response);
-
-//     return res.status(200).json({
-//       success: true,
-//       data: vendor,
-//     });
-//   } catch (error) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "Invalid vendor ID",
-//     });
-//   }
-// };
-
-//list of unverified vendors for admin
 export const getUnverifiedVendors = async (req, res, next) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -1656,9 +1502,47 @@ export const removeMultipleBadgesByAdmin = async (req, res, next) => {
   }
 };
 //eneble/disable vendor profile
+// export const disableVendorStatus = async (req, res, next) => {
+//   try {
+//     const { vendorId } = req.params;
+//     const vendor = await VendorProfile.findById(vendorId);
+
+//     if (!vendor) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Vendor not found",
+//       });
+//     }
+//     vendor.disable = !vendor.disable;
+//     await vendor.save();
+//     // await RedisCache.delete(`vendor:id:v1:${vendorId}`);
+//     // await RedisCache.delete("vendors:all:v1:*");
+//     // await RedisCache.deletePattern("vendors:all:v1:*");
+
+//     await Promise.all([
+//       RedisCache.delete(`vendor:${vendorId}`), // single vendor
+//       RedisCache.delete(`vendor:id:v1:${vendorId}`), // vendor detail cache
+//       RedisCache.deletePattern("vendors:all:v1:*"), // all list caches
+//       RedisCache.deletePattern("vendorCompany:all:v2:*"), // all list caches
+//     ]);
+//     return res.status(200).json({
+//       success: true,
+//       message: `Vendor status disable ${vendor.disable ? "true" : "false"}`,
+//       data: {
+//         name: `${vendor.firstName} ${vendor.lastName}`,
+//         phoneNumber: vendor.phoneNumber,
+//         email: vendor.email,
+//       },
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const disableVendorStatus = async (req, res, next) => {
   try {
     const { vendorId } = req.params;
+
     const vendor = await VendorProfile.findById(vendorId);
 
     if (!vendor) {
@@ -1667,158 +1551,53 @@ export const disableVendorStatus = async (req, res, next) => {
         message: "Vendor not found",
       });
     }
+
+    // toggle vendor status
     vendor.disable = !vendor.disable;
+
     await vendor.save();
-    // await RedisCache.delete(`vendor:id:v1:${vendorId}`);
-    // await RedisCache.delete("vendors:all:v1:*");
-    // await RedisCache.deletePattern("vendors:all:v1:*");
+
+    // ======================================================
+    // Disable/Enable all products of this vendor
+    // ======================================================
+
+    await Product.updateMany(
+      { vendorId: vendor._id },
+      {
+        $set: {
+          disable: vendor.disable,
+        },
+      },
+    );
+
+    // ======================================================
+    // CLEAR CACHE
+    // ======================================================
 
     await Promise.all([
-      RedisCache.delete(`vendor:${vendorId}`), // single vendor
-      RedisCache.delete(`vendor:id:v1:${vendorId}`), // vendor detail cache
-      RedisCache.deletePattern("vendors:all:v1:*"), // all list caches
-      RedisCache.deletePattern("vendorCompany:all:v2:*"), // all list caches
+      RedisCache.delete(`vendor:${vendorId}`),
+      RedisCache.delete(`vendor:id:v1:${vendorId}`),
+      RedisCache.deletePattern("vendors:all:v1:*"),
+      RedisCache.deletePattern("vendorCompany:all:v2:*"),
+      // product cache bhi clear kr do
+      RedisCache.deletePattern("products:*"),
     ]);
+
     return res.status(200).json({
       success: true,
-      message: `Vendor status disable ${vendor.disable ? "true" : "false"}`,
+      message: `Vendor status changed to ${vendor.disable}`,
       data: {
         name: `${vendor.firstName} ${vendor.lastName}`,
         phoneNumber: vendor.phoneNumber,
         email: vendor.email,
+        vendorDisabled: vendor.disable,
       },
     });
   } catch (error) {
     next(error);
   }
 };
-//vendorshop - catogry
-// export const getCategoriesByVendorId = async (req, res) => {
-//   const vendorId = req.params.vendorId;
-//   const categories = await productModel.aggregate([
-//     {
-//       $match: {
-//         vendorId: new mongoose.Types.ObjectId(vendorId),
-//       },
-//     },
-//     {
-//       $group: {
-//         _id: "$categoryId",
-//       },
-//     },
-//     {
-//       $lookup: {
-//         from: "categories",
-//         localField: "_id",
-//         foreignField: "_id",
-//         as: "category",
-//       },
-//     },
-//     { $unwind: "$category" },
-//     { $replaceRoot: { newRoot: "$category" } },
-//   ]);
-//   res.status(200).json({
-//     data: categories.map((category) => ({
-//       id: category._id,
-//       name: category.name,
-//       image: category.image,
-//     })),
-//   });
-// };
 
-//with variant type filter BULK or RETAIL categories
-// export const getCategoriesByVendorId = async (req, res) => {
-//   try {
-//     const { vendorId } = req.params;
-//     const { type } = req.query;
-
-//     // ✅ validate
-//     if (!vendorId) {
-//       return res.status(400).json({ message: "vendorId required" });
-//     }
-
-//     if (!type || !["BULK", "RETAIL"].includes(type)) {
-//       return res.status(400).json({
-//         message: "Type must be BULK or RETAIL",
-//       });
-//     }
-
-//     const categories = await productModel.aggregate([
-//       {
-//         $match: {
-//           vendorId: new mongoose.Types.ObjectId(vendorId),
-//           disable: false,
-//         },
-//       },
-
-//       {
-//         $lookup: {
-//           from: "variants",
-//           let: { productId: "$_id" },
-//           pipeline: [
-//             {
-//               $match: {
-//                 $expr: { $eq: ["$productId", "$$productId"] },
-//                 disable: false,
-//                 Type: type,
-//                 // price: { $gt: 0 }, // remove invalid
-//               },
-//             },
-//             { $limit: 1 },
-//           ],
-//           as: "variant",
-//         },
-//       },
-
-//       {
-//         $match: {
-//           variant: { $ne: [] },
-//         },
-//       },
-
-//       {
-//         $group: {
-//           _id: "$categoryId",
-//         },
-//       },
-
-//       {
-//         $lookup: {
-//           from: "categories",
-//           localField: "_id",
-//           foreignField: "_id",
-//           as: "category",
-//         },
-//       },
-//       { $unwind: "$category" },
-
-//       // optional: only active categories
-//       {
-//         $match: {
-//           "category.isActive": true,
-//         },
-//       },
-
-//       {
-//         $project: {
-//           _id: 0,
-//           id: "$category._id",
-//           name: "$category.name",
-//           image: "$category.image",
-//         },
-//       },
-//     ]);
-
-//     res.status(200).json({
-//       success: true,
-//       results: categories.length,
-//       data: categories,
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: "Something went wrong" });
-//   }
-// };
 export const getCategoriesByVendorId = async (req, res) => {
   try {
     const { vendorId } = req.params;

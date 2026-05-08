@@ -9,148 +9,49 @@ import Variant from "../../models/vendorShop/variant.model.js";
 import Review from "../../models/user/review.model.js";
 import Category from "../../models/category/category.model.js";
 
-//old withour session
-// export const addSettlement = async (vendorId, orderId, amount) => {
-//   const wallet = await Wallet.findOne({ vendorId });
-//   if (!wallet) return;
-
-//   // wallet hold balance update
-//   wallet.onHoldBalance += amount;
-//   wallet.totalBalance += amount;
-//   await wallet.save();
-
-//   // transaction create
-//   const transaction = await vendorTransactionModel.create({
-//     vendorId,
-//     type: "ORDER_SETTLEMENT",
-//     amount,
-//     orderId,
-//     status: "HOLD",
-//     description: `Order ${orderId} settlement`,
-//   });
-
-//   // BullMQ settlement job
-//   const job = await settlementQueue.add(
-//     "walletSettlement",
-//     {
-//       vendorId,
-//       amount,
-//       transactionId: transaction._id,
-//     },
-//     {
-//       delay: 7 * 24 * 60 * 60 * 1000, // 7 days
-//     },
-//   );
-
-//   // save jobId
-//   transaction.settlementJobId = job.id;
-//   await transaction.save();
-// };
-
-// settlement trigger
-//   if (status === "DELIVERED") {
-//     await addSettlement(
-//       order.vendorId,
-//       order._id,
-//       order.amount
-//     );
-
-//   }
-
-// ----------->
-// DELIVERED
-// ↓
-// RETURN_REQUESTED
-// ↓
-// RETURNED
-
-// const job = await settlementQueue.getJob(transaction.settlementJobId);
-// if (job) {
-//   await job.remove();
-// }
-
-// ya ye flow
-// const tx = await vendorTransactionModel.findOne({ orderId });
-// if (tx?.settlementJobId) {
-//   const job = await settlementQueue.getJob(tx.settlementJobId);
-//   if (job) {
-//     await job.remove();
-//   }
-// }
-
-//order status delevered approved then call this function.
-
-// ------------|urgent|
-// export const addSettlement = async (vendorId, orderId, amount) => {
-//   const session = await mongoose.startSession();
-
-//   try {
-//     session.startTransaction();
-//     // Find wallet within transaction
-//     const wallet = await Wallet.findOne({ vendorId }).session(session);
-//     if (!wallet) {
-//       await session.abortTransaction();
-//       throw new Error("Wallet not found");
-//     }
-
-//     // Update wallet balances
-//     wallet.onHoldBalance += amount;
-//     wallet.totalBalance += amount;
-//     await wallet.save({ session });
-
-//     // Create transaction record
-//     const [transaction] = await vendorTransactionModel.create(
-//       [
-//         {
-//           vendorId,
-//           type: "ORDER_SETTLEMENT",
-//           amount,
-//           orderId,
-//           status: "HOLD",
-//           description: `Order ${orderId} settlement`,
-//         },
-//       ],
-//       { session },
-//     );
-//     await session.commitTransaction();
-//     session.endSession();
-//     // BullMQ settlement job (outside transaction - can't roll this back)
-//     const job = await settlementQueue.add(
-//       "walletSettlement",
-//       {
-//         vendorId,
-//         amount,
-//         transactionId: transaction._id,
-//       },
-//       {
-//         delay: 7 * 24 * 60 * 60 * 1000, // 7 days
-//       },
-//     );
-
-//     // Update transaction with jobId
-//     transaction.settlementJobId = job.id;
-//     // await transaction.save({ session });
-//     await transaction.save();
-//     // Commit all database changes
-//     // await session.commitTransaction();
-//     return transaction;
-//   } catch (error) {
-//     // Rollback all database changes
-//     await session.abortTransaction();
-//     console.error("Settlement failed:", error);
-//     throw error;
-//   } finally {
-//     session.endSession();
-//   }
-// };
-
 export const addSettlement = async (vendorId, orderId, amount, session) => {
-  const wallet = await Wallet.findOne({ vendorId }).session(session);
-  if (!wallet) throw new Error("Wallet not found");
+  // ======================================================
+  // VALIDATION
+  // ======================================================
+  console.log(vendorId, orderId, amount);
+  if (!amount || amount <= 0) {
+    throw new Error("Invalid settlement amount");
+  }
+
+  // ======================================================
+  // GET OR CREATE WALLET
+  // ======================================================
+
+  const wallet = await Wallet.findOneAndUpdate(
+    { vendorId },
+    {
+      $setOnInsert: {
+        vendorId,
+        totalBalance: 0,
+        availableBalance: 0,
+        onHoldBalance: 0,
+      },
+    },
+
+    {
+      new: true,
+      upsert: true,
+      session,
+    },
+  );
+
+  // ======================================================
+  // UPDATE WALLET
+  // ======================================================
 
   wallet.onHoldBalance += amount;
   wallet.totalBalance += amount;
+
   await wallet.save({ session });
+
+  // ======================================================
+  // CREATE TRANSACTION
+  // ======================================================
 
   const [transaction] = await vendorTransactionModel.create(
     [
@@ -166,7 +67,11 @@ export const addSettlement = async (vendorId, orderId, amount, session) => {
     { session },
   );
 
-  //  BullMQ always outside transaction
+  // ======================================================
+  // BULLMQ JOB
+  // OUTSIDE MONGODB TRANSACTION
+  // ======================================================
+
   const job = await settlementQueue.add(
     "walletSettlement",
     {
@@ -176,14 +81,62 @@ export const addSettlement = async (vendorId, orderId, amount, session) => {
     },
     {
       delay: 7 * 24 * 60 * 60 * 1000,
+      jobId: `settlement-${transaction._id}`,
+
+      removeOnComplete: true,
+      removeOnFail: false,
     },
   );
 
+  // ======================================================
+  // SAVE JOB ID
+  // ======================================================
+
   transaction.settlementJobId = job.id;
-  await transaction.save();
+  await transaction.save({ session });
 
   return transaction;
 };
+// export const addSettlement = async (vendorId, orderId, amount, session) => {
+//   const wallet = await Wallet.findOne({ vendorId }).session(session);
+//   if (!wallet) throw new Error("Wallet not found");
+
+//   wallet.onHoldBalance += amount;
+//   wallet.totalBalance += amount;
+//   await wallet.save({ session });
+
+//   const [transaction] = await vendorTransactionModel.create(
+//     [
+//       {
+//         vendorId,
+//         type: "ORDER_SETTLEMENT",
+//         amount,
+//         orderId,
+//         status: "HOLD",
+//         description: `Order ${orderId} settlement`,
+//       },
+//     ],
+//     { session },
+//   );
+
+//   //  BullMQ always outside transaction
+//   const job = await settlementQueue.add(
+//     "walletSettlement",
+//     {
+//       vendorId,
+//       amount,
+//       transactionId: transaction._id,
+//     },
+//     {
+//       delay: 7 * 24 * 60 * 60 * 1000,
+//     },
+//   );
+
+//   transaction.settlementJobId = job.id;
+//   await transaction.save();
+
+//   return transaction;
+// };
 
 //order cancel or  return approve then call this function.
 // export const cancelSettlement = async (vendorId, orderId) => {

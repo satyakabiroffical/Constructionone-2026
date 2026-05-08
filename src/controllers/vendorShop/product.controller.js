@@ -2295,6 +2295,232 @@ class ProductController {
       });
     }
   }
-}
 
+  static async getProductsByBrand(req, res) {
+    try {
+      const { brandId } = req.params;
+      const { page = 1, limit = 10, Type } = req.query;
+
+      const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}`;
+      const cachedData = await RedisCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(JSON.parse(cachedData));
+      }
+
+      const skip = (page - 1) * limit;
+
+      // 2. BASE FILTER
+      const filter = { brandId };
+
+      // 3. TYPE FILTER (BULK / RETAIL)
+      // We find variant IDs matching the type, then filter products whose defaultVariantId is in that list
+      if (Type) {
+        const variantIds = await Variant.find({
+          Type: { $regex: new RegExp(`^${Type}$`, "i") },
+        }).distinct("_id");
+
+        filter["defaultVariantId"] = { $in: variantIds };
+      }
+
+      // 4. EXECUTE QUERIES (Parallelized for performance)
+      const [products, total] = await Promise.all([
+        Product.find(filter)
+          .select(
+            "name images avgRating reviewCount slug properties vendorId defaultVariantId",
+          )
+          .populate({
+            path: "vendorId",
+            select: "firstName lastName",
+          })
+          .populate({
+            path: "defaultVariantId",
+            select:
+              "price discount Type discount mrp stock moq packageWeight packageDimensions",
+          })
+          .skip(skip)
+          .limit(Number(limit))
+          .lean(), // Using .lean() for faster read-only performance
+        Product.countDocuments(filter),
+      ]);
+
+      // 5. FORMAT RESPONSE
+      const formattedProducts = products.map((p) => ({
+        id: p._id,
+        name: p.name,
+        images: p.images,
+        avgRating: p.avgRating,
+        reviewCount: p.reviewCount,
+        slug: p.slug,
+        properties: p.properties,
+        vendor: {
+          firstName: p.vendorId?.firstName || null,
+          lastName: p.vendorId?.lastName || null,
+        },
+        price: p.defaultVariantId?.price ?? null,
+        mrp: p.defaultVariantId?.mrp ?? null,
+        discount: p.defaultVariantId?.discount ?? 0,
+        type: p.defaultVariantId?.Type ?? null,
+        packageWeight: p.defaultVariantId?.packageWeight ?? null,
+        moq: p.defaultVariantId?.moq ?? null,
+      }));
+
+      const response = {
+        success: true,
+        page: Number(page),
+        totalPages: Math.ceil(total / limit),
+        totalProducts: total,
+        products: formattedProducts,
+      };
+
+      // 6. SET CACHE (Expiring in 5 minutes)
+      await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+
+      return res.json(response);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+      });
+    }
+  }
+
+  // static async getDailyHotDeals(req, res) {
+  //   try {
+  //     const today = new Date().setHours(0, 0, 0, 0); // Aaj ki date ka midnight timestamp
+
+  //     // Redis Cache for 24 Hours
+  //     const cacheKey = `daily_deals_${today}`;
+  //     const cached = await RedisCache.get(cacheKey);
+  //     if (cached) return res.json(JSON.parse(cached));
+
+  //     // Pipeline: High discount wale products uthao aur random 10 dikhao
+  //     const products = await Product.aggregate([
+  //       { $match: { avgRating: { $gte: 4 } } },
+  //       {
+  //         $lookup: {
+  //           from: "variants",
+  //           localField: "defaultVariantId",
+  //           foreignField: "_id",
+  //           as: "variant",
+  //         },
+  //       },
+  //       { $unwind: "$variant" },
+  //       { $match: { "variant.discount": { $gte: 20 } } }, // 20% + discount
+  //       { $sample: { size: 10 } }, // Randomly pick 10 products
+  //       {
+  //         $project: {
+  //           name: 1,
+  //           slug: 1,
+  //           price: "$variant.price",
+  //           mrp: "$variant.mrp",
+  //           discount: "$variant.discount",
+  //           images: { $arrayElemAt: ["$images", 0] },
+  //         },
+  //       },
+  //     ]);
+
+  //     const response = { success: true, date: new Date(), products };
+
+  //     // Cache it until the end of the day (86400 seconds = 24h)
+  //     await RedisCache.set(cacheKey, JSON.stringify(response), 86400);
+
+  //     return res.json(response);
+  //   } catch (error) {
+  //     return res.status(500).json({ success: false, message: error.message });
+  //   }
+  // }
+
+  static async getDailyHotDeals(req, res) {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const cacheKey = `daily_deals:${today}`;
+      // 1. Cache Check
+      const cached = await RedisCache.get(cacheKey);
+      if (cached) return res.json(JSON.parse(cached));
+
+      let products = await Product.aggregate([
+        {
+          $match: {
+            varified: true,
+            disable: false,
+            status: "ACTIVE",
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $limit: 100 },
+        {
+          $lookup: {
+            from: "variants",
+            localField: "defaultVariantId",
+            foreignField: "_id",
+            as: "v",
+          },
+        },
+        { $unwind: "$v" },
+        {
+          $match: {
+            $or: [{ "v.discount": { $gte: 5 } }, { avgRating: { $gte: 4 } }],
+          },
+        },
+        { $sample: { size: 10 } },
+        {
+          $project: {
+            id: "$_id",
+            name: 1,
+            defaultVariantId: 1,
+            slug: 1,
+            images: 1,
+            avgRating: 1,
+            reviewCount: 1,
+            price: "$v.price",
+            mrp: "$v.mrp",
+            discount: "$v.discount",
+            type: "$v.Type",
+          },
+        },
+      ]);
+
+      if (!products || products.length === 0) {
+        const fallbackItems = await Product.find({
+          varified: true,
+          disable: false,
+        })
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .populate("defaultVariantId")
+          .lean();
+
+        products = fallbackItems.map((p) => ({
+          // id: p._id,
+          defaultVariantId: p.defaultVariantId,
+          name: p.name,
+          slug: p.slug,
+          images: p.images,
+          avgRating: p.avgRating,
+          price: p.defaultVariantId?.price || 0,
+          mrp: p.defaultVariantId?.mrp || 0,
+          discount: p.defaultVariantId?.discount || 0,
+          type: p.defaultVariantId?.Type || null,
+        }));
+      }
+
+      const response = {
+        success: true,
+        count: products.length,
+        date: new Date(),
+        products,
+      };
+
+      // Cache results
+      if (products.length > 0) {
+        await RedisCache.set(cacheKey, JSON.stringify(response), 86400);
+      }
+
+      return res.json(response);
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+}
 export default ProductController;

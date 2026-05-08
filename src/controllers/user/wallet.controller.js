@@ -119,9 +119,8 @@ export const verifyWalletTopup = async (req, res) => {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
       req.body;
     console.log(req.body);
-    const userId = req.user._id;
+    const userId = req.user.id;
     // const userId = "6992ebf155e45f668bce5b09";
-
     const body = razorpay_order_id + "|" + razorpay_payment_id;
 
     const expectedSignature = crypto
@@ -140,7 +139,7 @@ export const verifyWalletTopup = async (req, res) => {
       })
       .session(session);
 
-    // console.log(transaction);
+  
 
     if (!transaction) {
       throw new Error("Transaction not found");
@@ -161,13 +160,12 @@ export const verifyWalletTopup = async (req, res) => {
     transaction.razorpayPaymentId = razorpay_payment_id;
     transaction.razorpaySignature = razorpay_signature;
     transaction.paymentMethod = "ONLINE";
-
     await transaction.save({ session });
 
     await session.commitTransaction();
     session.endSession();
 
-    const cacheKey = `wallet:${userId}`;
+    const cacheKey = `wallet:history:${userId}:`;
     await redis.del(cacheKey);
 
     return res.status(200).json({
@@ -187,7 +185,7 @@ export const verifyWalletTopup = async (req, res) => {
 
 export const getWalletHistory = async (req, res, next) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;

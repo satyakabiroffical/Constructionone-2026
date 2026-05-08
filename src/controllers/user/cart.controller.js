@@ -927,9 +927,129 @@ export const checkoutPreview = async (req, res, next) => {
 // METHOD 2: SELECT DELIVERY TYPE → SHOW DELIVERY FEE
 // ============================================
 
+// export const calculateDeliveryFee = async (req, res, next) => {
+//   try {
+//     const userId = req.user.id;
+//     const { addressId, items } = req.body;
+
+//     /**
+//      * req.body
+//      *
+//      * {
+//      *   "addressId": "...",
+//      *   "items": [
+//      *     {
+//      *       "variantId": "...",
+//      *       "deliveryType": "vendor"
+//      *     }
+//      *   ]
+//      * }
+//      */
+
+//     if (!addressId || !items?.length) {
+//       throw new APIError(400, "addressId and items are required");
+//     }
+
+//     const address = await Address.findOne({
+//       _id: addressId,
+//       userId,
+//     });
+
+//     if (!address) {
+//       throw new APIError(404, "Address not found");
+//     }
+//     const cart = await Cart.findOne({ userId }).populate({
+//       path: "items.variant",
+//       populate: {
+//         path: "productId",
+//         model: "Product",
+//         select: `
+//       name images
+//       shippingCharges
+//       deliveryCharges
+//       vendorLocation
+//       vendorId
+//       deliveryOptions
+//       serviceableDeliveryPincode
+//         `,
+//       },
+//     });
+
+//     if (!cart || !cart.items.length) {
+//       throw new APIError(400, "Cart is empty");
+//     }
+
+//     const comapnyBillSummary = await calculateBillSummary(cart.items);
+//     let subtotal = 0;
+//     let totalDeliveryFee = 0;
+//     const finalItems = [];
+
+//     for (const cartItem of cart.items) {
+//       const variant = cartItem.variant;
+//       const product = variant.productId;
+//       const selected = items.find(
+//         (i) => i.variantId === variant._id.toString(),
+//       );
+
+//       if (!selected) continue;
+
+//       const itemTotal = cartItem.quantity * cartItem.unitPrice;
+//       subtotal += itemTotal;
+//       const result = await calculateSingleItemDeliveryFee({
+//         product,
+//         variant,
+//         quantity: cartItem.quantity,
+//         userAddress: address.location,
+//         deliveryType: selected.deliveryType,
+//       });
+//       totalDeliveryFee += result.deliveryFee;
+
+//       finalItems.push({
+//         productId: product._id,
+//         variantId: variant._id,
+//         productName: product.name,
+//         vendorId: product.vendorId,
+//         productImage: product.images,
+//         quantity: cartItem.quantity,
+//         itemTotal,
+//         deliveryType: selected.deliveryType,
+//         durationTime: result.duration,
+
+//         distance: {
+//           km: result.distanceKm || 0,
+//           meter: result.distanceMeter || 0,
+//         },
+//         deliveryFee: result.deliveryFee,
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Delivery fee calculated successfully",
+
+//       billSummary: {
+//         subtotal,
+//         deliveryFee: totalDeliveryFee,
+//         gstAmount: comapnyBillSummary.gstAmount,
+//         taxPercentage: comapnyBillSummary.taxPercentage,
+//         handlingCharge: comapnyBillSummary.handlingCharge,
+//         grandTotal:
+//           subtotal +
+//           totalDeliveryFee +
+//           comapnyBillSummary.gstAmount +
+//           comapnyBillSummary.handlingCharge,
+//       },
+//       items: finalItems,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const calculateDeliveryFee = async (req, res, next) => {
   try {
     const userId = req.user.id;
+
     const { addressId, items } = req.body;
 
     /**
@@ -950,6 +1070,10 @@ export const calculateDeliveryFee = async (req, res, next) => {
       throw new APIError(400, "addressId and items are required");
     }
 
+    // ======================================================
+    // ADDRESS
+    // ======================================================
+
     const address = await Address.findOne({
       _id: addressId,
       userId,
@@ -958,19 +1082,26 @@ export const calculateDeliveryFee = async (req, res, next) => {
     if (!address) {
       throw new APIError(404, "Address not found");
     }
+
+    // ======================================================
+    // CART
+    // ======================================================
+
     const cart = await Cart.findOne({ userId }).populate({
       path: "items.variant",
       populate: {
         path: "productId",
         model: "Product",
         select: `
-      name images
-      shippingCharges
-      deliveryCharges
-      vendorLocation
-      vendorId
-      deliveryOptions
-      serviceableDeliveryPincode
+          name
+          images
+          shippingCharges
+          deliveryCharges
+          vendorLocation
+          vendorId
+          deliveryOptions
+          serviceableDeliveryPincode
+          measurementUnit
         `,
       },
     });
@@ -979,22 +1110,51 @@ export const calculateDeliveryFee = async (req, res, next) => {
       throw new APIError(400, "Cart is empty");
     }
 
+    // ======================================================
+    // COMPANY BILL SUMMARY
+    // ======================================================
+
     const comapnyBillSummary = await calculateBillSummary(cart.items);
+
+    // ======================================================
+    // TOTALS
+    // ======================================================
+
     let subtotal = 0;
+
     let totalDeliveryFee = 0;
+
+    let totalGST = 0;
+
     const finalItems = [];
+
+    // ======================================================
+    // LOOP ITEMS
+    // ======================================================
 
     for (const cartItem of cart.items) {
       const variant = cartItem.variant;
+
       const product = variant.productId;
+
       const selected = items.find(
         (i) => i.variantId === variant._id.toString(),
       );
 
       if (!selected) continue;
 
-      const itemTotal = cartItem.quantity * cartItem.unitPrice;
+      // ======================================================
+      // PRODUCT TOTAL
+      // ======================================================
+
+      const itemTotal = Number(cartItem.quantity) * Number(cartItem.unitPrice);
+
       subtotal += itemTotal;
+
+      // ======================================================
+      // DELIVERY CALCULATION
+      // ======================================================
+
       const result = await calculateSingleItemDeliveryFee({
         product,
         variant,
@@ -1002,43 +1162,102 @@ export const calculateDeliveryFee = async (req, res, next) => {
         userAddress: address.location,
         deliveryType: selected.deliveryType,
       });
-      totalDeliveryFee += result.deliveryFee;
+
+      totalDeliveryFee += Number(result.deliveryFee || 0);
+
+      // ======================================================
+      // GST
+      // ======================================================
+
+      const gstAmount = (itemTotal * comapnyBillSummary.taxPercentage) / 100;
+
+      totalGST += gstAmount;
+
+      // ======================================================
+      // VENDOR AMOUNT
+      // Product + vendor/self delivery
+      // Logistic excluded
+      // ======================================================
+
+      let vendorAmount = itemTotal;
+
+      if (
+        selected.deliveryType === "self" ||
+        selected.deliveryType === "vendor"
+      ) {
+        vendorAmount += Number(result.deliveryFee || 0);
+      }
+
+      // ======================================================
+      // FINAL ITEM
+      // ======================================================
 
       finalItems.push({
         productId: product._id,
+
         variantId: variant._id,
+
         productName: product.name,
+
         vendorId: product.vendorId,
+
         productImage: product.images,
+
         quantity: cartItem.quantity,
-        itemTotal,
+
+        unitPrice: Number(cartItem.unitPrice.toFixed(2)),
+
+        finalPrice: Number(itemTotal.toFixed(2)),
+
         deliveryType: selected.deliveryType,
+
         durationTime: result.duration,
 
         distance: {
-          km: result.distanceKm || 0,
-          meter: result.distanceMeter || 0,
+          km: Number((result.distanceKm || 0).toFixed(2)),
+
+          meter: Number((result.distanceMeter || 0).toFixed(2)),
         },
-        deliveryFee: result.deliveryFee,
+
+        deliveryFee: Number((result.deliveryFee || 0).toFixed(2)),
+
+        gstAmount: Number(gstAmount.toFixed(2)),
+
+        vendorAmount: Number(vendorAmount.toFixed(2)),
       });
     }
 
+    // ======================================================
+    // GRAND TOTAL
+    // ======================================================
+
+    const handlingCharge = Number(comapnyBillSummary.handlingCharge || 0);
+
+    const grandTotal = subtotal + totalDeliveryFee + totalGST + handlingCharge;
+
+    // ======================================================
+    // RESPONSE
+    // ======================================================
+
     return res.status(200).json({
       success: true,
+
       message: "Delivery fee calculated successfully",
 
       billSummary: {
-        subtotal,
-        deliveryFee: totalDeliveryFee,
-        gstAmount: comapnyBillSummary.gstAmount,
+        subtotal: Number(subtotal.toFixed(2)),
+
+        deliveryFee: Number(totalDeliveryFee.toFixed(2)),
+
+        gstAmount: Number(totalGST.toFixed(2)),
+
         taxPercentage: comapnyBillSummary.taxPercentage,
-        handlingCharge: comapnyBillSummary.handlingCharge,
-        grandTotal:
-          subtotal +
-          totalDeliveryFee +
-          comapnyBillSummary.gstAmount +
-          comapnyBillSummary.handlingCharge,
+
+        handlingCharge,
+
+        grandTotal: Number(grandTotal.toFixed(2)),
       },
+
       items: finalItems,
     });
   } catch (error) {

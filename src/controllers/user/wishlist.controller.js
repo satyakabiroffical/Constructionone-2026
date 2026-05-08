@@ -145,7 +145,11 @@ export const getWishlist = async (req, res, next) => {
       .populate({
         path: "products",
         select:
-          "name price thumbnail avgRating reviewCount status vendorId createdAt disable",
+          "name avgRating reviewCount status vendorId createdAt disable defaultVariantId images thumbnail",
+        populate: {
+          path: "defaultVariantId",
+          select: "price mrp discount type moq",
+        },
       })
       .lean();
 

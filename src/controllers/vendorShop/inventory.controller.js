@@ -88,8 +88,8 @@ import mongoose from "mongoose";
 
 export const getInventory = async (req, res, next) => {
   try {
-    const vendorId = "699c16b0e4bbd8cf25acc76b";
-    // const vendorId = req.user.id;
+    // const vendorId = "699c16b0e4bbd8cf25acc76b";
+    const vendorId = req.user.id;
 
     let {
       page = 1,
