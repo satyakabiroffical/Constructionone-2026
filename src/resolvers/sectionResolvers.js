@@ -30,13 +30,20 @@ const applySourceFilter = (filter, section) => {
 };
 
 const resolveBANNER = async (section) => {
-  return Banner.find(
+  // Fetch banners and attach dummy variantId with mrp if needed (for frontend compatibility)
+  const banners = await Banner.find(
     applySourceFilter({ moduleId: section.moduleId, isActive: true }, section),
   )
     .sort({ order: 1 })
     .limit(section.limit)
     .select("image title redirectUrl order")
     .lean();
+
+  // If frontend expects a variantId with mrp, add it as null or default
+  return banners.map((banner) => ({
+    ...banner,
+    // variantId: { mrp: null },
+  }));
 };
 
 import Variant from "../models/vendorShop/variant.model.js";
@@ -114,6 +121,7 @@ const resolvePRODUCT_LIST = async (section) => {
       variantId = {
         _id: variant._id,
         price: variant.price,
+        mrp: variant.mrp,
         stock: variant.stock,
         Type: variant.Type,
         moq: variant.moq,

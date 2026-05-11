@@ -175,7 +175,7 @@ export const approveWithdraw = async (req, res) => {
           vendorId: withdrawal.vendorId?._id || withdrawal.vendorId,
           transactionId,
           type: "WITHDRAWAL",
-          status: "SUCCESS",
+          status: "COMPLETED",
           amount: withdrawal.amount,
           description: `₹${withdrawal.amount} withdrawal approved`,
           referenceId: withdrawal._id,
@@ -411,6 +411,29 @@ export const getAdminTransactionsHistory = async (req, res) => {
       total,
       pages: Math.ceil(total / limit),
       data,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getVendorWithdrawalRequests = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+    const withdrawals = await vendorWithdrawalBalanceModel
+      .find({ vendorId })
+      .populate(
+        "bankAccountId",
+        "accountHolderName accountNumber accountType ifscCode bankName upiId",
+      )
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: withdrawals,
     });
   } catch (error) {
     res.status(500).json({

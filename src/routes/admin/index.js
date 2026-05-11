@@ -19,6 +19,7 @@ import adminReviewRoutes from "./review.routes.js";
 import trendingRoutes from "./trending.routes.js";
 import productType from "./productType.routes.js";
 import businessRequest from "./businessRequest.routes.js";
+import adminNotification from "./adminNotifications.routes.js"
 // import countryRoute from "./country.routes.js";
 
 const router = Router();
@@ -42,6 +43,7 @@ router.use("/admin/flash-sales", flashSaleRoutes);
 router.use("/admin/trending-sections", trendingRoutes);
 router.use("/tax", taxRoutes);
 router.use("/admin/order", adminOrderRoutes);
+router.use("/admin/notifications", adminNotification);
 router.use("/user", globalSearchRoutes);
 router.use("/admin/reviews", adminReviewRoutes);
 router.use("/business-request", businessRequest);

@@ -24,6 +24,7 @@ import {
   requireRole,
   requirePermission,
 } from "../../middlewares/role.middleware.js";
+import { s3Uploader } from "../../middlewares/uploads.js";
 
 const router = Router();
 
@@ -48,7 +49,12 @@ router.post("/logout", requireRole("ADMIN"), logoutAdmin);
 
 // Own profile
 router.get("/me", requireRole("ADMIN"), getAdminMe); // ← NEW: GET own profile
-router.put("/me", requireRole("ADMIN"), updateAdmin); // existing: UPDATE own profile
+router.put(
+  "/me",
+  requireRole("ADMIN"),
+  s3Uploader().fields([{ name: "profileImage", maxCount: 1 }]),
+  updateAdmin,
+); // existing: UPDATE own profile
 
 //sub-admin creation
 router.post("/sub-admin", requireAuth, requireRole("ADMIN"), createSubAdmin);

@@ -7,6 +7,7 @@ import {
   getAllWithdrawalRequests,
   downloadStatementPDF,
   getAdminTransactionsHistory,
+  getVendorWithdrawalRequests,
 } from "../../controllers/vendorShop/vendorWithdrawalBalance.controller.js";
 const router = Router();
 
@@ -30,6 +31,11 @@ router.patch(
   "/withdrawals/reject/:withdrawalId",
   adminMiddleware,
   rejectWithdraw,
+);
+router.get(
+  "/withdrawals/history",
+  vendorMiddleware,
+  getVendorWithdrawalRequests,
 );
 export default router;
 

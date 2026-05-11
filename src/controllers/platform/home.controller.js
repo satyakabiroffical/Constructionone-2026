@@ -18,7 +18,7 @@ export const getHome = catchAsync(async (req, res) => {
     const { identifier } = req.params;
 
     // 1. Cache check — fast path
-    const cacheKey = homeSectionService.homeCacheKey(identifier);
+    // const cacheKey = homeSectionService.homeCacheKey(identifier);
 
     // const cached = await RedisCache.get(cacheKey);
     // if (cached) {
@@ -29,7 +29,7 @@ export const getHome = catchAsync(async (req, res) => {
     const data = await homeSectionService.buildHome(identifier);
 
     // 3. Cache for 5 minutes
-    await RedisCache.set(cacheKey, data, 300);
+    // await RedisCache.set(cacheKey, data, 300);
 
     return res.status(200).json(new ApiResponse(200, data, 'Home fetched successfully'));
 });

@@ -554,7 +554,6 @@ export const upsertVendorInfo = async (req, res) => {
     });
   }
 };
-
 //vendor profile with company details
 export const getVendorProfile = async (req, res, next) => {
   try {
@@ -819,6 +818,16 @@ export const upsertVendorCompanyInfo = async (req, res) => {
     await VendorProfile.findByIdAndUpdate(vendorId, {
       isProfileCompleted: true,
     });
+    const vendor = await VendorProfile.findById(vendorId);
+
+    await adminNotificationModel.create({
+      title: "New Vendor Registered",
+      message: `${vendor.firstName} ${vendor.lastName} completed vendor profile. Please review and verify the account.`,
+      type: "VENDOR_CREATED",
+      vendorId: vendor._id,
+      color: "green",
+      redirectUrl: `/marketplace/vendors`,
+    });
 
     return res.status(200).json({
       success: true,
@@ -878,20 +887,277 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
   }
 };
 //admin access functions
+// export const getAllVendors = async (req, res) => {
+//   try {
+//     const page = Math.max(parseInt(req.query.page) || 1, 1);
+//     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+//     const skip = (page - 1) * limit;
+
+//     const { search, isAdminVerified, sort, disable } = req.query;
+
+//     const cacheKey = `vendors:all:v1:${JSON.stringify({ page, limit, search, isAdminVerified, sort, disable })}`;
+//     const cached = await RedisCache.get(cacheKey);
+//     if (cached) return res.status(200).json(cached);
+
+//     const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+//     const safeSearch = search ? escapeRegex(search) : null;
+
+//     // ---------------- Vendor (User) Search ----------------
+//     const vendorUserQuery = {};
+
+//     if (safeSearch) {
+//       vendorUserQuery.$or = [
+//         { firstName: { $regex: safeSearch, $options: "i" } },
+//         { lastName: { $regex: safeSearch, $options: "i" } },
+//         { email: { $regex: safeSearch, $options: "i" } },
+//         { phoneNumber: { $regex: safeSearch, $options: "i" } },
+//       ];
+//     }
+
+//     if (isAdminVerified !== undefined) {
+//       vendorUserQuery.isAdminVerified = isAdminVerified === "true";
+//     }
+
+//     if (disable !== undefined) {
+//       vendorUserQuery.disable = disable === "true";
+//     }
+//     // ---------------- Fetch matching Vendor IDs ----------------
+//     let vendorIds = [];
+//     if (Object.keys(vendorUserQuery).length > 0) {
+//       const vendors = await VendorProfile.find(vendorUserQuery).select("_id");
+//       vendorIds = vendors.map((v) => v._id);
+
+//       if (
+//         (disable !== undefined || isAdminVerified !== undefined) &&
+//         vendorIds.length === 0
+//       ) {
+//         return res.status(200).json({
+//           success: true,
+//           pagination: { total: 0, page, limit, totalPages: 0 },
+//           data: [],
+//         });
+//       }
+//     }
+//     const query = {};
+//     if (safeSearch) {
+//       query.$or = [{ companyName: { $regex: safeSearch, $options: "i" } }];
+
+//       if (vendorIds.length > 0) {
+//         query.$or.push({ vendorId: { $in: vendorIds } });
+//       }
+//     } else if (vendorIds.length > 0) {
+//       query.vendorId = { $in: vendorIds };
+//     } else if (isAdminVerified !== undefined) {
+//       return res.status(200).json({
+//         success: true,
+//         pagination: {
+//           total: 0,
+//           page,
+//           limit,
+//           totalPages: 0,
+//         },
+//         data: [],
+//       });
+//     }
+
+//     // ---------------- Sorting ----------------
+//     let sortQuery = { createdAt: -1 };
+//     if (sort === "oldest") {
+//       sortQuery = { createdAt: 1 };
+//     }
+
+//     // ---------------- DB Queries ----------------
+//     const [vendors, total] = await Promise.all([
+//       VendorCompany.find(query)
+//         .populate({
+//           path: "vendorId",
+//           select: "-password -phoneOtp -aadharOtp -__v",
+//         })
+//         .sort(sortQuery)
+//         .skip(skip)
+//         .limit(limit),
+//       VendorCompany.countDocuments(query),
+//     ]);
+
+//     // ---------------- Response ----------------
+//     const response = {
+//       success: true,
+//       pagination: {
+//         total,
+//         page,
+//         limit,
+//         totalPages: Math.ceil(total / limit),
+//       },
+//       data: vendors.map((v) => ({
+//         _id: v._id,
+//         shopName: v.companyName, // ye hi shop name hai
+//         companyType: v.companyType,
+//         badges: v.badges || [],
+//         totalReviews: v.vendorId?.totalReviews || 0,
+//         businessCategory: v.businessCategory,
+//         vendor: {
+//           _id: v.vendorId?._id,
+//           name: `${v.vendorId?.firstName || ""} ${v.vendorId?.lastName || ""}`,
+//           email: v.vendorId?.email,
+//           phoneNumber: v.vendorId?.phoneNumber,
+//           isAdminVerified: v.vendorId?.isAdminVerified,
+//           isDisabled: v.vendorId?.disable,
+//         },
+
+//         location: {
+//           address: v.businessAddress?.address,
+//         },
+
+//         createdAt: v.createdAt,
+//       })),
+//     };
+//     await RedisCache.set(cacheKey, response);
+//     return res.status(200).json({
+//       success: true,
+//       pagination: {
+//         total,
+//         page,
+//         limit,
+//         totalPages: Math.ceil(total / limit),
+//       },
+//       data: vendors,
+//     });
+//   } catch (error) {
+//     console.error("Get Vendors Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+
 export const getAllVendors = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
     const skip = (page - 1) * limit;
 
-    const { search, isAdminVerified, sort, disable } = req.query;
+    const {
+      search,
+      isAdminVerified,
+      sort,
+      disable,
+      filter, // today | yesterday | last7days | lastmonth
+      from,
+      to,
+    } = req.query;
 
-    const cacheKey = `vendors:all:v1:${JSON.stringify({ page, limit, search, isAdminVerified, sort, disable })}`;
+    const cacheKey = `vendors:all:v1:${JSON.stringify({
+      page,
+      limit,
+      search,
+      isAdminVerified,
+      sort,
+      disable,
+      filter,
+      from,
+      to,
+    })}`;
+
     const cached = await RedisCache.get(cacheKey);
     if (cached) return res.status(200).json(cached);
 
     const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const safeSearch = search ? escapeRegex(search) : null;
+
+    // ======================================================
+    // DATE FILTER
+    // ======================================================
+
+    let dateFilter = {};
+
+    // const startOfToday = new Date();
+    // startOfToday.setHours(0, 0, 0, 0);
+
+    // const endOfToday = new Date();
+    // endOfToday.setHours(23, 59, 59, 999);
+    // IST OFFSET
+    const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+
+    // CURRENT IST DATE
+    const now = new Date();
+
+    // TODAY START (IST)
+    const startOfToday = new Date(
+      new Date(now.getTime() + IST_OFFSET).setHours(0, 0, 0, 0) - IST_OFFSET,
+    );
+
+    // TODAY END (IST)
+    const endOfToday = new Date(
+      new Date(now.getTime() + IST_OFFSET).setHours(23, 59, 59, 999) -
+        IST_OFFSET,
+    );
+
+    if (filter === "today") {
+      const start = new Date();
+      start.setUTCHours(0, 0, 0, 0);
+
+      const end = new Date();
+      end.setUTCHours(23, 59, 59, 999);
+
+      dateFilter.createdAt = {
+        $gte: start,
+        $lte: end,
+      };
+    }
+
+    if (filter === "yesterday") {
+      const start = new Date();
+      start.setUTCDate(start.getUTCDate() - 1);
+      start.setUTCHours(0, 0, 0, 0);
+
+      const end = new Date();
+      end.setUTCDate(end.getUTCDate() - 1);
+      end.setUTCHours(23, 59, 59, 999);
+
+      dateFilter.createdAt = {
+        $gte: start,
+        $lte: end,
+      };
+    }
+
+    if (filter === "last7days") {
+      const last7 = new Date();
+      last7.setUTCDate(last7.getUTCDate() - 7);
+
+      dateFilter.createdAt = {
+        $gte: last7,
+      };
+    }
+
+    // LAST MONTH
+    if (filter === "lastmonth") {
+      const lastMonth = new Date();
+      lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+
+      dateFilter.createdAt = {
+        $gte: lastMonth,
+      };
+    }
+
+    // CUSTOM RANGE
+    if (from || to) {
+      dateFilter.createdAt = {};
+
+      if (from) {
+        const fromDate = new Date(from);
+        fromDate.setUTCHours(0, 0, 0, 0);
+
+        dateFilter.createdAt.$gte = fromDate;
+      }
+
+      if (to) {
+        const toDate = new Date(to);
+        toDate.setUTCHours(23, 59, 59, 999);
+
+        dateFilter.createdAt.$lte = toDate;
+      }
+    }
 
     // ---------------- Vendor (User) Search ----------------
     const vendorUserQuery = {};
@@ -912,10 +1178,13 @@ export const getAllVendors = async (req, res) => {
     if (disable !== undefined) {
       vendorUserQuery.disable = disable === "true";
     }
+
     // ---------------- Fetch matching Vendor IDs ----------------
     let vendorIds = [];
+
     if (Object.keys(vendorUserQuery).length > 0) {
       const vendors = await VendorProfile.find(vendorUserQuery).select("_id");
+
       vendorIds = vendors.map((v) => v._id);
 
       if (
@@ -929,7 +1198,11 @@ export const getAllVendors = async (req, res) => {
         });
       }
     }
-    const query = {};
+
+    const query = {
+      ...dateFilter,
+    };
+
     if (safeSearch) {
       query.$or = [{ companyName: { $regex: safeSearch, $options: "i" } }];
 
@@ -953,6 +1226,7 @@ export const getAllVendors = async (req, res) => {
 
     // ---------------- Sorting ----------------
     let sortQuery = { createdAt: -1 };
+
     if (sort === "oldest") {
       sortQuery = { createdAt: 1 };
     }
@@ -967,6 +1241,7 @@ export const getAllVendors = async (req, res) => {
         .sort(sortQuery)
         .skip(skip)
         .limit(limit),
+
       VendorCompany.countDocuments(query),
     ]);
 
@@ -979,13 +1254,15 @@ export const getAllVendors = async (req, res) => {
         limit,
         totalPages: Math.ceil(total / limit),
       },
+
       data: vendors.map((v) => ({
         _id: v._id,
-        shopName: v.companyName, // ye hi shop name hai
+        shopName: v.companyName,
         companyType: v.companyType,
         badges: v.badges || [],
         totalReviews: v.vendorId?.totalReviews || 0,
         businessCategory: v.businessCategory,
+
         vendor: {
           _id: v.vendorId?._id,
           name: `${v.vendorId?.firstName || ""} ${v.vendorId?.lastName || ""}`,
@@ -1002,26 +1279,19 @@ export const getAllVendors = async (req, res) => {
         createdAt: v.createdAt,
       })),
     };
+
     await RedisCache.set(cacheKey, response);
-    return res.status(200).json({
-      success: true,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-      data: vendors,
-    });
+
+    return res.status(200).json(response);
   } catch (error) {
     console.error("Get Vendors Error:", error);
+
     return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
-
 //users get all vendor company vadetails with filter and pagination for admin panel
 export const getAllVendorCompany = async (req, res) => {
   try {
@@ -1393,6 +1663,7 @@ export const verifyVendorByAdmin = async (req, res, next) => {
     // Update admin verification
     vendor.isAdminVerified = true;
     await vendor.save();
+
     // await RedisCache.delete(`vendor:v1:${vendorId}:*`);
     await Promise.all([
       RedisCache.delete(`vendor:v1:${vendorId}:*`),
@@ -1401,6 +1672,7 @@ export const verifyVendorByAdmin = async (req, res, next) => {
       RedisCache.deletePattern("vendors:all:v1:*"), // all list caches
       RedisCache.deletePattern("vendorCompany:all:v2:*"), // all list caches
     ]);
+    
     return res.status(200).json({
       success: true,
       message: "Vendor admin verified successfully",
@@ -1903,6 +2175,7 @@ export const getProductsByVendorAndCategory = async (req, res, next) => {
       vendorId: new mongoose.Types.ObjectId(vendorId),
       categoryId: new mongoose.Types.ObjectId(categoryId),
       disable: false,
+      varified: true,
     };
 
     if (search) {
@@ -2018,12 +2291,17 @@ export const getProductsByVendorAndCategory = async (req, res, next) => {
           reviewCount: "$products.reviewCount",
           sold: "$products.sold",
           brand: "$products.brandId.name",
-
+          outOfStock: {
+            $eq: ["$products.defaultVariant.stock", 0],
+          },
           defaultVariant: {
+            _id: "$products.defaultVariant._id",
             price: "$products.defaultVariant.price",
             mrp: "$products.defaultVariant.mrp",
             discount: "$products.defaultVariant.discount",
             Type: "$products.defaultVariant.Type",
+            moq: "$products.defaultVariant.moq",
+            stock: "$products.defaultVariant.stock",
           },
 
           createdAt: "$products.createdAt",
@@ -2131,6 +2409,7 @@ export const refreshTokenHandler = async (req, res) => {
 import Product from "../../models/vendorShop/product.model.js";
 import Order from "../../models/marketPlace/order.model.js";
 import VendorWallet from "../../models/vendorShop/vendorWallet.model.js";
+import adminNotificationModel from "../../models/admin/adminNotification.model.js";
 
 //without top product array
 // export const getVendorById = async (req, res) => {

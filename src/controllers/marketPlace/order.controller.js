@@ -1860,6 +1860,14 @@ export const createOrder = async (req, res, next) => {
     // =====================================================
 
     if (paymentMethod === "WALLET") {
+      await adminNotificationModel.create({
+        title: "New Order Created",
+        message: `A new order ${masterOrderId} has been created successfully`,
+        type: "ORDER_CREATED",
+        color: "green",
+        redirectUrl: `/marketplace/orders`,
+      });
+
       const freshMasterOrder = await Order.findById(masterOrderId);
 
       const freshSubOrders = await Order.find({
@@ -2096,6 +2104,13 @@ export const verifyPayment = async (req, res, next) => {
     // -----------------------------------
     // RESPONSE
     // -----------------------------------
+    await adminNotificationModel.create({
+      title: "New Order Created",
+      message: `A new order ${masterOrderId} has been created successfully`,
+      type: "ORDER_CREATED",
+      color: "green",
+      redirectUrl: `/marketplace/orders`,
+    });
 
     return res.status(200).json({
       success: true,
@@ -3816,6 +3831,7 @@ export const createShippingLabel = async (req, res, next) => {
 };
 import { addSettlement } from "../vendorShop/vendorWallet.controller.js";
 import RedisCache from "../../utils/redisCache.js";
+import adminNotificationModel from "../../models/admin/adminNotification.model.js";
 export const updateOrderToDelivered = async (req, res, next) => {
   const { orderId } = req.params;
   try {

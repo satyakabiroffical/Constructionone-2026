@@ -126,13 +126,30 @@ export const getAdminMe = catchAsync(async (req, res, next) => {
 
 // Update Admin Profile (Self)
 export const updateAdmin = catchAsync(async (req, res, next) => {
-  const { firstName, lastName, phone, address, gender, dob } = req.body;
+  let { firstName, lastName, phone, address, gender, dob, profileImage } =
+    req.body;
 
-  // Basic update logic
+  if (req.files?.profileImage?.[0]) {
+    const finalProfileImage =
+      req.files?.profileImage?.[0]?.location || bodyImage;
+    profileImage = finalProfileImage;
+  }
+
   const updatedAdmin = await User.findByIdAndUpdate(
     req.user.id,
-    { firstName, lastName, phone, address, gender, dob },
-    { new: true, runValidators: true },
+    {
+      firstName,
+      lastName,
+      phone,
+      address,
+      gender,
+      dob,
+      profileImage,
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
   );
 
   res.status(200).json(
@@ -145,6 +162,7 @@ export const updateAdmin = catchAsync(async (req, res, next) => {
           lastName: updatedAdmin.lastName,
           email: updatedAdmin.email,
           role: updatedAdmin.role,
+          profileImage: updatedAdmin.profileImage,
         },
       },
       "Admin profile updated successfully",
@@ -376,10 +394,7 @@ export const updateSubAdminProfile = catchAsync(async (req, res, next) => {
   if (email || phone) {
     const existingUser = await User.findOne({
       _id: { $ne: id },
-      $or: [
-        ...(email ? [{ email }] : []),
-        ...(phone ? [{ phone }] : []),
-      ],
+      $or: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])],
     });
 
     if (existingUser) {
@@ -401,7 +416,7 @@ export const updateSubAdminProfile = catchAsync(async (req, res, next) => {
     {
       new: true,
       runValidators: true,
-    }
+    },
   ).select("-password");
 
   res.status(200).json({

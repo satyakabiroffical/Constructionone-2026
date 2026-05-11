@@ -9,6 +9,7 @@ import {
   VendorCompany,
   VendorProfile,
 } from "../../models/vendorShop/vendor.model.js";
+import adminNotificationModel from "../../models/admin/adminNotification.model.js";
 
 class ProductController {
   //admingetAll
@@ -994,7 +995,7 @@ class ProductController {
       const vendorCompany = await VendorCompany.findOne({
         vendorId: req.user.id,
       })
-        .select("location")
+        .select("location companyName")
         .lean();
 
       let vendorLocation = undefined;
@@ -1115,6 +1116,14 @@ class ProductController {
         RedisCache.deletePattern("products:*"),
       ]);
 
+      await adminNotificationModel.create({
+        title: "New Product Added",
+        message: `${vendorCompany?.companyName} added new product ${product.name}`,
+        type: "PRODUCT_CREATED",
+        userId: req.user.id,
+        color: "blue",
+        redirectUrl: `/marketplace/products`,
+      });
       // =========================
       // RESPONSE
       // =========================
@@ -1338,8 +1347,11 @@ class ProductController {
       const { id } = req.params;
       const { type } = req.query;
 
-      const cacheKey = `product:v3:${id}:${type || "ALL"}`;
+      // ======================================================
+      // CACHE
+      // ======================================================
 
+      const cacheKey = `product:v4:${id}:${type || "ALL"}`;
       const cached = await RedisCache.get(cacheKey);
 
       if (cached) {
@@ -1351,7 +1363,7 @@ class ProductController {
       // ======================================================
 
       const product = await Product.findById(id)
-        .populate("brandId", "name")
+        .populate("brandId", "name logo")
         .populate("subcategoryId", "name")
         .populate("productTypeId", "typeName")
         .lean();
@@ -1361,13 +1373,13 @@ class ProductController {
       }
 
       // ======================================================
-      // VENDOR DETAILS
+      // VENDOR COMPANY
       // ======================================================
 
       const vendorCompanyData = await VendorCompany.findOne({
         vendorId: product.vendorId,
       })
-        .populate("vendorId", "firstName lastName")
+        .populate("vendorId", "firstName lastName email mobile profileImage")
         .lean();
 
       // ======================================================
@@ -1379,13 +1391,12 @@ class ProductController {
         disable: false,
       };
 
-      // if type passed
       if (type) {
         variantFilter.Type = type.toUpperCase();
       }
 
       // ======================================================
-      // FETCH VARIANTS
+      // VARIANTS
       // ======================================================
 
       const variants = await Variant.find(variantFilter)
@@ -1398,14 +1409,29 @@ class ProductController {
 
       const cleanVariants = variants.map((variant) => ({
         id: variant._id,
+
         type: variant.Type,
+
         size: variant.size,
-        price: variant.price,
-        mrp: variant.mrp,
-        discount: variant.discount,
-        stock: variant.stock,
+        outOfStock: variant.stock === 0, // ADD THIS
+        pricing: {
+          price: variant.price,
+          mrp: variant.mrp,
+          discount: variant.discount,
+          discountAmount: variant.discountAmount,
+        },
+
+        stock: {
+          availableStock: variant.stock,
+          sold: variant.sold,
+        },
+
         moq: variant.moq,
-        packageWeight: variant.packageWeight,
+
+        package: {
+          weight: variant.packageWeight,
+          dimensions: variant.packageDimensions,
+        },
       }));
 
       // ======================================================
@@ -1414,22 +1440,110 @@ class ProductController {
 
       const cleanProduct = {
         id: product._id,
+
         name: product.name,
+
         slug: product.slug,
+
         description: product.description,
+
+        features: product.features,
+
+        specification: product.specification,
+
+        safetyInstructions: product.safetyInstructions,
+
         images: product.images,
 
-        brand: product.brandId?.name,
+        measurementUnit: product.measurementUnit,
 
-        subcategories: product.subcategoryId?.map((item) => item.name),
+        leadTime: product.leadTime,
 
-        productTypes: product.productTypeId?.map((item) => item.typeName),
+        warrantyPeriod: product.warrantyPeriod,
+
+        returnDays: product.returnDays,
+
+        deliveryCharges: product.deliveryCharges,
+
+        deliveryOptions: product.deliveryOptions,
+
+        serviceableDeliveryPincode: product.serviceableDeliveryPincode,
+
+        shippingCharges: {
+          fixed: product.shippingCharges?.fixed,
+          distancePerKm: product.shippingCharges?.distancePerKm,
+          weightPerKg: product.shippingCharges?.weightPerKg,
+        },
+
+        rating: {
+          average: product.avgRating,
+          totalReviews: product.reviewCount,
+        },
+
+        sales: {
+          sold: product.sold,
+        },
+
+        offer: {
+          discount: product.discount,
+          isFeatured: product.isFeatured,
+          isFlashSale: product.isFlashSale,
+        },
+
+        brand: {
+          id: product.brandId?._id,
+          name: product.brandId?.name,
+          logo: product.brandId?.logo,
+        },
+
+        subcategories:
+          product.subcategoryId?.map((item) => ({
+            id: item._id,
+            name: item.name,
+          })) || [],
+
+        productTypes:
+          product.productTypeId?.map((item) => ({
+            id: item._id,
+            name: item.typeName,
+          })) || [],
+
+        metadata: {
+          title: product.metaData?.title,
+          description: product.metaData?.description,
+          keywords: product.metaData?.keywords,
+        },
+
+        properties: product.properties?.map((item) => ({
+          key: item.key,
+          value: item.value,
+        })),
+
+        verification: {
+          verified: product.varified,
+          reason: product.verifyReason,
+        },
+
+        status: product.status,
+
+        defaultVariantId: product.defaultVariantId,
 
         vendor: {
           id: vendorCompanyData?.vendorId?._id,
+
           firstName: vendorCompanyData?.vendorId?.firstName,
+
           lastName: vendorCompanyData?.vendorId?.lastName,
+
+          email: vendorCompanyData?.vendorId?.email,
+
+          mobile: vendorCompanyData?.vendorId?.mobile,
+
+          profileImage: vendorCompanyData?.vendorId?.profileImage,
+
           shopName: vendorCompanyData?.companyName,
+
+          certificates: vendorCompanyData?.certificates || [],
         },
       };
 
@@ -1446,9 +1560,13 @@ class ProductController {
         },
       };
 
+      // ======================================================
+      // CACHE SAVE
+      // ======================================================
+
       await RedisCache.set(cacheKey, result);
 
-      return res.json(result);
+      return res.status(200).json(result);
     } catch (err) {
       next(err);
     }
@@ -1470,11 +1588,8 @@ class ProductController {
       ) {
         product.vendorLocation = undefined;
       }
-
       product.disable = !product.disable;
-
       await product.save();
-
       await Promise.all([
         RedisCache.deletePattern("products:public:v2:*"),
         RedisCache.deletePattern("products:admin:v1:*"),

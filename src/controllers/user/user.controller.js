@@ -8,17 +8,89 @@ import RedisCache from "../../utils/redisCache.js";
 
 // Cache key helpers
 const userCacheKey = (userId) => `user:profile:${userId}`;
+
+// const allUsersCacheKey = (query) => `users:all:${JSON.stringify(query)}`;
+
+// // Get all users (Admin) — Redis cached + optimized query
+// export const getAllUsers = catchAsync(async (req, res, next) => {
+//   const page = parseInt(req.query.page) || 1;
+//   const limit = parseInt(req.query.limit) || 10;
+//   const skip = (page - 1) * limit;
+
+//   // Step 1: Cache check
+//   const cacheKey = allUsersCacheKey({ page, limit, role: req.query.role });
+//   const cached = await RedisCache.get(cacheKey);
+//   if (cached) {
+//     return res
+//       .status(200)
+//       .json(
+//         new ApiResponse(
+//           200,
+//           cached.users,
+//           "Users fetched successfully",
+//           cached.meta,
+//         ),
+//       );
+//   }
+
+//   // Step 2: Filter banao
+//   // FIX: Pehle aggregation pipeline use hoti thi — heavy aur slow
+//   // Ab simple find() + countDocuments() — indexes use karta hai directly (fast!)
+//   const filter = { role: req.query.role || "USER" };
+
+//   // Dono queries parallel mein chalao (Promise.all)
+//   const [users, total] = await Promise.all([
+//     User.find(filter)
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limit)
+//       .select(
+//         "-password -otp -otpExpiry -otpType -otpAttempts -refreshToken -__v",
+//       )
+//       .lean(),
+//     User.countDocuments(filter),
+//   ]);
+
+//   const meta = { total, page, limit, totalPages: Math.ceil(total / limit) };
+
+//   // Step 3: Cache karo (60 sec)
+//   await RedisCache.set(cacheKey, { users, meta }, 60);
+
+//   res
+//     .status(200)
+//     .json(new ApiResponse(200, users, "Users fetched successfully", meta));
+// });
+
 const allUsersCacheKey = (query) => `users:all:${JSON.stringify(query)}`;
 
-// Get all users (Admin) — Redis cached + optimized query
+// Get all users (Admin)
 export const getAllUsers = catchAsync(async (req, res, next) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  // Step 1: Cache check
-  const cacheKey = allUsersCacheKey({ page, limit, role: req.query.role });
+  const {
+    role,
+    filter, // today | yesterday | last7days | lastmonth
+    from,
+    to,
+  } = req.query;
+
+  // ======================================================
+  // CACHE
+  // ======================================================
+
+  const cacheKey = allUsersCacheKey({
+    page,
+    limit,
+    role,
+    filter,
+    from,
+    to,
+  });
+
   const cached = await RedisCache.get(cacheKey);
+
   if (cached) {
     return res
       .status(200)
@@ -32,14 +104,100 @@ export const getAllUsers = catchAsync(async (req, res, next) => {
       );
   }
 
-  // Step 2: Filter banao
-  // FIX: Pehle aggregation pipeline use hoti thi — heavy aur slow
-  // Ab simple find() + countDocuments() — indexes use karta hai directly (fast!)
-  const filter = { role: req.query.role || "USER" };
+  // ======================================================
+  // FILTER
+  // ======================================================
 
-  // Dono queries parallel mein chalao (Promise.all)
+  const query = {
+    role: role || "USER",
+  };
+
+  // ======================================================
+  // DATE FILTERS
+  // ======================================================
+
+  let dateFilter = {};
+
+  // TODAY
+  if (filter === "today") {
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setUTCHours(23, 59, 59, 999);
+
+    dateFilter.createdAt = {
+      $gte: start,
+      $lte: end,
+    };
+  }
+
+  // YESTERDAY
+  if (filter === "yesterday") {
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() - 1);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setUTCDate(end.getUTCDate() - 1);
+    end.setUTCHours(23, 59, 59, 999);
+
+    dateFilter.createdAt = {
+      $gte: start,
+      $lte: end,
+    };
+  }
+
+  // LAST 7 DAYS
+  if (filter === "last7days") {
+    const last7 = new Date();
+    last7.setUTCDate(last7.getUTCDate() - 7);
+
+    dateFilter.createdAt = {
+      $gte: last7,
+    };
+  }
+
+  // LAST MONTH
+  if (filter === "lastmonth") {
+    const lastMonth = new Date();
+    lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+
+    dateFilter.createdAt = {
+      $gte: lastMonth,
+    };
+  }
+
+  // ======================================================
+  // CUSTOM DATE RANGE
+  // ======================================================
+
+  if (from || to) {
+    dateFilter.createdAt = {};
+
+    if (from) {
+      const fromDate = new Date(from);
+      fromDate.setUTCHours(0, 0, 0, 0);
+
+      dateFilter.createdAt.$gte = fromDate;
+    }
+
+    if (to) {
+      const toDate = new Date(to);
+      toDate.setUTCHours(23, 59, 59, 999);
+
+      dateFilter.createdAt.$lte = toDate;
+    }
+  }
+
+  Object.assign(query, dateFilter);
+
+  // ======================================================
+  // DB QUERIES
+  // ======================================================
+
   const [users, total] = await Promise.all([
-    User.find(filter)
+    User.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -47,15 +205,24 @@ export const getAllUsers = catchAsync(async (req, res, next) => {
         "-password -otp -otpExpiry -otpType -otpAttempts -refreshToken -__v",
       )
       .lean(),
-    User.countDocuments(filter),
+
+    User.countDocuments(query),
   ]);
 
-  const meta = { total, page, limit, totalPages: Math.ceil(total / limit) };
+  const meta = {
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 
-  // Step 3: Cache karo (60 sec)
+  // ======================================================
+  // CACHE SAVE
+  // ======================================================
+
   await RedisCache.set(cacheKey, { users, meta }, 60);
 
-  res
+  return res
     .status(200)
     .json(new ApiResponse(200, users, "Users fetched successfully", meta));
 });
