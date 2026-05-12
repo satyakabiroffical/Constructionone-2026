@@ -8,6 +8,7 @@ import {
   downloadStatementPDF,
   getAdminTransactionsHistory,
   getVendorWithdrawalRequests,
+  getAllTransactionsHistory,
 } from "../../controllers/vendorShop/vendorWithdrawalBalance.controller.js";
 const router = Router();
 
@@ -36,6 +37,11 @@ router.get(
   "/withdrawals/history",
   vendorMiddleware,
   getVendorWithdrawalRequests,
+);
+router.get(
+  "/admin/transactions/history",
+  adminMiddleware,
+  getAllTransactionsHistory,
 );
 export default router;
 

@@ -4,31 +4,33 @@ import vendorWithdrawalBalanceModel from "../../models/vendorShop/vendorWithdraw
 import mongoose from "mongoose";
 import PDFDocument from "pdfkit";
 import adminTransaction from "../../models/admin/adminTransaction.model.js";
+import transactionModel from "../../models/user/transaction.model.js";
+import adminTransactionModel from "../../models/admin/adminTransaction.model.js";
 
-export const requestWithdraw = async (req, res) => {
-  const vendorId = req.user.id;
-  const { amount, bankAccountId } = req.body;
+// export const requestWithdraw = async (req, res) => {
+//   const vendorId = req.user.id;
+//   const { amount, bankAccountId } = req.body;
 
-  const wallet = await vendorWalletModel.findOne({ vendorId });
+//   const wallet = await vendorWalletModel.findOne({ vendorId });
 
-  if (wallet.availableBalance < amount) {
-    return res.status(400).json({
-      message: "Insufficient balance",
-    });
-  }
+//   if (wallet.availableBalance < amount) {
+//     return res.status(400).json({
+//       message: "Insufficient balance",
+//     });
+//   }
 
-  const request = await vendorWithdrawalBalanceModel.create({
-    vendorId,
-    amount,
-    bankAccountId: bankAccountId || "",
-  });
+//   const request = await vendorWithdrawalBalanceModel.create({
+//     vendorId,
+//     amount,
+//     bankAccountId: bankAccountId || "",
+//   });
 
-  res.json({
-    success: true,
-    message: "Withdrawal request sent",
-    data: request,
-  });
-};
+//   res.json({
+//     success: true,
+//     message: "Withdrawal request sent",
+//     data: request,
+//   });
+// };
 
 // export const approveWithdraw = async (req, res) => {
 //   const { withdrawalId } = req.params;
@@ -88,6 +90,68 @@ export const requestWithdraw = async (req, res) => {
 //   });
 // };
 
+export const requestWithdraw = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+    const { amount, bankAccountId } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid amount is required",
+      });
+    }
+
+    const wallet = await vendorWalletModel.findOne({ vendorId });
+
+    if (!wallet) {
+      return res.status(404).json({
+        success: false,
+        message: "Wallet not found",
+      });
+    }
+
+    // Check existing pending request
+    const existingRequest = await vendorWithdrawalBalanceModel.findOne({
+      vendorId,
+      status: "PENDING",
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "You already have a pending withdrawal request. Wait until it is approved or rejected.",
+      });
+    }
+
+    // Balance check
+    if (wallet.availableBalance < amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient balance",
+      });
+    }
+
+    const request = await vendorWithdrawalBalanceModel.create({
+      vendorId,
+      amount,
+      bankAccountId: bankAccountId || null,
+      status: "PENDING",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Withdrawal request sent successfully",
+      data: request,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 export const getAllWithdrawalRequests = async (req, res) => {
   try {
     const { status, page = 1, limit = 10 } = req.query;
@@ -131,37 +195,88 @@ export const approveWithdraw = async (req, res) => {
 
   try {
     session.startTransaction();
+
     const { withdrawalId } = req.params;
     const { transactionId } = req.body;
 
     if (!transactionId) {
       await session.abortTransaction();
-      return res.status(400).json({ message: "Transaction ID is required" });
+
+      return res.status(400).json({
+        success: false,
+        message: "Transaction ID is required",
+      });
     }
+
     const withdrawal = await vendorWithdrawalBalanceModel
       .findById(withdrawalId)
       .session(session);
 
+    if (!withdrawal) {
+      await session.abortTransaction();
+
+      return res.status(404).json({
+        success: false,
+        message: "Withdrawal request not found",
+      });
+    }
+
+    // Prevent duplicate approval/rejection
+    if (withdrawal.status !== "PENDING") {
+      await session.abortTransaction();
+
+      return res.status(400).json({
+        success: false,
+        message: `Withdrawal already ${withdrawal.status.toLowerCase()}`,
+      });
+    }
+
     const wallet = await vendorWalletModel
       .findOne({ vendorId: withdrawal.vendorId })
       .session(session);
+
+    if (!wallet) {
+      await session.abortTransaction();
+
+      return res.status(404).json({
+        success: false,
+        message: "Wallet not found",
+      });
+    }
+
+    // Double balance check for safety
+    if (wallet.availableBalance < withdrawal.amount) {
+      await session.abortTransaction();
+
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient wallet balance",
+      });
+    }
+
+    // Deduct balance
     wallet.availableBalance -= withdrawal.amount;
-    //ye baad me final dikhana hai jab vendor app done ho jayega
+
+    // Optional future use
     wallet.totalBalance -= withdrawal.amount;
+
     await wallet.save({ session });
 
+    // Update withdrawal
     withdrawal.status = "APPROVED";
+
     await withdrawal.save({ session });
 
+    // Vendor transaction
     await vendorTransactionModel.create(
       [
         {
-          vendorId: withdrawal.vendorId?._id || withdrawal.vendorId,
+          vendorId: withdrawal.vendorId,
           type: "WITHDRAWAL",
           transactionId,
           amount: withdrawal.amount,
           status: "SUCCESS",
-          description: `₹${withdrawal.amount} withdrawn and credited to bank account}`,
+          description: `₹${withdrawal.amount} withdrawn and credited to bank account`,
           bankAccountId: withdrawal.bankAccountId,
           referenceId: withdrawal._id,
         },
@@ -169,10 +284,11 @@ export const approveWithdraw = async (req, res) => {
       { session },
     );
 
+    // Admin transaction
     await adminTransaction.create(
       [
         {
-          vendorId: withdrawal.vendorId?._id || withdrawal.vendorId,
+          vendorId: withdrawal.vendorId,
           transactionId,
           type: "WITHDRAWAL",
           status: "COMPLETED",
@@ -189,13 +305,14 @@ export const approveWithdraw = async (req, res) => {
 
     await session.commitTransaction();
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: "Withdrawal approved",
+      message: "Withdrawal approved successfully",
     });
   } catch (error) {
     await session.abortTransaction();
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -211,6 +328,7 @@ export const rejectWithdraw = async (req, res) => {
     session.startTransaction();
 
     const { withdrawalId } = req.params;
+    const { reason } = req.body;
 
     const withdrawal = await vendorWithdrawalBalanceModel
       .findById(withdrawalId)
@@ -218,29 +336,57 @@ export const rejectWithdraw = async (req, res) => {
 
     if (!withdrawal) {
       await session.abortTransaction();
-      return res.status(404).json({ message: "Request not found" });
+
+      return res.status(404).json({
+        success: false,
+        message: "Withdrawal request not found",
+      });
     }
 
-    const wallet = await vendorWalletModel
-      .findOne({ vendorId: withdrawal.vendorId })
-      .session(session);
+    // Prevent duplicate action
+    if (withdrawal.status !== "PENDING") {
+      await session.abortTransaction();
 
-    wallet.pendingWithdrawal -= withdrawal.amount; // Note: Your code subtracts from pendingWithdrawal
-    await wallet.save({ session });
+      return res.status(400).json({
+        success: false,
+        message: `Withdrawal already ${withdrawal.status.toLowerCase()}`,
+      });
+    }
 
+    // Update withdrawal status
     withdrawal.status = "REJECTED";
-    withdrawal.adminNote = "Bank details invalid";
+    withdrawal.rejectReason = reason || "Rejected by admin";
+
     await withdrawal.save({ session });
+
+    // Admin transaction log
+    await adminTransaction.create(
+      [
+        {
+          vendorId: withdrawal.vendorId,
+          type: "WITHDRAWAL",
+          status: "REJECTED",
+          amount: withdrawal.amount,
+          description: `₹${withdrawal.amount} withdrawal rejected`,
+          referenceId: withdrawal._id,
+          referenceModel: "Withdrawal",
+          bankAccountId: withdrawal.bankAccountId,
+          processedBy: req.user.id,
+        },
+      ],
+      { session },
+    );
 
     await session.commitTransaction();
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: "Withdrawal rejected",
+      message: "Withdrawal rejected successfully",
     });
   } catch (error) {
     await session.abortTransaction();
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -440,6 +586,252 @@ export const getVendorWithdrawalRequests = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+// getAlltransaction for Admin - including user and admin :
+export const getAllTransactionsHistory = async (req, res, next) => {
+  try {
+    // const cacheKey = `transactions:history:${JSON.stringify(req.query)}`;
+
+    // const cachedData = await redis.get(cacheKey);
+
+    // if (cachedData) {
+    //   return res.json(JSON.parse(cachedData));
+    // }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const {
+      search = "",
+      type,
+      status,
+      vendorId,
+      filterType,
+      startDate,
+      endDate,
+    } = req.query;
+
+    // =====================================================
+    // DATE FILTER
+    // =====================================================
+
+    let dateFilter = {};
+
+    const today = new Date();
+
+    if (filterType === "today") {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+
+      dateFilter = {
+        createdAt: {
+          $gte: start,
+          $lte: end,
+        },
+      };
+    } else if (filterType === "yesterday") {
+      const start = new Date();
+      start.setDate(start.getDate() - 1);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date();
+      end.setDate(end.getDate() - 1);
+      end.setHours(23, 59, 59, 999);
+
+      dateFilter = {
+        createdAt: {
+          $gte: start,
+          $lte: end,
+        },
+      };
+    } else if (filterType === "last7days") {
+      const start = new Date();
+      start.setDate(start.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+
+      dateFilter = {
+        createdAt: {
+          $gte: start,
+          $lte: new Date(),
+        },
+      };
+    } else if (startDate || endDate) {
+      dateFilter.createdAt = {};
+
+      if (startDate) {
+        dateFilter.createdAt.$gte = new Date(startDate);
+      }
+
+      if (endDate) {
+        dateFilter.createdAt.$lte = new Date(endDate);
+      }
+    }
+
+    // =====================================================
+    // USER TRANSACTION FILTER
+    // =====================================================
+
+    const transactionFilter = {
+      ...dateFilter,
+    };
+
+    if (search) {
+      transactionFilter.$or = [
+        { razorpayOrderId: { $regex: search, $options: "i" } },
+        { razorpayPaymentId: { $regex: search, $options: "i" } },
+        { razorpaySignature: { $regex: search, $options: "i" } },
+        { paymentMethod: { $regex: search, $options: "i" } },
+        { status: { $regex: search, $options: "i" } },
+        { payType: { $regex: search, $options: "i" } },
+        { walletPurpose: { $regex: search, $options: "i" } },
+        { walletType: { $regex: search, $options: "i" } },
+        { currency: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // =====================================================
+    // ADMIN TRANSACTION FILTER
+    // =====================================================
+
+    const adminFilter = {
+      ...dateFilter,
+    };
+
+    if (type) adminFilter.type = type;
+
+    if (status) adminFilter.status = status;
+
+    if (vendorId) {
+      adminFilter.vendorId = new mongoose.Types.ObjectId(vendorId);
+    }
+
+    // =====================================================
+    // FETCH DATA
+    // =====================================================
+
+    const [userTransactions, userTotal, adminTransactions, adminTotal] =
+      await Promise.all([
+        // USER TRANSACTIONS
+        transactionModel
+          .find(transactionFilter)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+
+        transactionModel.countDocuments(transactionFilter),
+
+        // ADMIN TRANSACTIONS
+        adminTransactionModel
+          .find(adminFilter)
+          .populate("vendorId", "firstName lastName email phoneNumber")
+          .populate("bankAccountId", "accountHolderName accountNumber bankName")
+          .populate("processedBy", "name email")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+
+        adminTransactionModel.countDocuments(adminFilter),
+      ]);
+
+    // =====================================================
+    // FORMAT ADMIN DATA
+    // =====================================================
+
+    const formattedAdminTransactions = adminTransactions.map((tx) => ({
+      id: tx._id,
+      transactionType: "ADMIN",
+
+      vendor: tx.vendorId
+        ? {
+            id: tx.vendorId._id,
+            name: `${tx.vendorId.firstName} ${tx.vendorId.lastName}`,
+            email: tx.vendorId.email,
+            phone: tx.vendorId.phoneNumber,
+          }
+        : null,
+
+      type: tx.type,
+      status: tx.status,
+
+      amount: tx.amount,
+      fee: tx.fee || 0,
+      netAmount: tx.netAmount || tx.amount,
+
+      description: tx.description,
+
+      referenceId: tx.referenceId,
+      referenceModel: tx.referenceModel,
+
+      bank: tx.bankAccountId
+        ? {
+            accountHolderName: tx.bankAccountId.accountHolderName,
+            accountNumber: `****${tx.bankAccountId.accountNumber?.slice(-4)}`,
+            bankName: tx.bankAccountId.bankName,
+          }
+        : null,
+
+      balanceBefore: tx.balanceBefore,
+      balanceAfter: tx.balanceAfter,
+
+      processedBy: tx.processedBy
+        ? {
+            id: tx.processedBy._id,
+            name: tx.processedBy.name,
+            email: tx.processedBy.email,
+          }
+        : null,
+
+      createdAt: tx.createdAt,
+    }));
+
+    // =====================================================
+    // FORMAT USER DATA
+    // =====================================================
+
+    const formattedUserTransactions = userTransactions.map((tx) => ({
+      ...tx,
+      transactionType: "USER",
+    }));
+
+    // =====================================================
+    // COMBINE + SORT
+    // =====================================================
+
+    const combinedTransactions = [
+      ...formattedUserTransactions,
+      ...formattedAdminTransactions,
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // =====================================================
+    // RESPONSE
+    // =====================================================
+
+    const result = {
+      success: true,
+      page,
+      limit,
+
+      totalUserTransactions: userTotal,
+      totalAdminTransactions: adminTotal,
+
+      totalTransactions: userTotal + adminTotal,
+
+      data: combinedTransactions,
+    };
+
+    // await redis.set(cacheKey, JSON.stringify(result), "EX", 300);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
   }
 };
 

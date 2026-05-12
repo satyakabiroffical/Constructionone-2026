@@ -288,40 +288,496 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 };
 
 //get all orders for vendor screen
+// export const getAllOrdersForVendor = async (req, res, next) => {
+//   try {
+//     const vendorId = req.user.id;
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const skip = (page - 1) * limit;
+//     const search = req.query.search?.trim() || "";
+
+//     const version = (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
+
+//     const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
+//       req.query,
+//     )}`;
+
+//     // const cached = await redis.get(cacheKey);
+//     // if (cached) {
+//     //   return res.status(200).json(JSON.parse(cached));
+//     // }
+
+//     // base filter
+//     const filter = {
+//       "items.vendorId": vendorId,
+//       orderType: "SUB",
+//     };
+
+//     if (req.query.status) {
+//       filter.status = req.query.status;
+//     }
+
+//     if (req.query.paymentStatus) {
+//       filter.paymentStatus = req.query.paymentStatus;
+//     }
+
+//     // search filter
+//     if (search) {
+//       filter.$or = [
+//         {
+//           orderId: {
+//             $regex: search,
+//             $options: "i",
+//           },
+//         },
+//         {
+//           "items.productName": {
+//             $regex: search,
+//             $options: "i",
+//           },
+//         },
+//         {
+//           status: {
+//             $regex: search,
+//             $options: "i",
+//           },
+//         },
+//       ];
+//     }
+
+//     const allStatusesFromModel = Order.schema.path("status").enumValues || [];
+//     const allStatuses = ["ALL", ...allStatusesFromModel];
+
+//     const [orders, total] = await Promise.all([
+//       Order.find(filter)
+//         .sort({ createdAt: -1 })
+//         .skip(skip)
+//         .limit(limit)
+//         .select(
+//           `
+//             orderId
+//             status
+//             paymentStatus
+//             netAmount
+//             createdAt
+//             items
+//             userId
+//           `,
+//         )
+//         .populate({
+//           path: "items.productId",
+//           select: "name images",
+//         })
+//         .populate({
+//           path: "userId",
+//           select: "name phone",
+//         })
+//         .lean(),
+//     ]);
+
+//     const formattedOrders = orders.map((order) => ({
+//       _id: order._id,
+//       orderId: order.orderId,
+//       status: order.status,
+//       paymentStatus: order.paymentStatus,
+//       totalAmount: order.netAmount,
+//       createdAt: order.createdAt,
+//       deliveryType: order.items?.[0]?.deliveryType || "",
+
+//       customer: {
+//         name: order.userId?.name || "",
+//         phone: order.userId?.phone || "",
+//       },
+
+//       totalItems: order.items?.length || 0,
+
+//       products:
+//         order.items?.slice(0, 2).map((item) => ({
+//           productName: item.productId?.name || item.productName,
+//           image: item.productId?.images?.[0] || "",
+//           quantity: item.quantity,
+//           deliveryType: item.deliveryType || "",
+//         })) || [],
+//     }));
+
+//     const response = {
+//       success: true,
+//       message: "Vendor orders fetched successfully",
+
+//       filters: {
+//         statuses: allStatuses || [],
+//       },
+
+//       data: {
+//         orders: formattedOrders,
+//         pagination: {
+//           total,
+//           page,
+//           limit,
+//           totalPages: Math.ceil(total / limit),
+//         },
+//       },
+//     };
+
+//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
+
+//     return res.status(200).json(response);
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+// export const getAllOrdersForVendor = async (req, res, next) => {
+//   try {
+//     const vendorId = req.user.id;
+
+//     const page = parseInt(req.query.page) || 1;
+
+//     const limit = parseInt(req.query.limit) || 10;
+
+//     const skip = (page - 1) * limit;
+
+//     const search = req.query.search?.trim() || "";
+
+//     // ======================================================
+//     // CACHE
+//     // ======================================================
+
+//     const version = (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
+
+//     const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
+//       req.query,
+//     )}`;
+
+//     // const cached = await redis.get(cacheKey);
+
+//     // if (cached) {
+//     //   return res.status(200).json(JSON.parse(cached));
+//     // }
+
+//     // ======================================================
+//     // FILTER
+//     // ======================================================
+
+//     const filter = {
+//       "items.vendorId": vendorId,
+//       orderType: "SUB",
+//     };
+
+//     if (req.query.status) {
+//       filter.status = req.query.status;
+//     }
+
+//     if (req.query.paymentStatus) {
+//       filter.paymentStatus = req.query.paymentStatus;
+//     }
+
+//     // ======================================================
+//     // SEARCH
+//     // ======================================================
+
+//     if (search) {
+//       filter.$or = [
+//         {
+//           orderId: {
+//             $regex: search,
+//             $options: "i",
+//           },
+//         },
+//         {
+//           "items.productName": {
+//             $regex: search,
+//             $options: "i",
+//           },
+//         },
+//         {
+//           status: {
+//             $regex: search,
+//             $options: "i",
+//           },
+//         },
+//       ];
+//     }
+
+//     // ======================================================
+//     // STATUS FILTERS
+//     // ======================================================
+
+//     const allStatusesFromModel = Order.schema.path("status").enumValues || [];
+
+//     const allStatuses = ["ALL", ...allStatusesFromModel];
+
+//     // ======================================================
+//     // FETCH ORDERS
+//     // ======================================================
+
+//     const [orders, total] = await Promise.all([
+//       Order.find(filter)
+//         .sort({ createdAt: -1 })
+//         .skip(skip)
+//         .limit(limit)
+//         .select(
+//           `
+//           orderId
+//           status
+//           paymentStatus
+//           netAmount
+//           subTotal
+//           totalDeliveryFee
+//           handlingCharge
+//           createdAt
+//           items
+//           userId
+//         `,
+//         )
+//         .populate({
+//           path: "items.productId",
+//           select: `
+//             name
+//             images
+//             measurementUnit
+//           `,
+//         })
+//         .populate({
+//           path: "items.variantId",
+//           select: `
+//             size
+//           `,
+//         })
+//         .populate({
+//           path: "userId",
+//           select: "name phone",
+//         })
+//         .lean(),
+
+//       Order.countDocuments(filter),
+//     ]);
+
+//     // ======================================================
+//     // FORMAT ORDERS
+//     // ======================================================
+
+//     const formattedOrders = orders.map((order) => {
+//       // ==================================================
+//       // FILTER VENDOR ITEMS
+//       // ==================================================
+
+//       const vendorItems =
+//         order.items?.filter(
+//           (item) => item.vendorId?.toString() === vendorId.toString(),
+//         ) || [];
+
+//       // ==================================================
+//       // CALCULATIONS
+//       // ==================================================
+
+//       const totalBill = vendorItems.reduce((sum, item) => {
+//         return (
+//           sum + (item.finalPrice || item.price || 0) * (item.quantity || 0)
+//         );
+//       }, 0);
+
+//       const totalDeliveryCharge = vendorItems.reduce((sum, item) => {
+//         return sum + (item.deliveryFee || 0);
+//       }, 0);
+
+//       const totalVendorAmount = vendorItems.reduce((sum, item) => {
+//         return sum + (item.vendorAmount || 0);
+//       }, 0);
+
+//       const totalGST = vendorItems.reduce((sum, item) => {
+//         return sum + (item.gstAmount || 0);
+//       }, 0);
+
+//       // ==================================================
+//       // RESPONSE
+//       // ==================================================
+
+//       return {
+//         _id: order._id,
+
+//         orderId: order.orderId,
+
+//         status: order.status,
+
+//         paymentStatus: order.paymentStatus,
+
+//         createdAt: order.createdAt,
+
+//         itemCount: vendorItems.length,
+
+//         customer: {
+//           name: order.userId?.name || "",
+
+//           phone: order.userId?.phone || "",
+//         },
+
+//         // ================================================
+//         // ORDER DETAILS
+//         // ================================================
+
+//         orderDetails: vendorItems.map((item) => ({
+//           productId: item.productId?._id || "",
+
+//           variantId: item.variantId?._id || "",
+
+//           productName: item.productId?.name || "",
+
+//           image: item.productId?.images?.[0] || "",
+
+//           quantity: item.quantity || 0,
+
+//           measurementUnit: item.productId?.measurementUnit || "",
+
+//           size: item.variantId?.size || "",
+
+//           price: item.price || 0,
+
+//           finalPrice: item.finalPrice || 0,
+
+//           gstAmount: item.gstAmount || 0,
+
+//           deliveryFee: item.deliveryFee || 0,
+
+//           vendorAmount: item.vendorAmount || 0,
+
+//           packageWeight: item.packageWeight || 0,
+
+//           deliveryType: item.deliveryType || "",
+
+//           status: item.status || "",
+
+//           total:
+//             (item.finalPrice || item.price || 0) * (item.quantity || 0) +
+//               item.gstAmount || 0,
+//         })),
+
+//         // ================================================
+//         // BILL SUMMARY
+//         // ================================================
+
+//         billSummary: {
+//           totalBill,
+
+//           totalDeliveryCharge,
+
+//           gst: totalGST,
+
+//           handlingCharge: order.handlingCharge || 0,
+
+//           vendorAmount: totalVendorAmount,
+
+//           totalAmount:
+//             totalBill +
+//             totalDeliveryCharge +
+//             totalGST +
+//             (order.handlingCharge || 0),
+//         },
+//       };
+//     });
+
+//     // ======================================================
+//     // FINAL RESPONSE
+//     // ======================================================
+
+//     const response = {
+//       success: true,
+
+//       message: "Vendor orders fetched successfully",
+
+//       filters: {
+//         statuses: allStatuses || [],
+//       },
+
+//       data: {
+//         orders: formattedOrders,
+
+//         pagination: {
+//           total,
+
+//           page,
+
+//           limit,
+
+//           totalPages: Math.ceil(total / limit),
+//         },
+//       },
+//     };
+
+//     // ======================================================
+//     // CACHE SAVE
+//     // ======================================================
+
+//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
+
+//     return res.status(200).json(response);
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const getAllOrdersForVendor = async (req, res, next) => {
   try {
     const vendorId = req.user.id;
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+
     const search = req.query.search?.trim() || "";
 
-    const version = (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
+    // ======================================================
+    // CACHE
+    // ======================================================
 
-    const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
-      req.query,
-    )}`;
+    // const version =
+    //   (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
+
+    // const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
+    //   req.query,
+    // )}`;
 
     // const cached = await redis.get(cacheKey);
+
     // if (cached) {
     //   return res.status(200).json(JSON.parse(cached));
     // }
 
-    // base filter
+    // ======================================================
+    // STATUS ENUMS
+    // ======================================================
+
+    const allStatusesFromModel = Order.schema.path("status").enumValues || [];
+
+    const allStatuses = ["ALL", ...allStatusesFromModel];
+
+    // ======================================================
+    // FILTER
+    // ======================================================
+
     const filter = {
       "items.vendorId": vendorId,
       orderType: "SUB",
     };
 
-    if (req.query.status) {
+    // status filter
+    if (
+      req.query.status &&
+      req.query.status !== "ALL" &&
+      allStatusesFromModel.includes(req.query.status)
+    ) {
       filter.status = req.query.status;
     }
 
+    // payment status filter
     if (req.query.paymentStatus) {
       filter.paymentStatus = req.query.paymentStatus;
     }
 
-    // search filter
+    // ======================================================
+    // SEARCH
+    // ======================================================
+
     if (search) {
       filter.$or = [
         {
@@ -331,13 +787,7 @@ export const getAllOrdersForVendor = async (req, res, next) => {
           },
         },
         {
-          "items.productName": {
-            $regex: search,
-            $options: "i",
-          },
-        },
-        {
-          status: {
+          "userId.name": {
             $regex: search,
             $options: "i",
           },
@@ -345,81 +795,231 @@ export const getAllOrdersForVendor = async (req, res, next) => {
       ];
     }
 
-    const allStatusesFromModel = Order.schema.path("status").enumValues || [];
-    const allStatuses = ["ALL", ...allStatusesFromModel];
+    // ======================================================
+    // FETCH ORDERS
+    // ======================================================
 
     const [orders, total] = await Promise.all([
       Order.find(filter)
+        // recent orders top pe
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .select(
           `
-            orderId
-            status
-            paymentStatus
-            netAmount
-            createdAt
-            items
-            userId
-          `,
+          orderId
+          status
+          paymentStatus
+          netAmount
+          subTotal
+          totalDeliveryFee
+          handlingCharge
+          createdAt
+          items
+          userId
+        `,
         )
         .populate({
           path: "items.productId",
-          select: "name images",
+          select: `
+            name
+            images
+            measurementUnit
+          `,
+        })
+        .populate({
+          path: "items.variantId",
+          select: `
+            size
+          `,
         })
         .populate({
           path: "userId",
           select: "name phone",
+          match: search
+            ? {
+                name: {
+                  $regex: search,
+                  $options: "i",
+                },
+              }
+            : {},
         })
         .lean(),
+
+      Order.countDocuments(filter),
     ]);
 
-    const formattedOrders = orders.map((order) => ({
-      _id: order._id,
-      orderId: order.orderId,
-      status: order.status,
-      paymentStatus: order.paymentStatus,
-      totalAmount: order.netAmount,
-      createdAt: order.createdAt,
-      deliveryType: order.items?.[0]?.deliveryType || "",
+    // ======================================================
+    // REMOVE NULL USERS AFTER SEARCH
+    // ======================================================
 
-      customer: {
-        name: order.userId?.name || "",
-        phone: order.userId?.phone || "",
-      },
+    const filteredOrders = search
+      ? orders.filter(
+          (order) =>
+            order.orderId?.toLowerCase().includes(search.toLowerCase()) ||
+            order.userId,
+        )
+      : orders;
 
-      totalItems: order.items?.length || 0,
+    // ======================================================
+    // FORMAT ORDERS
+    // ======================================================
 
-      products:
-        order.items?.slice(0, 2).map((item) => ({
-          productName: item.productId?.name || item.productName,
+    const formattedOrders = filteredOrders.map((order) => {
+      // ==================================================
+      // FILTER VENDOR ITEMS
+      // ==================================================
+
+      const vendorItems =
+        order.items?.filter(
+          (item) => item.vendorId?.toString() === vendorId.toString(),
+        ) || [];
+
+      // ==================================================
+      // CALCULATIONS
+      // ==================================================
+
+      const totalBill = vendorItems.reduce((sum, item) => {
+        return (
+          sum + (item.finalPrice || item.price || 0) * (item.quantity || 0)
+        );
+      }, 0);
+
+      const totalDeliveryCharge = vendorItems.reduce((sum, item) => {
+        return sum + (item.deliveryFee || 0);
+      }, 0);
+
+      const totalVendorAmount = vendorItems.reduce((sum, item) => {
+        return sum + (item.vendorAmount || 0);
+      }, 0);
+
+      const totalGST = vendorItems.reduce((sum, item) => {
+        return sum + (item.gstAmount || 0);
+      }, 0);
+
+      // ==================================================
+      // RESPONSE
+      // ==================================================
+
+      return {
+        _id: order._id,
+
+        orderId: order.orderId,
+
+        status: order.status,
+
+        paymentStatus: order.paymentStatus,
+
+        createdAt: order.createdAt,
+
+        itemCount: vendorItems.length,
+
+        customer: {
+          name: order.userId?.name || "",
+
+          phone: order.userId?.phone || "",
+        },
+
+        // ================================================
+        // ORDER DETAILS
+        // ================================================
+
+        orderDetails: vendorItems.map((item) => ({
+          productId: item.productId?._id || "",
+
+          variantId: item.variantId?._id || "",
+
+          productName: item.productId?.name || "",
+
           image: item.productId?.images?.[0] || "",
-          quantity: item.quantity,
+
+          quantity: item.quantity || 0,
+
+          measurementUnit: item.productId?.measurementUnit || "",
+
+          size: item.variantId?.size || "",
+
+          price: item.price || 0,
+
+          finalPrice: item.finalPrice || 0,
+
+          gstAmount: item.gstAmount || 0,
+
+          deliveryFee: item.deliveryFee || 0,
+
+          vendorAmount: item.vendorAmount || 0,
+
+          packageWeight: item.packageWeight || 0,
+
           deliveryType: item.deliveryType || "",
-        })) || [],
-    }));
+
+          status: item.status || "",
+
+          total:
+            (item.finalPrice || item.price || 0) * (item.quantity || 0) +
+            (item.gstAmount || 0),
+        })),
+
+        // ================================================
+        // BILL SUMMARY
+        // ================================================
+
+        billSummary: {
+          totalBill,
+
+          totalDeliveryCharge,
+
+          gst: totalGST,
+
+          handlingCharge: order.handlingCharge || 0,
+
+          vendorAmount: totalVendorAmount,
+
+          totalAmount:
+            totalBill +
+            totalDeliveryCharge +
+            totalGST +
+            (order.handlingCharge || 0),
+        },
+      };
+    });
+
+    // ======================================================
+    // FINAL RESPONSE
+    // ======================================================
 
     const response = {
       success: true,
+
       message: "Vendor orders fetched successfully",
 
       filters: {
-        statuses: allStatuses || [],
+        statuses: allStatuses,
       },
 
       data: {
         orders: formattedOrders,
+
         pagination: {
-          total,
+          total: search ? filteredOrders.length : total,
+
           page,
+
           limit,
-          totalPages: Math.ceil(total / limit),
+
+          totalPages: Math.ceil(
+            (search ? filteredOrders.length : total) / limit,
+          ),
         },
       },
     };
 
-    await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
+    // ======================================================
+    // CACHE SAVE
+    // ======================================================
+
+    // await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
 
     return res.status(200).json(response);
   } catch (error) {
@@ -470,7 +1070,18 @@ export const getVendorOverview = async (req, res, next) => {
 
     // 2. Pending Orders
     const pendingRes = await Order.aggregate([
-      { $match: { ...baseMatch, ...dateFilter, status: "PENDING" } },
+      { $match: { ...baseMatch, ...dateFilter, status: "ACCEPTED" } },
+      { $count: "count" },
+    ]);
+
+    const newOrdersRes = await Order.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          ...dateFilter,
+          status: "PENDING",
+        },
+      },
       { $count: "count" },
     ]);
 
@@ -595,7 +1206,8 @@ export const getVendorOverview = async (req, res, next) => {
       selectedDate: date,
       data: {
         totalEarnings: earningsRes[0]?.totalEarnings || 0,
-        pendingOrders: pendingRes[0]?.count || 0,
+        pendingOrders: pendingRes[0]?.count || 0, // ACCEPTED
+        newOrders: newOrdersRes[0]?.count || 0, // PENDING
         todayOrders: totalOrdersRes[0]?.count || 0,
         totalProducts: productsRes[0]?.count || 0,
 

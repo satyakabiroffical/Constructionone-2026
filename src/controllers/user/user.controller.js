@@ -247,7 +247,7 @@ export const deleteUser = catchAsync(async (req, res, next) => {
   // 2. Saari paginated users:all list caches (pattern delete)
   await Promise.all([
     RedisCache.delete(userCacheKey(req.params.id)),
-    RedisCache.deletePattern("users:all:"),
+    RedisCache.deletePattern("users:all:*"),
   ]);
 
   res.status(200).json(new ApiResponse(200, null, "User deleted successfully"));
@@ -364,7 +364,7 @@ export const toggleUserStatus = catchAsync(async (req, res, next) => {
   // cache invalidate
   await Promise.all([
     RedisCache.delete(userCacheKey(userId)), // single user cache
-    RedisCache.deletePattern("users:all:"), // all users list cache
+    RedisCache.deletePattern("users:all:*"), // all users list cache
   ]);
 
   res.status(200).json(

@@ -16,7 +16,10 @@ const vendorWithdrawalBalanceSchema = new mongoose.Schema(
       enum: ["PENDING", "APPROVED", "REJECTED"],
       default: "PENDING",
     },
-
+    rejectReason: {
+      type: String,
+      default: "",
+    },
     bankAccountId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "VendorBankAccount",

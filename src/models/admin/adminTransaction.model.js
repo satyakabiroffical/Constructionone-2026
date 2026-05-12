@@ -21,7 +21,7 @@ const adminTransactionSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["PENDING", "COMPLETED", "FAILED", "CANCELLED"],
+      enum: ["PENDING", "COMPLETED", "FAILED", "CANCELLED","REJECTED"],
       default: "PENDING",
     },
 

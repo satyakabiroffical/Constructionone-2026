@@ -188,8 +188,7 @@ const productSchema = new mongoose.Schema(
 
     warrantyPeriod: {
       type: String,
-      enum: ["no-warranty", "6month", "1year", "2year", "5year", "lifetime"],
-      trim: true,
+      default: "No Warranty",
     },
 
     defaultVariantId: {

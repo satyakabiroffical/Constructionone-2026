@@ -31,6 +31,7 @@ export const vendorAuth = async (req, res) => {
 
     const validatedPhone = phoneValidation.normalized;
 
+    // Always use normalized phone for both lookup and creation
     let user = await VendorProfile.findOne({
       phoneNumber: validatedPhone,
     });
@@ -199,6 +200,7 @@ export const verifyOtp = async (req, res) => {
       isAdminVerified: user.isAdminVerified,
       isAadharVerified: user.isAadharVerified,
       isProfileCompleted: user.isProfileCompleted,
+      moduleId: user.moduleId,
     };
 
     return res.status(200).json({
@@ -557,12 +559,15 @@ export const upsertVendorInfo = async (req, res) => {
 //vendor profile with company details
 export const getVendorProfile = async (req, res, next) => {
   try {
-    const cacheKey = `vendor:v1:${JSON.stringify(req.query)}`;
+    const vendorId = req.user.id;
+    // const cacheKey = `vendor:v1:${JSON.stringify(req.query)}`;
+    const cacheKey = `vendor:v1:${vendorId}:${JSON.stringify(req.query)}`;
     const cached = await RedisCache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    const vendorId = req.user.id;
+    // const vendorId = req.user.id;
     // const { vendorId } = req.params; testing
+
     const vendor = await VendorCompany.findOne({ vendorId: vendorId })
       .populate({
         path: "vendorId",
@@ -745,6 +750,7 @@ export const logoutVendor = async (req, res, next) => {
 
 export const upsertVendorCompanyInfo = async (req, res) => {
   try {
+    const vendorId = req.user.id;
     if (req.body.bankDetails && typeof req.body.bankDetails === "string") {
       try {
         req.body.bankDetails = JSON.parse(req.body.bankDetails);
@@ -756,7 +762,7 @@ export const upsertVendorCompanyInfo = async (req, res) => {
       }
     }
 
-    const { vendorId, bankDetails, ...companyData } = req.body;
+    const { bankDetails, ...companyData } = req.body;
 
     if (req.files) {
       if (req.files.shopImages) {
@@ -820,7 +826,7 @@ export const upsertVendorCompanyInfo = async (req, res) => {
     });
     const vendor = await VendorProfile.findById(vendorId);
 
-    await adminNotificationModel.create({
+    await sendAdminNotification({
       title: "New Vendor Registered",
       message: `${vendor.firstName} ${vendor.lastName} completed vendor profile. Please review and verify the account.`,
       type: "VENDOR_CREATED",
@@ -1031,23 +1037,283 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
 //   }
 // };
 
+// export const getAllVendors = async (req, res) => {
+//   try {
+//     const page = Math.max(parseInt(req.query.page) || 1, 1);
+//     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+//     const skip = (page - 1) * limit;
+
+//     const {
+//       search,
+//       isAdminVerified,
+//       sort,
+//       disable,
+//       filter, // today | yesterday | last7days | lastmonth
+//       from,
+//       to,
+//     } = req.query;
+
+//     const cacheKey = `vendors:all:v1:${JSON.stringify({
+//       page,
+//       limit,
+//       search,
+//       isAdminVerified,
+//       sort,
+//       disable,
+//       filter,
+//       from,
+//       to,
+//     })}`;
+
+//     const cached = await RedisCache.get(cacheKey);
+//     if (cached) return res.status(200).json(cached);
+
+//     const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+//     const safeSearch = search ? escapeRegex(search) : null;
+
+//     // ======================================================
+//     // DATE FILTER
+//     // ======================================================
+
+//     let dateFilter = {};
+
+//     // const startOfToday = new Date();
+//     // startOfToday.setHours(0, 0, 0, 0);
+
+//     // const endOfToday = new Date();
+//     // endOfToday.setHours(23, 59, 59, 999);
+//     // IST OFFSET
+//     const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+
+//     // CURRENT IST DATE
+//     const now = new Date();
+
+//     // TODAY START (IST)
+//     const startOfToday = new Date(
+//       new Date(now.getTime() + IST_OFFSET).setHours(0, 0, 0, 0) - IST_OFFSET,
+//     );
+
+//     // TODAY END (IST)
+//     const endOfToday = new Date(
+//       new Date(now.getTime() + IST_OFFSET).setHours(23, 59, 59, 999) -
+//         IST_OFFSET,
+//     );
+
+//     if (filter === "today") {
+//       const start = new Date();
+//       start.setUTCHours(0, 0, 0, 0);
+
+//       const end = new Date();
+//       end.setUTCHours(23, 59, 59, 999);
+
+//       dateFilter.createdAt = {
+//         $gte: start,
+//         $lte: end,
+//       };
+//     }
+
+//     if (filter === "yesterday") {
+//       const start = new Date();
+//       start.setUTCDate(start.getUTCDate() - 1);
+//       start.setUTCHours(0, 0, 0, 0);
+
+//       const end = new Date();
+//       end.setUTCDate(end.getUTCDate() - 1);
+//       end.setUTCHours(23, 59, 59, 999);
+
+//       dateFilter.createdAt = {
+//         $gte: start,
+//         $lte: end,
+//       };
+//     }
+
+//     if (filter === "last7days") {
+//       const last7 = new Date();
+//       last7.setUTCDate(last7.getUTCDate() - 7);
+
+//       dateFilter.createdAt = {
+//         $gte: last7,
+//       };
+//     }
+
+//     // LAST MONTH
+//     if (filter === "lastmonth") {
+//       const lastMonth = new Date();
+//       lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+
+//       dateFilter.createdAt = {
+//         $gte: lastMonth,
+//       };
+//     }
+
+//     // CUSTOM RANGE
+//     if (from || to) {
+//       dateFilter.createdAt = {};
+
+//       if (from) {
+//         const fromDate = new Date(from);
+//         fromDate.setUTCHours(0, 0, 0, 0);
+
+//         dateFilter.createdAt.$gte = fromDate;
+//       }
+
+//       if (to) {
+//         const toDate = new Date(to);
+//         toDate.setUTCHours(23, 59, 59, 999);
+
+//         dateFilter.createdAt.$lte = toDate;
+//       }
+//     }
+
+//     // ---------------- Vendor (User) Search ----------------
+//     const vendorUserQuery = {};
+
+//     if (safeSearch) {
+//       vendorUserQuery.$or = [
+//         { firstName: { $regex: safeSearch, $options: "i" } },
+//         { lastName: { $regex: safeSearch, $options: "i" } },
+//         { email: { $regex: safeSearch, $options: "i" } },
+//         { phoneNumber: { $regex: safeSearch, $options: "i" } },
+//       ];
+//     }
+
+//     if (isAdminVerified !== undefined) {
+//       vendorUserQuery.isAdminVerified = isAdminVerified === "true";
+//     }
+
+//     if (disable !== undefined) {
+//       vendorUserQuery.disable = disable === "true";
+//     }
+
+//     // ---------------- Fetch matching Vendor IDs ----------------
+//     let vendorIds = [];
+
+//     if (Object.keys(vendorUserQuery).length > 0) {
+//       const vendors = await VendorProfile.find(vendorUserQuery).select("_id");
+
+//       vendorIds = vendors.map((v) => v._id);
+
+//       if (
+//         (disable !== undefined || isAdminVerified !== undefined) &&
+//         vendorIds.length === 0
+//       ) {
+//         return res.status(200).json({
+//           success: true,
+//           pagination: { total: 0, page, limit, totalPages: 0 },
+//           data: [],
+//         });
+//       }
+//     }
+
+//     const query = {
+//       ...dateFilter,
+//     };
+
+//     if (safeSearch) {
+//       query.$or = [{ companyName: { $regex: safeSearch, $options: "i" } }];
+
+//       if (vendorIds.length > 0) {
+//         query.$or.push({ vendorId: { $in: vendorIds } });
+//       }
+//     } else if (vendorIds.length > 0) {
+//       query.vendorId = { $in: vendorIds };
+//     } else if (isAdminVerified !== undefined) {
+//       return res.status(200).json({
+//         success: true,
+//         pagination: {
+//           total: 0,
+//           page,
+//           limit,
+//           totalPages: 0,
+//         },
+//         data: [],
+//       });
+//     }
+
+//     // ---------------- Sorting ----------------
+//     let sortQuery = { createdAt: -1 };
+
+//     if (sort === "oldest") {
+//       sortQuery = { createdAt: 1 };
+//     }
+
+//     // ---------------- DB Queries ----------------
+//     const [vendors, total] = await Promise.all([
+//       VendorCompany.find(query)
+//         .populate({
+//           path: "vendorId",
+//           select: "-password -phoneOtp -aadharOtp -__v",
+//         })
+//         .sort(sortQuery)
+//         .skip(skip)
+//         .limit(limit),
+
+//       VendorCompany.countDocuments(query),
+//     ]);
+
+//     // ---------------- Response ----------------
+//     const response = {
+//       success: true,
+//       pagination: {
+//         total,
+//         page,
+//         limit,
+//         totalPages: Math.ceil(total / limit),
+//       },
+
+//       data: vendors.map((v) => ({
+//         _id: v._id,
+//         shopName: v.companyName,
+//         companyType: v.companyType,
+//         badges: v.badges || [],
+//         totalReviews: v.vendorId?.totalReviews || 0,
+//         businessCategory: v.businessCategory,
+
+//         vendor: {
+//           _id: v.vendorId?._id,
+//           name: `${v.vendorId?.firstName || ""} ${v.vendorId?.lastName || ""}`,
+//           email: v.vendorId?.email,
+//           phoneNumber: v.vendorId?.phoneNumber,
+//           isAdminVerified: v.vendorId?.isAdminVerified,
+//           isDisabled: v.vendorId?.disable,
+//         },
+
+//         location: {
+//           address: v.businessAddress?.address,
+//         },
+
+//         createdAt: v.createdAt,
+//       })),
+//     };
+
+//     await RedisCache.set(cacheKey, response);
+
+//     return res.status(200).json(response);
+//   } catch (error) {
+//     console.error("Get Vendors Error:", error);
+
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
 export const getAllVendors = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
+
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+
     const skip = (page - 1) * limit;
 
-    const {
-      search,
-      isAdminVerified,
-      sort,
-      disable,
-      filter, // today | yesterday | last7days | lastmonth
-      from,
-      to,
-    } = req.query;
+    const { search, isAdminVerified, sort, disable, filter, from, to } =
+      req.query;
 
-    const cacheKey = `vendors:all:v1:${JSON.stringify({
+    // ======================================================
+    // CACHE KEY
+    // ======================================================
+
+    const cacheKey = `vendors:all:v2:${JSON.stringify({
       page,
       limit,
       search,
@@ -1060,9 +1326,17 @@ export const getAllVendors = async (req, res) => {
     })}`;
 
     const cached = await RedisCache.get(cacheKey);
-    if (cached) return res.status(200).json(cached);
+
+    if (cached) {
+      return res.status(200).json(cached);
+    }
+
+    // ======================================================
+    // SAFE SEARCH
+    // ======================================================
 
     const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
     const safeSearch = search ? escapeRegex(search) : null;
 
     // ======================================================
@@ -1070,28 +1344,6 @@ export const getAllVendors = async (req, res) => {
     // ======================================================
 
     let dateFilter = {};
-
-    // const startOfToday = new Date();
-    // startOfToday.setHours(0, 0, 0, 0);
-
-    // const endOfToday = new Date();
-    // endOfToday.setHours(23, 59, 59, 999);
-    // IST OFFSET
-    const IST_OFFSET = 5.5 * 60 * 60 * 1000;
-
-    // CURRENT IST DATE
-    const now = new Date();
-
-    // TODAY START (IST)
-    const startOfToday = new Date(
-      new Date(now.getTime() + IST_OFFSET).setHours(0, 0, 0, 0) - IST_OFFSET,
-    );
-
-    // TODAY END (IST)
-    const endOfToday = new Date(
-      new Date(now.getTime() + IST_OFFSET).setHours(23, 59, 59, 999) -
-        IST_OFFSET,
-    );
 
     if (filter === "today") {
       const start = new Date();
@@ -1130,7 +1382,6 @@ export const getAllVendors = async (req, res) => {
       };
     }
 
-    // LAST MONTH
     if (filter === "lastmonth") {
       const lastMonth = new Date();
       lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
@@ -1140,12 +1391,16 @@ export const getAllVendors = async (req, res) => {
       };
     }
 
-    // CUSTOM RANGE
+    // ======================================================
+    // CUSTOM DATE RANGE
+    // ======================================================
+
     if (from || to) {
       dateFilter.createdAt = {};
 
       if (from) {
         const fromDate = new Date(from);
+
         fromDate.setUTCHours(0, 0, 0, 0);
 
         dateFilter.createdAt.$gte = fromDate;
@@ -1153,101 +1408,195 @@ export const getAllVendors = async (req, res) => {
 
       if (to) {
         const toDate = new Date(to);
+
         toDate.setUTCHours(23, 59, 59, 999);
 
         dateFilter.createdAt.$lte = toDate;
       }
     }
 
-    // ---------------- Vendor (User) Search ----------------
-    const vendorUserQuery = {};
+    // ======================================================
+    // VENDOR FILTER
+    // ======================================================
 
-    if (safeSearch) {
-      vendorUserQuery.$or = [
-        { firstName: { $regex: safeSearch, $options: "i" } },
-        { lastName: { $regex: safeSearch, $options: "i" } },
-        { email: { $regex: safeSearch, $options: "i" } },
-        { phoneNumber: { $regex: safeSearch, $options: "i" } },
-      ];
-    }
-
-    if (isAdminVerified !== undefined) {
-      vendorUserQuery.isAdminVerified = isAdminVerified === "true";
-    }
-
-    if (disable !== undefined) {
-      vendorUserQuery.disable = disable === "true";
-    }
-
-    // ---------------- Fetch matching Vendor IDs ----------------
-    let vendorIds = [];
-
-    if (Object.keys(vendorUserQuery).length > 0) {
-      const vendors = await VendorProfile.find(vendorUserQuery).select("_id");
-
-      vendorIds = vendors.map((v) => v._id);
-
-      if (
-        (disable !== undefined || isAdminVerified !== undefined) &&
-        vendorIds.length === 0
-      ) {
-        return res.status(200).json({
-          success: true,
-          pagination: { total: 0, page, limit, totalPages: 0 },
-          data: [],
-        });
-      }
-    }
-
-    const query = {
+    const vendorQuery = {
       ...dateFilter,
     };
 
-    if (safeSearch) {
-      query.$or = [{ companyName: { $regex: safeSearch, $options: "i" } }];
+    if (isAdminVerified !== undefined) {
+      vendorQuery.isAdminVerified = isAdminVerified === "true";
+    }
 
-      if (vendorIds.length > 0) {
-        query.$or.push({ vendorId: { $in: vendorIds } });
-      }
-    } else if (vendorIds.length > 0) {
-      query.vendorId = { $in: vendorIds };
-    } else if (isAdminVerified !== undefined) {
-      return res.status(200).json({
-        success: true,
-        pagination: {
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
+    if (disable !== undefined) {
+      vendorQuery.disable = disable === "true";
+    }
+
+    // ======================================================
+    // SEARCH FILTER
+    // ======================================================
+
+    const searchMatch = safeSearch
+      ? {
+          $or: [
+            {
+              firstName: {
+                $regex: safeSearch,
+                $options: "i",
+              },
+            },
+
+            {
+              lastName: {
+                $regex: safeSearch,
+                $options: "i",
+              },
+            },
+
+            {
+              email: {
+                $regex: safeSearch,
+                $options: "i",
+              },
+            },
+
+            {
+              phoneNumber: {
+                $regex: safeSearch,
+                $options: "i",
+              },
+            },
+
+            {
+              "company.companyName": {
+                $regex: safeSearch,
+                $options: "i",
+              },
+            },
+          ],
+        }
+      : {};
+
+    // ======================================================
+    // AGGREGATION PIPELINE
+    // ======================================================
+
+    const pipeline = [
+      // ======================================================
+      // MATCH
+      // ======================================================
+
+      {
+        $match: vendorQuery,
+      },
+
+      // ======================================================
+      // COMPANY LOOKUP
+      // ======================================================
+
+      {
+        $lookup: {
+          from: "vendorcompanies",
+          localField: "_id",
+          foreignField: "vendorId",
+          as: "company",
         },
-        data: [],
-      });
-    }
+      },
 
-    // ---------------- Sorting ----------------
-    let sortQuery = { createdAt: -1 };
+      // ======================================================
+      // UNWIND
+      // ======================================================
 
-    if (sort === "oldest") {
-      sortQuery = { createdAt: 1 };
-    }
+      {
+        $unwind: {
+          path: "$company",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
 
-    // ---------------- DB Queries ----------------
-    const [vendors, total] = await Promise.all([
-      VendorCompany.find(query)
-        .populate({
-          path: "vendorId",
-          select: "-password -phoneOtp -aadharOtp -__v",
-        })
-        .sort(sortQuery)
-        .skip(skip)
-        .limit(limit),
+      // ======================================================
+      // SEARCH
+      // ======================================================
 
-      VendorCompany.countDocuments(query),
+      ...(safeSearch
+        ? [
+            {
+              $match: searchMatch,
+            },
+          ]
+        : []),
+
+      // ======================================================
+      // SORT
+      // ======================================================
+
+      {
+        $sort: sort === "oldest" ? { createdAt: 1 } : { createdAt: -1 },
+      },
+
+      // ======================================================
+      // PAGINATION
+      // ======================================================
+
+      {
+        $skip: skip,
+      },
+
+      {
+        $limit: limit,
+      },
+    ];
+
+    // ======================================================
+    // EXECUTE
+    // ======================================================
+
+    const [vendors, totalData] = await Promise.all([
+      VendorProfile.aggregate(pipeline),
+
+      VendorProfile.aggregate([
+        {
+          $match: vendorQuery,
+        },
+
+        {
+          $lookup: {
+            from: "vendorcompanies",
+            localField: "_id",
+            foreignField: "vendorId",
+            as: "company",
+          },
+        },
+
+        {
+          $unwind: {
+            path: "$company",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+
+        ...(safeSearch
+          ? [
+              {
+                $match: searchMatch,
+              },
+            ]
+          : []),
+
+        {
+          $count: "total",
+        },
+      ]),
     ]);
 
-    // ---------------- Response ----------------
+    const total = totalData[0]?.total || 0;
+
+    // ======================================================
+    // RESPONSE
+    // ======================================================
+
     const response = {
       success: true,
+
       pagination: {
         total,
         page,
@@ -1257,28 +1606,48 @@ export const getAllVendors = async (req, res) => {
 
       data: vendors.map((v) => ({
         _id: v._id,
-        shopName: v.companyName,
-        companyType: v.companyType,
-        badges: v.badges || [],
-        totalReviews: v.vendorId?.totalReviews || 0,
-        businessCategory: v.businessCategory,
+
+        shopName: v.company?.companyName || null,
+
+        companyType: v.company?.companyType || null,
+
+        badges: v.company?.badges || [],
+
+        businessCategory: v.company?.businessCategory || null,
+
+        isShopListed: !!v.company,
 
         vendor: {
-          _id: v.vendorId?._id,
-          name: `${v.vendorId?.firstName || ""} ${v.vendorId?.lastName || ""}`,
-          email: v.vendorId?.email,
-          phoneNumber: v.vendorId?.phoneNumber,
-          isAdminVerified: v.vendorId?.isAdminVerified,
-          isDisabled: v.vendorId?.disable,
+          _id: v._id,
+
+          firstName: v.firstName,
+
+          lastName: v.lastName,
+
+          name: `${v.firstName || ""} ${v.lastName || ""}`,
+
+          email: v.email,
+
+          phoneNumber: v.phoneNumber,
+
+          profileImage: v.profileImage || null,
+
+          isAdminVerified: v.isAdminVerified,
+
+          isDisabled: v.disable,
         },
 
         location: {
-          address: v.businessAddress?.address,
+          address: v.company?.businessAddress?.address || null,
         },
 
         createdAt: v.createdAt,
       })),
     };
+
+    // ======================================================
+    // CACHE
+    // ======================================================
 
     await RedisCache.set(cacheKey, response);
 
@@ -1292,6 +1661,7 @@ export const getAllVendors = async (req, res) => {
     });
   }
 };
+
 //users get all vendor company vadetails with filter and pagination for admin panel
 export const getAllVendorCompany = async (req, res) => {
   try {
@@ -1447,25 +1817,39 @@ export const getAllVendorCompany = async (req, res) => {
 export const getAllVendorsViaModuleId = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
+
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+
     const skip = (page - 1) * limit;
+
     const moduleId = req.params.moduleId;
-    const { search, isAdminVerified, disable, sort } = req.query;
 
-    const cacheKey = `vendors:module:v1:${JSON.stringify(req.query)}`;
+    const { search, disable, sort } = req.query;
+
+    const cacheKey = `vendors:module:v2:${JSON.stringify({
+      moduleId,
+      page,
+      limit,
+      search,
+      disable,
+      sort,
+    })}`;
+
     const cached = await RedisCache.get(cacheKey);
-    if (cached) return res.json(cached);
 
-    const matchVendor = {};
-
-    // ---------------- MODULE FILTER ----------------
-    // if (moduleId) {
-    //   matchVendor.moduleId = new mongoose.Types.ObjectId(moduleId);
-    // }
-
-    if (isAdminVerified !== undefined) {
-      matchVendor.isAdminVerified = isAdminVerified === "true";
+    if (cached) {
+      return res.json(cached);
     }
+
+    // ======================================================
+    // MATCH VENDOR
+    // ======================================================
+
+    const matchVendor = {
+      moduleId: new mongoose.Types.ObjectId(moduleId),
+
+      isAdminVerified: true,
+    };
 
     if (disable !== undefined) {
       matchVendor.disable = disable === "true";
@@ -1473,20 +1857,67 @@ export const getAllVendorsViaModuleId = async (req, res) => {
 
     if (search) {
       matchVendor.$or = [
-        { firstName: { $regex: search, $options: "i" } },
-        { lastName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { phoneNumber: { $regex: search, $options: "i" } },
+        {
+          firstName: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+
+        {
+          lastName: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+
+        {
+          email: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+
+        {
+          phoneNumber: {
+            $regex: search,
+            $options: "i",
+          },
+        },
       ];
     }
 
-    let sortStage = { createdAt: -1 };
-    if (sort === "oldest") sortStage = { createdAt: 1 };
+    // ======================================================
+    // SORT
+    // ======================================================
 
-    // ---------------- PIPELINE ----------------
+    let sortStage = {
+      createdAt: -1,
+    };
+
+    if (sort === "oldest") {
+      sortStage = {
+        createdAt: 1,
+      };
+    }
+
+    // ======================================================
+    // PIPELINE
+    // ======================================================
+
     const pipeline = [
-      { $match: { moduleId: new mongoose.Types.ObjectId(moduleId) } },
-      // 2️ JOIN VENDOR COMPANY
+      // ======================================================
+      // MATCH VERIFIED VENDORS
+      // ======================================================
+
+      {
+        $match: matchVendor,
+      },
+
+      // ======================================================
+      // COMPANY LOOKUP
+      // ======================================================
+
       {
         $lookup: {
           from: "vendorcompanies",
@@ -1495,12 +1926,21 @@ export const getAllVendorsViaModuleId = async (req, res) => {
           as: "vendorCompany",
         },
       },
+
+      // ======================================================
+      // ONLY SHOP LISTED
+      // ======================================================
+
       {
         $unwind: {
           path: "$vendorCompany",
-          preserveNullAndEmptyArrays: true,
+          preserveNullAndEmptyArrays: false,
         },
       },
+
+      // ======================================================
+      // COMPANY SEARCH
+      // ======================================================
 
       ...(search
         ? [
@@ -1519,10 +1959,29 @@ export const getAllVendorsViaModuleId = async (req, res) => {
           ]
         : []),
 
-      { $sort: sortStage },
+      // ======================================================
+      // SORT
+      // ======================================================
 
-      { $skip: skip },
-      { $limit: limit },
+      {
+        $sort: sortStage,
+      },
+
+      // ======================================================
+      // PAGINATION
+      // ======================================================
+
+      {
+        $skip: skip,
+      },
+
+      {
+        $limit: limit,
+      },
+
+      // ======================================================
+      // RESPONSE FIELDS
+      // ======================================================
 
       {
         $project: {
@@ -1530,38 +1989,102 @@ export const getAllVendorsViaModuleId = async (req, res) => {
           lastName: 1,
           email: 1,
           phoneNumber: 1,
+          profileImage: 1,
           isAdminVerified: 1,
           disable: 1,
           moduleId: 1,
           createdAt: 1,
 
           vendorCompany: {
-            companyName: 1,
-            companyType: 1,
-            businessCategory: 1,
-            badges: 1,
-            businessAddress: 1,
-            shopImages: 1,
+            companyName: "$vendorCompany.companyName",
+
+            companyType: "$vendorCompany.companyType",
+
+            businessCategory: "$vendorCompany.businessCategory",
+
+            badges: "$vendorCompany.badges",
+
+            businessAddress: "$vendorCompany.businessAddress",
+
+            shopImages: "$vendorCompany.shopImages",
           },
         },
       },
     ];
 
-    const [vendors, total] = await Promise.all([
+    // ======================================================
+    // EXECUTE
+    // ======================================================
+
+    const [vendors, totalData] = await Promise.all([
       VendorProfile.aggregate(pipeline),
-      VendorProfile.countDocuments(matchVendor),
+
+      VendorProfile.aggregate([
+        {
+          $match: matchVendor,
+        },
+
+        {
+          $lookup: {
+            from: "vendorcompanies",
+            localField: "_id",
+            foreignField: "vendorId",
+            as: "vendorCompany",
+          },
+        },
+
+        {
+          $unwind: {
+            path: "$vendorCompany",
+            preserveNullAndEmptyArrays: false,
+          },
+        },
+
+        ...(search
+          ? [
+              {
+                $match: {
+                  $or: [
+                    {
+                      "vendorCompany.companyName": {
+                        $regex: search,
+                        $options: "i",
+                      },
+                    },
+                  ],
+                },
+              },
+            ]
+          : []),
+
+        {
+          $count: "total",
+        },
+      ]),
     ]);
+
+    const total = totalData[0]?.total || 0;
+
+    // ======================================================
+    // RESPONSE
+    // ======================================================
 
     const response = {
       success: true,
+
       pagination: {
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
       },
+
       data: vendors,
     };
+
+    // ======================================================
+    // CACHE
+    // ======================================================
 
     await RedisCache.set(cacheKey, response, 30);
 
@@ -1666,13 +2189,13 @@ export const verifyVendorByAdmin = async (req, res, next) => {
 
     // await RedisCache.delete(`vendor:v1:${vendorId}:*`);
     await Promise.all([
-      RedisCache.delete(`vendor:v1:${vendorId}:*`),
       RedisCache.delete(`vendor:${vendorId}`), // single vendor
       RedisCache.delete(`vendor:id:v1:${vendorId}`), // vendor detail cache
       RedisCache.deletePattern("vendors:all:v1:*"), // all list caches
       RedisCache.deletePattern("vendorCompany:all:v2:*"), // all list caches
+      RedisCache.deletePattern(`vendor:v1:${vendorId}:*`),
     ]);
-    
+
     return res.status(200).json({
       success: true,
       message: "Vendor admin verified successfully",
@@ -1851,6 +2374,8 @@ export const disableVendorStatus = async (req, res, next) => {
       RedisCache.delete(`vendor:id:v1:${vendorId}`),
       RedisCache.deletePattern("vendors:all:v1:*"),
       RedisCache.deletePattern("vendorCompany:all:v2:*"),
+      RedisCache.deletePattern("vendors:all:v2:*"),
+      RedisCache.deletePattern("vendors:module:v2:*"),
       // product cache bhi clear kr do
       RedisCache.deletePattern("products:*"),
     ]);
@@ -2410,6 +2935,7 @@ import Product from "../../models/vendorShop/product.model.js";
 import Order from "../../models/marketPlace/order.model.js";
 import VendorWallet from "../../models/vendorShop/vendorWallet.model.js";
 import adminNotificationModel from "../../models/admin/adminNotification.model.js";
+import { sendAdminNotification } from "../../services/adminNotification.service.js";
 
 //without top product array
 // export const getVendorById = async (req, res) => {
@@ -2801,6 +3327,7 @@ export const getSimilarCompanies = async (req, res) => {
     });
   }
 };
+
 //dynamic-otp
 const generateOtp = () => {
   return Number(

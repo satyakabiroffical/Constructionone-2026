@@ -9,7 +9,8 @@ import {
   VendorCompany,
   VendorProfile,
 } from "../../models/vendorShop/vendor.model.js";
-import adminNotificationModel from "../../models/admin/adminNotification.model.js";
+
+import { sendAdminNotification } from "../../services/adminNotification.service.js";
 
 class ProductController {
   //admingetAll
@@ -1116,7 +1117,7 @@ class ProductController {
         RedisCache.deletePattern("products:*"),
       ]);
 
-      await adminNotificationModel.create({
+      await sendAdminNotification({
         title: "New Product Added",
         message: `${vendorCompany?.companyName} added new product ${product.name}`,
         type: "PRODUCT_CREATED",
@@ -2607,94 +2608,97 @@ class ProductController {
     }
   }
 
-  static async getProductsByBrand(req, res) {
-    try {
-      const { brandId } = req.params;
-      const { page = 1, limit = 10, Type } = req.query;
+  // static async getProductsByBrand(req, res) {
+  //   try {
+  //     const { brandId } = req.params;
+  //     const { page = 1, limit = 10, Type } = req.query;
 
-      const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}`;
-      const cachedData = await RedisCache.get(cacheKey);
-      if (cachedData) {
-        return res.json(JSON.parse(cachedData));
-      }
+  //     const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}`;
 
-      const skip = (page - 1) * limit;
+  //     // const cachedData = await RedisCache.get(cacheKey);
+  //     // if (cachedData) {
+  //     //   return res.json(JSON.parse(cachedData));
+  //     // }
 
-      // 2. BASE FILTER
-      const filter = { brandId };
+  //     const skip = (page - 1) * limit;
 
-      // 3. TYPE FILTER (BULK / RETAIL)
-      // We find variant IDs matching the type, then filter products whose defaultVariantId is in that list
-      if (Type) {
-        const variantIds = await Variant.find({
-          Type: { $regex: new RegExp(`^${Type}$`, "i") },
-        }).distinct("_id");
+  //     // 2. BASE FILTER
+  //     const filter = { brandId };
 
-        filter["defaultVariantId"] = { $in: variantIds };
-      }
+  //     // 3. TYPE FILTER (BULK / RETAIL)
+  //     // We find variant IDs matching the type, then filter products whose defaultVariantId is in that list
+  //     if (Type) {
+  //       const variantIds = await Variant.find({
+  //         Type: { $regex: new RegExp(`^${Type}$`, "i") },
+  //       }).distinct("_id");
 
-      // 4. EXECUTE QUERIES (Parallelized for performance)
-      const [products, total] = await Promise.all([
-        Product.find(filter)
-          .select(
-            "name images avgRating reviewCount slug properties vendorId defaultVariantId",
-          )
-          .populate({
-            path: "vendorId",
-            select: "firstName lastName",
-          })
-          .populate({
-            path: "defaultVariantId",
-            select:
-              "price discount Type discount mrp stock moq packageWeight packageDimensions",
-          })
-          .skip(skip)
-          .limit(Number(limit))
-          .lean(), // Using .lean() for faster read-only performance
-        Product.countDocuments(filter),
-      ]);
+  //       filter["defaultVariantId"] = { $in: variantIds };
+  //     }
 
-      // 5. FORMAT RESPONSE
-      const formattedProducts = products.map((p) => ({
-        id: p._id,
-        name: p.name,
-        images: p.images,
-        avgRating: p.avgRating,
-        reviewCount: p.reviewCount,
-        slug: p.slug,
-        properties: p.properties,
-        vendor: {
-          firstName: p.vendorId?.firstName || null,
-          lastName: p.vendorId?.lastName || null,
-        },
-        price: p.defaultVariantId?.price ?? null,
-        mrp: p.defaultVariantId?.mrp ?? null,
-        discount: p.defaultVariantId?.discount ?? 0,
-        type: p.defaultVariantId?.Type ?? null,
-        packageWeight: p.defaultVariantId?.packageWeight ?? null,
-        moq: p.defaultVariantId?.moq ?? null,
-      }));
+  //     // 4. EXECUTE QUERIES (Parallelized for performance)
+  //     const [products, total] = await Promise.all([
+  //       Product.find(filter)
+  //         .select(
+  //           "name images avgRating reviewCount slug properties vendorId defaultVariantId measurementUnit",
+  //         )
+  //         .populate({
+  //           path: "vendorId",
+  //           select: "firstName lastName",
+  //         })
+  //         .populate({
+  //           path: "defaultVariantId",
+  //           select:
+  //             " _id price discount Type discount mrp stock moq packageWeight packageDimensions",
+  //         })
+  //         .skip(skip)
+  //         .limit(Number(limit))
+  //         .lean(), // Using .lean() for faster read-only performance
+  //       Product.countDocuments(filter),
+  //     ]);
 
-      const response = {
-        success: true,
-        page: Number(page),
-        totalPages: Math.ceil(total / limit),
-        totalProducts: total,
-        products: formattedProducts,
-      };
+  //     // 5. FORMAT RESPONSE
+  //     const formattedProducts = products.map((p) => ({
+  //       id: p._id,
+  //       name: p.name,
+  //       images: p.images,
+  //       avgRating: p.avgRating,
+  //       reviewCount: p.reviewCount,
+  //       slug: p.slug,
+  //       properties: p.properties,
+  //       vendor: {
+  //         firstName: p.vendorId?.firstName || null,
+  //         lastName: p.vendorId?.lastName || null,
+  //       },
+  //       price: p.defaultVariantId?.price ?? null,
+  //       mrp: p.defaultVariantId?.mrp ?? null,
+  //       discount: p.defaultVariantId?.discount ?? 0,
+  //       type: p.defaultVariantId?.Type ?? null,
+  //       packageWeight: p.defaultVariantId?.packageWeight ?? null,
+  //       moq: p.defaultVariantId?.moq ?? null,
+  //       defaultVariantId: p.defaultVariantId?.id ?? null,
+  //       measurementUnit: p.measurementUnit ?? "NA",
+  //     }));
 
-      // 6. SET CACHE (Expiring in 5 minutes)
-      await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+  //     const response = {
+  //       success: true,
+  //       page: Number(page),
+  //       totalPages: Math.ceil(total / limit),
+  //       totalProducts: total,
+  //       products: formattedProducts,
+  //     };
 
-      return res.json(response);
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: "Internal Server Error",
-        error: error.message,
-      });
-    }
-  }
+  //     // 6. SET CACHE (Expiring in 5 minutes)
+  //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+
+  //     return res.json(response);
+  //   } catch (error) {
+  //     return res.status(500).json({
+  //       success: false,
+  //       message: "Internal Server Error",
+  //       error: error.message,
+  //     });
+  //   }
+  // }
 
   // static async getDailyHotDeals(req, res) {
   //   try {
@@ -2741,6 +2745,120 @@ class ProductController {
   //     return res.status(500).json({ success: false, message: error.message });
   //   }
   // }
+
+  static async getProductsByBrand(req, res) {
+    try {
+      const { brandId } = req.params;
+      const { page = 1, limit = 10, Type } = req.query;
+
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const filter = {
+        brandId,
+        disable: false,
+        varified: true,
+      };
+
+      const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}`;
+
+      const cachedData = await RedisCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(JSON.parse(cachedData));
+      }
+
+      // =========================
+      // TYPE FILTER + STORE VARIANT IDS
+      // =========================
+      let variantFilterIds = null;
+
+      if (Type) {
+        variantFilterIds = await Variant.find({
+          Type: { $regex: new RegExp(`^${Type}$`, "i") },
+        }).distinct("_id");
+
+        filter.defaultVariantId = { $in: variantFilterIds };
+      }
+
+      const [products, total] = await Promise.all([
+        Product.find(filter)
+          .select(
+            "name images avgRating reviewCount slug properties vendorId defaultVariantId measurementUnit",
+          )
+          .populate({
+            path: "vendorId",
+            select: "firstName lastName",
+          })
+          .populate({
+            path: "defaultVariantId",
+            select: "_id price mrp discount Type stock moq",
+          })
+          .skip(skip)
+          .limit(Number(limit))
+          .lean(),
+
+        Product.countDocuments(filter),
+      ]);
+
+      // =========================
+      // RESPONSE FORMAT
+      // =========================
+      const formattedProducts = products.map((p) => {
+        const variant = p.defaultVariantId;
+
+        return {
+          id: p._id,
+          name: p.name,
+          images: p.images,
+          avgRating: p.avgRating,
+          reviewCount: p.reviewCount,
+          slug: p.slug,
+
+          vendor: {
+            firstName: p.vendorId?.firstName || null,
+            lastName: p.vendorId?.lastName || null,
+          },
+
+          // =========================
+          // IMPORTANT FIX HERE 👇
+          // =========================
+          variant: variant
+            ? {
+                id: variant._id, // 🔥 this is the variant ID you wanted
+                price: variant.price,
+                mrp: variant.mrp,
+                discount: variant.discount,
+                type: variant.Type,
+                stock: variant.stock,
+                moq: variant.moq,
+              }
+            : null,
+
+          measurementUnit: p.measurementUnit || "piece",
+        };
+      });
+
+      const response = {
+        success: true,
+        page: Number(page),
+        totalPages: Math.ceil(total / limit),
+        totalProducts: total,
+        products: formattedProducts,
+      };
+
+      // 6. SET CACHE (Expiring in 5 minutes)
+      await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+
+      return res.json({
+        response,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+      });
+    }
+  }
 
   static async getDailyHotDeals(req, res) {
     try {

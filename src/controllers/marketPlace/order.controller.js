@@ -1860,7 +1860,7 @@ export const createOrder = async (req, res, next) => {
     // =====================================================
 
     if (paymentMethod === "WALLET") {
-      await adminNotificationModel.create({
+      await sendAdminNotification({
         title: "New Order Created",
         message: `A new order ${masterOrderId} has been created successfully`,
         type: "ORDER_CREATED",
@@ -2104,7 +2104,7 @@ export const verifyPayment = async (req, res, next) => {
     // -----------------------------------
     // RESPONSE
     // -----------------------------------
-    await adminNotificationModel.create({
+    await sendAdminNotification({
       title: "New Order Created",
       message: `A new order ${masterOrderId} has been created successfully`,
       type: "ORDER_CREATED",
@@ -3832,6 +3832,7 @@ export const createShippingLabel = async (req, res, next) => {
 import { addSettlement } from "../vendorShop/vendorWallet.controller.js";
 import RedisCache from "../../utils/redisCache.js";
 import adminNotificationModel from "../../models/admin/adminNotification.model.js";
+import { sendAdminNotification } from "../../services/adminNotification.service.js";
 export const updateOrderToDelivered = async (req, res, next) => {
   const { orderId } = req.params;
   try {

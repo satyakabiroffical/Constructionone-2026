@@ -21,6 +21,7 @@ import { generateOtp, sendOtpViaMSG91 } from "../../utils/otpUtils.js";
 import { createReferral } from "../../services/referral.service.js";
 import { sendEmailOtp } from "../../utils/emailUtils.js";
 import adminNotificationModel from "../../models/admin/adminNotification.model.js";
+import { sendAdminNotification } from "../../services/adminNotification.service.js";
 
 // Register User
 export const register = catchAsync(async (req, res, next) => {
@@ -202,7 +203,7 @@ export const verifyOtp = catchAsync(async (req, res, next) => {
   // ADMIN NOTIFICATION
   // ===============================
 
-  await adminNotificationModel.create({
+  await sendAdminNotification({
     title: "New User Registered",
     message: `${user.firstName} ${user.lastName} has verified account successfully`,
     type: "USER_CREATED",

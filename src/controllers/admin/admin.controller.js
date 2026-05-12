@@ -11,6 +11,7 @@ import {
 } from "../../validations/auth/auth.validation.js"; // Reusing auth schemas for now, or define specific admin ones if different
 import { PERMISSIONS } from "../../utils/permissions.js";
 import bcrypt from "bcryptjs";
+import { sendAdminNotification } from "../../services/adminNotification.service.js";
 // Register New Admin (Protected: Only an existing ADMIN can create another ADMIN)
 export const registerAdmin = catchAsync(async (req, res, next) => {
   // Validate Input
@@ -577,4 +578,27 @@ export const getAllPermissions = catchAsync(async (req, res) => {
     success: true,
     permissions,
   });
+});
+
+export const testNotiFyAdmin = catchAsync(async (req, res) => {
+  try {
+    await sendAdminNotification({
+      title: "New User Registered",
+      message: "This is a test notification",
+      type: "USER_CREATED",
+      redirectUrl: "/admin/users",
+      color: "green",
+    });
+    res.status(200).json({
+      success: true,
+      message: "Notification sent successfully",
+    });
+  } catch (error) {
+    console.error("Error sending notification:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error sending notification",
+      error: error.message,
+    });
+  }
 });

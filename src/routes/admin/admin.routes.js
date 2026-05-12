@@ -17,6 +17,7 @@ import {
   updateSubAdmin,
   deleteSubAdmin,
   updateSubAdminProfile,
+  testNotiFyAdmin,
 } from "../../controllers/admin/admin.controller.js";
 import { getAdminDashboardData } from "../../controllers/admin/adminDashboard.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
@@ -104,5 +105,7 @@ router.get(
   requireRole("ADMIN"),
   getAllPermissions,
 );
+
+router.get("/test", testNotiFyAdmin);
 
 export default router;

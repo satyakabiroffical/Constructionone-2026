@@ -57,6 +57,7 @@ export const PERMISSIONS = [
   "CONTENT_HOME",
   "CONTENT_FAQ",
 ];
+
 //frontedend refrance
 // export const PERMISSIONS_GROUPS = [
 //   {

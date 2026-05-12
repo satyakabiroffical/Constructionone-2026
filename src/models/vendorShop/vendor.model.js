@@ -9,7 +9,9 @@ const vendorProfile = new mongoose.Schema(
     },
     phoneNumber: {
       type: String,
+      unique: true,
       sparse: true,
+      index: true,
     },
     phoneOtp: {
       codeHash: String,
@@ -94,7 +96,7 @@ const vendorCompany = new mongoose.Schema(
       ref: "vendorProfile",
     },
     companyName: { type: String },
-    
+
     companyType: {
       type: String,
       enum: [
