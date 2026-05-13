@@ -281,6 +281,53 @@ export const getMe = catchAsync(async (req, res, next) => {
 });
 
 // Update Me (User) — cache invalidate karo update ke baad
+// export const updateMe = catchAsync(async (req, res, next) => {
+//   // Prevent password update via this route
+//   if (req.body.password || req.body.passwordConfirm) {
+//     return next(
+//       new APIError(
+//         400,
+//         "This route is not for password updates. Please use /change-password",
+//       ),
+//     );
+//   }
+
+//   // Filter allowed fields
+//   const allowedFields = [
+//     "firstName",
+//     "lastName",
+//     "name",
+//     "address",
+//     "gender",
+//     "dob",
+//     "email",
+//   ];
+//   const updates = {};
+//   Object.keys(req.body).forEach((key) => {
+//     if (allowedFields.includes(key)) {
+//       updates[key] = req.body[key];
+//     }
+//   });
+
+//   const updatedUser = await User.findByIdAndUpdate(req.user.id, updates, {
+//     new: true,
+//     runValidators: true,
+//   }).lean();
+
+//   // Cache invalidate — purana data delete karo, next getMe fresh fetch karega
+//   await RedisCache.delete(userCacheKey(req.user.id));
+
+//   res
+//     .status(200)
+//     .json(
+//       new ApiResponse(
+//         200,
+//         { user: updatedUser },
+//         "Profile updated successfully",
+//       ),
+//     );
+// });
+
 export const updateMe = catchAsync(async (req, res, next) => {
   // Prevent password update via this route
   if (req.body.password || req.body.passwordConfirm) {
@@ -302,19 +349,25 @@ export const updateMe = catchAsync(async (req, res, next) => {
     "dob",
     "email",
   ];
+
   const updates = {};
+
   Object.keys(req.body).forEach((key) => {
     if (allowedFields.includes(key)) {
       updates[key] = req.body[key];
     }
   });
 
+  if (req.files?.profileImage?.[0]?.location) {
+    updates.profileImage = req.files.profileImage[0].location;
+  }
+
   const updatedUser = await User.findByIdAndUpdate(req.user.id, updates, {
     new: true,
     runValidators: true,
   }).lean();
 
-  // Cache invalidate — purana data delete karo, next getMe fresh fetch karega
+  // Cache invalidate
   await RedisCache.delete(userCacheKey(req.user.id));
 
   res

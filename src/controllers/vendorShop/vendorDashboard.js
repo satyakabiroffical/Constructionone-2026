@@ -191,6 +191,7 @@ export const getOrderByIdForVendor = async (req, res, next) => {
           select: `
     name
     images
+    leadTime
     categoryId
     pcategoryId
     subcategoryId
@@ -758,6 +759,7 @@ export const getAllOrdersForVendor = async (req, res, next) => {
     const filter = {
       "items.vendorId": vendorId,
       orderType: "SUB",
+      paymentStatus: "PAID",
     };
 
     // status filter

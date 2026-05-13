@@ -253,6 +253,23 @@ const orderItemSchema = new mongoose.Schema(
 
       default: "PENDING",
     },
+
+    durationTime: {
+      type: String,
+      default: "",
+    },
+
+    distance: {
+      km: {
+        type: Number,
+        default: 0,
+      },
+
+      meter: {
+        type: Number,
+        default: 0,
+      },
+    },
   },
   { _id: false },
 );
@@ -320,6 +337,11 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "transactionModel",
     },
+    expiresAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
   },
   { timestamps: true },
 );
@@ -327,4 +349,5 @@ const orderSchema = new mongoose.Schema(
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ parentId: 1 });
 orderSchema.index({ "items.vendorId": 1 });
+orderSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 export default mongoose.model("Order", orderSchema);

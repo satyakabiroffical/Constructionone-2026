@@ -402,7 +402,6 @@ export const getCart = async (req, res, next) => {
       // Get company directly from vendorId
       const vendorIdStr = product.vendorId?.toString();
       const company = companyMap.get(vendorIdStr);
-      console.log("item.deliveryOptions", item.deliveryOptions);
 
       return {
         itemId: item._id,

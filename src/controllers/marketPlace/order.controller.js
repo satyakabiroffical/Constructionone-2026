@@ -1548,6 +1548,12 @@ export const createOrder = async (req, res, next) => {
         deliveryType: selected.deliveryType,
 
         deliveryFee: Number(deliveryFee.toFixed(2)),
+        durationTime: selected.durationTime || "",
+
+        distance: {
+          km: Number(selected?.distance?.km || 0),
+          meter: Number(selected?.distance?.meter || 0),
+        },
 
         status: "PENDING",
       };
@@ -1600,9 +1606,7 @@ export const createOrder = async (req, res, next) => {
     if (paymentMethod === "ONLINE") {
       const razorpayOrder = await razorpayInstance.orders.create({
         amount: Math.round(grandTotal * 100),
-
         currency: "INR",
-
         receipt: `order_${Date.now()}`,
 
         notes: {
@@ -1649,6 +1653,10 @@ export const createOrder = async (req, res, next) => {
           status: orderStatus,
 
           transactionRef,
+          expiresAt:
+            paymentMethod === "ONLINE"
+              ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+              : null,
         },
       ],
       { session },
@@ -1701,6 +1709,10 @@ export const createOrder = async (req, res, next) => {
         paymentStatus,
 
         status: orderStatus,
+        expiresAt:
+          paymentMethod === "ONLINE"
+            ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+            : null,
       });
     }
 
@@ -1997,6 +2009,7 @@ export const verifyPayment = async (req, res, next) => {
           paymentStatus: "PAID",
           status: "CONFIRMED",
           transactionId,
+          expiresAt: null,
           "items.$[].status": "ACCEPTED",
         },
       },
@@ -2106,7 +2119,7 @@ export const verifyPayment = async (req, res, next) => {
     // -----------------------------------
     await sendAdminNotification({
       title: "New Order Created",
-      message: `A new order ${masterOrderId} has been created successfully`,
+      message: `A new order ${masterOrder._id} has been created successfully`,
       type: "ORDER_CREATED",
       color: "green",
       redirectUrl: `/marketplace/orders`,
@@ -2143,6 +2156,7 @@ export const getAllOrders = async (req, res, next) => {
     const filter = {
       userId,
       orderType: "MASTER",
+      paymentStatus: "PAID",
     };
 
     if (req.query.status) {
@@ -3203,7 +3217,9 @@ export const adminGetAllOrders = async (req, res, next) => {
     }
 
     // Filters
-    const filter = {};
+    const filter = {
+      paymentStatus: "PAID",
+    };
 
     if (req.query.orderType) {
       filter.orderType = req.query.orderType;

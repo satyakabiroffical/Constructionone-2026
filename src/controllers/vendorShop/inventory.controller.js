@@ -166,7 +166,7 @@ export const getInventory = async (req, res, next) => {
       .populate({
         path: "productId",
         match: productMatch,
-        select: "name images categoryId brandId",
+        select: "name images measurementUnit categoryId brandId",
         populate: [
           {
             path: "categoryId",
