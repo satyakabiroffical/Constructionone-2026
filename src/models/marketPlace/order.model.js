@@ -211,6 +211,7 @@ const orderItemSchema = new mongoose.Schema(
       ref: "vendorProfile",
       required: true,
     },
+
     vendorCompanyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "vendorCompany",
@@ -224,6 +225,8 @@ const orderItemSchema = new mongoose.Schema(
     price: Number,
     finalPrice: Number,
     packageWeight: Number,
+    vendorAmount: Number,
+    gstAmount: Number,
 
     deliveryType: {
       type: String,
@@ -247,7 +250,25 @@ const orderItemSchema = new mongoose.Schema(
         "DELIVERED",
         "CANCELLED",
       ],
+
       default: "PENDING",
+    },
+
+    durationTime: {
+      type: String,
+      default: "",
+    },
+
+    distance: {
+      km: {
+        type: Number,
+        default: 0,
+      },
+
+      meter: {
+        type: Number,
+        default: 0,
+      },
     },
   },
   { _id: false },
@@ -284,6 +305,7 @@ const orderSchema = new mongoose.Schema(
     subTotal: Number,
     totalDeliveryFee: Number,
     netAmount: Number,
+    handlingCharge: Number,
 
     status: {
       type: String,
@@ -301,7 +323,7 @@ const orderSchema = new mongoose.Schema(
     paymentStatus: {
       type: String,
       enum: ["UNPAID", "PAID", "FAILED"],
-      default: "UNPAID",
+      // default: "UNPAID",
     },
 
     paymentMethod: {
@@ -315,6 +337,11 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "transactionModel",
     },
+    expiresAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
   },
   { timestamps: true },
 );
@@ -322,4 +349,5 @@ const orderSchema = new mongoose.Schema(
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ parentId: 1 });
 orderSchema.index({ "items.vendorId": 1 });
+orderSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 export default mongoose.model("Order", orderSchema);

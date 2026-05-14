@@ -411,13 +411,18 @@ function buildVendorInvoiceHtml(subOrder, vendor) {
 
         <!-- PRODUCT -->
         <td>
-          <b>${product.name || "Product"}</b><br/>
-          <small style="color:gray;">
-            Brand: ${product.brandId?.name || "-"}<br/>
-            Category: ${product.categoryId?.name || "-"}<br/>
-            Type: ${product.productTypeId?.map((t) => t.typeName).join(", ") || "-"}
-          </small>
-        </td>
+  <b>${product.name || "Product"}</b>
+
+  <div style="font-size:11px;color:#555;margin-top:4px;">
+    Brand: ${product.brandId?.name || "-"}<br/>
+    Category: ${product.pcategoryId?.name || "-"} → ${product.categoryId?.name || "-"}<br/>
+    Subcategory: ${(product.subcategoryId || []).map((s) => s.name).join(", ") || "-"}<br/>
+    Type: ${(product.productTypeId || []).map((t) => t.typeName).join(", ") || "-"}<br/>
+    Variant: 
+      Weight: ${variant.packageWeight || "-"}kg |
+      Size: ${variant.packageDimensions || "-"}
+  </div>
+</td>
 
         <!-- PRICE -->
         <td style="text-align:center;">₹${price.toFixed(2)}</td>
@@ -524,12 +529,14 @@ function buildVendorInvoiceHtml(subOrder, vendor) {
   </div>
 
   <!-- VENDOR -->
-  <div class="box">
-    <h3>Seller Details</h3>
-    <b>${vendor.businessName}</b><br/>
-    GSTIN: ${vendor.gstNumber || "N/A"}<br/>
-    ${vendor.address || ""}
-  </div>
+ <div class="box">
+  <h3>Seller Details</h3>
+  <b>${vendor.businessName}</b><br/>
+  GSTIN: ${vendor.gstNumber || "N/A"}<br/>
+  Contact: ${vendor.contactNumber || "-"}<br/>
+  Reg No: ${vendor.companyRegistrationNumber || "-"}<br/>
+  ${vendor.address || ""}
+</div>
 
   <!-- CUSTOMER -->
   <div class="box">
@@ -543,7 +550,6 @@ function buildVendorInvoiceHtml(subOrder, vendor) {
   <!-- ITEMS -->
   <div class="box">
     <h3>Products</h3>
-
     <table>
       <thead>
         <tr>

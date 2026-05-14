@@ -1,4 +1,3 @@
-// import { required } from "joi";
 import mongoose from "mongoose";
 const vendorTransactionSchema = new mongoose.Schema(
   {
@@ -13,14 +12,14 @@ const vendorTransactionSchema = new mongoose.Schema(
     },
     transactionId: {
       type: String,
-      required: true,
+      // required: true,
     },
 
     amount: Number,
 
     status: {
       type: String,
-      enum: ["PENDING", "SUCCESS", "FAILED", "HOLD", "CANCELLED"],
+      enum: ["PENDING", "SUCCESS", "FAILED", "HOLD", "CANCELLED","SETTLED"],
       default: "PENDING",
     },
 

@@ -8,17 +8,89 @@ import RedisCache from "../../utils/redisCache.js";
 
 // Cache key helpers
 const userCacheKey = (userId) => `user:profile:${userId}`;
+
+// const allUsersCacheKey = (query) => `users:all:${JSON.stringify(query)}`;
+
+// // Get all users (Admin) — Redis cached + optimized query
+// export const getAllUsers = catchAsync(async (req, res, next) => {
+//   const page = parseInt(req.query.page) || 1;
+//   const limit = parseInt(req.query.limit) || 10;
+//   const skip = (page - 1) * limit;
+
+//   // Step 1: Cache check
+//   const cacheKey = allUsersCacheKey({ page, limit, role: req.query.role });
+//   const cached = await RedisCache.get(cacheKey);
+//   if (cached) {
+//     return res
+//       .status(200)
+//       .json(
+//         new ApiResponse(
+//           200,
+//           cached.users,
+//           "Users fetched successfully",
+//           cached.meta,
+//         ),
+//       );
+//   }
+
+//   // Step 2: Filter banao
+//   // FIX: Pehle aggregation pipeline use hoti thi — heavy aur slow
+//   // Ab simple find() + countDocuments() — indexes use karta hai directly (fast!)
+//   const filter = { role: req.query.role || "USER" };
+
+//   // Dono queries parallel mein chalao (Promise.all)
+//   const [users, total] = await Promise.all([
+//     User.find(filter)
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limit)
+//       .select(
+//         "-password -otp -otpExpiry -otpType -otpAttempts -refreshToken -__v",
+//       )
+//       .lean(),
+//     User.countDocuments(filter),
+//   ]);
+
+//   const meta = { total, page, limit, totalPages: Math.ceil(total / limit) };
+
+//   // Step 3: Cache karo (60 sec)
+//   await RedisCache.set(cacheKey, { users, meta }, 60);
+
+//   res
+//     .status(200)
+//     .json(new ApiResponse(200, users, "Users fetched successfully", meta));
+// });
+
 const allUsersCacheKey = (query) => `users:all:${JSON.stringify(query)}`;
 
-// Get all users (Admin) — Redis cached + optimized query
+// Get all users (Admin)
 export const getAllUsers = catchAsync(async (req, res, next) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  // Step 1: Cache check
-  const cacheKey = allUsersCacheKey({ page, limit, role: req.query.role });
+  const {
+    role,
+    filter, // today | yesterday | last7days | lastmonth
+    from,
+    to,
+  } = req.query;
+
+  // ======================================================
+  // CACHE
+  // ======================================================
+
+  const cacheKey = allUsersCacheKey({
+    page,
+    limit,
+    role,
+    filter,
+    from,
+    to,
+  });
+
   const cached = await RedisCache.get(cacheKey);
+
   if (cached) {
     return res
       .status(200)
@@ -32,14 +104,100 @@ export const getAllUsers = catchAsync(async (req, res, next) => {
       );
   }
 
-  // Step 2: Filter banao
-  // FIX: Pehle aggregation pipeline use hoti thi — heavy aur slow
-  // Ab simple find() + countDocuments() — indexes use karta hai directly (fast!)
-  const filter = { role: req.query.role || "USER" };
+  // ======================================================
+  // FILTER
+  // ======================================================
 
-  // Dono queries parallel mein chalao (Promise.all)
+  const query = {
+    role: role || "USER",
+  };
+
+  // ======================================================
+  // DATE FILTERS
+  // ======================================================
+
+  let dateFilter = {};
+
+  // TODAY
+  if (filter === "today") {
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setUTCHours(23, 59, 59, 999);
+
+    dateFilter.createdAt = {
+      $gte: start,
+      $lte: end,
+    };
+  }
+
+  // YESTERDAY
+  if (filter === "yesterday") {
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() - 1);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setUTCDate(end.getUTCDate() - 1);
+    end.setUTCHours(23, 59, 59, 999);
+
+    dateFilter.createdAt = {
+      $gte: start,
+      $lte: end,
+    };
+  }
+
+  // LAST 7 DAYS
+  if (filter === "last7days") {
+    const last7 = new Date();
+    last7.setUTCDate(last7.getUTCDate() - 7);
+
+    dateFilter.createdAt = {
+      $gte: last7,
+    };
+  }
+
+  // LAST MONTH
+  if (filter === "lastmonth") {
+    const lastMonth = new Date();
+    lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+
+    dateFilter.createdAt = {
+      $gte: lastMonth,
+    };
+  }
+
+  // ======================================================
+  // CUSTOM DATE RANGE
+  // ======================================================
+
+  if (from || to) {
+    dateFilter.createdAt = {};
+
+    if (from) {
+      const fromDate = new Date(from);
+      fromDate.setUTCHours(0, 0, 0, 0);
+
+      dateFilter.createdAt.$gte = fromDate;
+    }
+
+    if (to) {
+      const toDate = new Date(to);
+      toDate.setUTCHours(23, 59, 59, 999);
+
+      dateFilter.createdAt.$lte = toDate;
+    }
+  }
+
+  Object.assign(query, dateFilter);
+
+  // ======================================================
+  // DB QUERIES
+  // ======================================================
+
   const [users, total] = await Promise.all([
-    User.find(filter)
+    User.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -47,15 +205,24 @@ export const getAllUsers = catchAsync(async (req, res, next) => {
         "-password -otp -otpExpiry -otpType -otpAttempts -refreshToken -__v",
       )
       .lean(),
-    User.countDocuments(filter),
+
+    User.countDocuments(query),
   ]);
 
-  const meta = { total, page, limit, totalPages: Math.ceil(total / limit) };
+  const meta = {
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 
-  // Step 3: Cache karo (60 sec)
+  // ======================================================
+  // CACHE SAVE
+  // ======================================================
+
   await RedisCache.set(cacheKey, { users, meta }, 60);
 
-  res
+  return res
     .status(200)
     .json(new ApiResponse(200, users, "Users fetched successfully", meta));
 });
@@ -80,7 +247,7 @@ export const deleteUser = catchAsync(async (req, res, next) => {
   // 2. Saari paginated users:all list caches (pattern delete)
   await Promise.all([
     RedisCache.delete(userCacheKey(req.params.id)),
-    RedisCache.deletePattern("users:all:"),
+    RedisCache.deletePattern("users:all:*"),
   ]);
 
   res.status(200).json(new ApiResponse(200, null, "User deleted successfully"));
@@ -114,6 +281,53 @@ export const getMe = catchAsync(async (req, res, next) => {
 });
 
 // Update Me (User) — cache invalidate karo update ke baad
+// export const updateMe = catchAsync(async (req, res, next) => {
+//   // Prevent password update via this route
+//   if (req.body.password || req.body.passwordConfirm) {
+//     return next(
+//       new APIError(
+//         400,
+//         "This route is not for password updates. Please use /change-password",
+//       ),
+//     );
+//   }
+
+//   // Filter allowed fields
+//   const allowedFields = [
+//     "firstName",
+//     "lastName",
+//     "name",
+//     "address",
+//     "gender",
+//     "dob",
+//     "email",
+//   ];
+//   const updates = {};
+//   Object.keys(req.body).forEach((key) => {
+//     if (allowedFields.includes(key)) {
+//       updates[key] = req.body[key];
+//     }
+//   });
+
+//   const updatedUser = await User.findByIdAndUpdate(req.user.id, updates, {
+//     new: true,
+//     runValidators: true,
+//   }).lean();
+
+//   // Cache invalidate — purana data delete karo, next getMe fresh fetch karega
+//   await RedisCache.delete(userCacheKey(req.user.id));
+
+//   res
+//     .status(200)
+//     .json(
+//       new ApiResponse(
+//         200,
+//         { user: updatedUser },
+//         "Profile updated successfully",
+//       ),
+//     );
+// });
+
 export const updateMe = catchAsync(async (req, res, next) => {
   // Prevent password update via this route
   if (req.body.password || req.body.passwordConfirm) {
@@ -135,19 +349,25 @@ export const updateMe = catchAsync(async (req, res, next) => {
     "dob",
     "email",
   ];
+
   const updates = {};
+
   Object.keys(req.body).forEach((key) => {
     if (allowedFields.includes(key)) {
       updates[key] = req.body[key];
     }
   });
 
+  if (req.files?.profileImage?.[0]?.location) {
+    updates.profileImage = req.files.profileImage[0].location;
+  }
+
   const updatedUser = await User.findByIdAndUpdate(req.user.id, updates, {
     new: true,
     runValidators: true,
   }).lean();
 
-  // Cache invalidate — purana data delete karo, next getMe fresh fetch karega
+  // Cache invalidate
   await RedisCache.delete(userCacheKey(req.user.id));
 
   res
@@ -197,7 +417,7 @@ export const toggleUserStatus = catchAsync(async (req, res, next) => {
   // cache invalidate
   await Promise.all([
     RedisCache.delete(userCacheKey(userId)), // single user cache
-    RedisCache.deletePattern("users:all:"), // all users list cache
+    RedisCache.deletePattern("users:all:*"), // all users list cache
   ]);
 
   res.status(200).json(

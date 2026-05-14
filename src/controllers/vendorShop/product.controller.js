@@ -10,6 +10,8 @@ import {
   VendorProfile,
 } from "../../models/vendorShop/vendor.model.js";
 
+import { sendAdminNotification } from "../../services/adminNotification.service.js";
+
 class ProductController {
   //admingetAll
   static async getAllProductsAdmin(req, res, next) {
@@ -994,7 +996,7 @@ class ProductController {
       const vendorCompany = await VendorCompany.findOne({
         vendorId: req.user.id,
       })
-        .select("location")
+        .select("location companyName")
         .lean();
 
       let vendorLocation = undefined;
@@ -1115,6 +1117,14 @@ class ProductController {
         RedisCache.deletePattern("products:*"),
       ]);
 
+      await sendAdminNotification({
+        title: "New Product Added",
+        message: `${vendorCompany?.companyName} added new product ${product.name}`,
+        type: "PRODUCT_CREATED",
+        userId: req.user.id,
+        color: "blue",
+        redirectUrl: `/marketplace/products`,
+      });
       // =========================
       // RESPONSE
       // =========================
@@ -1210,20 +1220,151 @@ class ProductController {
     }
   }
 
+  // static async getProductById(req, res, next) {
+  //   try {
+  //     const { id } = req.params;
+
+  //     const cacheKey = `product:v1:${id}`;
+  //     const cached = await RedisCache.get(cacheKey);
+
+  //     if (cached) {
+  //       return res.json(cached);
+  //     }
+
+  //     // product fetch
+  //     const product = await Product.findById(id)
+  //       .populate("brandId", "name")
+  //       .populate("subcategoryId", "name")
+  //       .populate("productTypeId", "typeName")
+  //       .lean();
+
+  //     if (!product) {
+  //       throw new APIError("Product not found", 404);
+  //     }
+
+  //     // all variants fetch
+  //     const variants = await Variant.find({
+  //       productId: id,
+  //       disable: false,
+  //     })
+  //       .sort({ createdAt: -1 })
+  //       .lean();
+
+  //     const result = {
+  //       status: "success",
+  //       message: "Product fetched successfully",
+  //       data: {
+  //         product,
+  //         variants,
+  //       },
+  //     };
+
+  //     await RedisCache.set(cacheKey, result);
+
+  //     res.json(result);
+  //   } catch (err) {
+  //     next(err);
+  //   }
+  // }
+
+  // static async getProductById(req, res, next) {
+  //   try {
+  //     const { id } = req.params;
+
+  //     const cacheKey = `product:v1:${id}`;
+  //     const cached = await RedisCache.get(cacheKey);
+
+  //     if (cached) {
+  //       return res.json(cached);
+  //     }
+
+  //     // ======================================================
+  //     // PRODUCT
+  //     // ======================================================
+
+  //     const product = await Product.findById(id)
+  //       .populate("brandId", "name")
+  //       .populate("subcategoryId", "name")
+  //       .populate("productTypeId", "typeName")
+  //       .lean();
+
+  //     if (!product) {
+  //       throw new APIError("Product not found", 404);
+  //     }
+
+  //     // ======================================================
+  //     // VARIANTS
+  //     // ======================================================
+
+  //     const variants = await Variant.find({
+  //       productId: id,
+  //       disable: false,
+  //     })
+  //       .sort({ createdAt: -1 })
+  //       .lean();
+
+  //     // ======================================================
+  //     // GROUP BY TYPE
+  //     // ======================================================
+
+  //     const groupedVariants = {
+  //       BULK: [],
+  //       RETAIL: [],
+  //     };
+
+  //     variants.forEach((variant) => {
+  //       if (variant.Type === "BULK") {
+  //         groupedVariants.BULK.push(variant);
+  //       }
+
+  //       if (variant.Type === "RETAIL") {
+  //         groupedVariants.RETAIL.push(variant);
+  //       }
+  //     });
+
+  //     // ======================================================
+  //     // RESPONSE
+  //     // ======================================================
+
+  //     const result = {
+  //       status: "success",
+  //       message: "Product fetched successfully",
+  //       data: {
+  //         product,
+  //         variants: groupedVariants,
+  //       },
+  //     };
+
+  //     await RedisCache.set(cacheKey, result);
+
+  //     return res.json(result);
+  //   } catch (err) {
+  //     next(err);
+  //   }
+  // }
+
   static async getProductById(req, res, next) {
     try {
       const { id } = req.params;
+      const { type } = req.query;
 
-      const cacheKey = `product:v1:${id}`;
+      // ======================================================
+      // CACHE
+      // ======================================================
+
+      const cacheKey = `product:v4:${id}:${type || "ALL"}`;
       const cached = await RedisCache.get(cacheKey);
 
       if (cached) {
         return res.json(cached);
       }
 
-      // product fetch
+      // ======================================================
+      // PRODUCT
+      // ======================================================
+
       const product = await Product.findById(id)
-        .populate("brandId", "name")
+        .populate("brandId", "name logo")
         .populate("subcategoryId", "name")
         .populate("productTypeId", "typeName")
         .lean();
@@ -1232,31 +1373,205 @@ class ProductController {
         throw new APIError("Product not found", 404);
       }
 
-      // all variants fetch
-      const variants = await Variant.find({
+      // ======================================================
+      // VENDOR COMPANY
+      // ======================================================
+
+      const vendorCompanyData = await VendorCompany.findOne({
+        vendorId: product.vendorId,
+      })
+        .populate("vendorId", "firstName lastName email mobile profileImage")
+        .lean();
+
+      // ======================================================
+      // VARIANT FILTER
+      // ======================================================
+
+      const variantFilter = {
         productId: id,
         disable: false,
-      })
+      };
+
+      if (type) {
+        variantFilter.Type = type.toUpperCase();
+      }
+
+      // ======================================================
+      // VARIANTS
+      // ======================================================
+
+      const variants = await Variant.find(variantFilter)
         .sort({ createdAt: -1 })
         .lean();
+
+      // ======================================================
+      // CLEAN VARIANTS
+      // ======================================================
+
+      const cleanVariants = variants.map((variant) => ({
+        id: variant._id,
+
+        type: variant.Type,
+
+        size: variant.size,
+        outOfStock: variant.stock === 0, // ADD THIS
+        pricing: {
+          price: variant.price,
+          mrp: variant.mrp,
+          discount: variant.discount,
+          discountAmount: variant.discountAmount,
+        },
+
+        stock: {
+          availableStock: variant.stock,
+          sold: variant.sold,
+        },
+
+        moq: variant.moq,
+
+        package: {
+          weight: variant.packageWeight,
+          dimensions: variant.packageDimensions,
+        },
+      }));
+
+      // ======================================================
+      // CLEAN PRODUCT
+      // ======================================================
+
+      const cleanProduct = {
+        id: product._id,
+
+        name: product.name,
+
+        slug: product.slug,
+
+        description: product.description,
+
+        features: product.features,
+
+        specification: product.specification,
+
+        safetyInstructions: product.safetyInstructions,
+
+        images: product.images,
+
+        measurementUnit: product.measurementUnit,
+
+        leadTime: product.leadTime,
+
+        warrantyPeriod: product.warrantyPeriod,
+
+        returnDays: product.returnDays,
+
+        deliveryCharges: product.deliveryCharges,
+
+        deliveryOptions: product.deliveryOptions,
+
+        serviceableDeliveryPincode: product.serviceableDeliveryPincode,
+
+        shippingCharges: {
+          fixed: product.shippingCharges?.fixed,
+          distancePerKm: product.shippingCharges?.distancePerKm,
+          weightPerKg: product.shippingCharges?.weightPerKg,
+        },
+
+        rating: {
+          average: product.avgRating,
+          totalReviews: product.reviewCount,
+        },
+
+        sales: {
+          sold: product.sold,
+        },
+
+        offer: {
+          discount: product.discount,
+          isFeatured: product.isFeatured,
+          isFlashSale: product.isFlashSale,
+        },
+
+        brand: {
+          id: product.brandId?._id,
+          name: product.brandId?.name,
+          logo: product.brandId?.logo,
+        },
+
+        subcategories:
+          product.subcategoryId?.map((item) => ({
+            id: item._id,
+            name: item.name,
+          })) || [],
+
+        productTypes:
+          product.productTypeId?.map((item) => ({
+            id: item._id,
+            name: item.typeName,
+          })) || [],
+
+        metadata: {
+          title: product.metaData?.title,
+          description: product.metaData?.description,
+          keywords: product.metaData?.keywords,
+        },
+
+        properties: product.properties?.map((item) => ({
+          key: item.key,
+          value: item.value,
+        })),
+
+        verification: {
+          verified: product.varified,
+          reason: product.verifyReason,
+        },
+
+        status: product.status,
+
+        defaultVariantId: product.defaultVariantId,
+
+        vendor: {
+          id: vendorCompanyData?.vendorId?._id,
+
+          firstName: vendorCompanyData?.vendorId?.firstName,
+
+          lastName: vendorCompanyData?.vendorId?.lastName,
+
+          email: vendorCompanyData?.vendorId?.email,
+
+          mobile: vendorCompanyData?.vendorId?.mobile,
+
+          profileImage: vendorCompanyData?.vendorId?.profileImage,
+
+          shopName: vendorCompanyData?.companyName,
+
+          certificates: vendorCompanyData?.certificates || [],
+        },
+      };
+
+      // ======================================================
+      // RESPONSE
+      // ======================================================
 
       const result = {
         status: "success",
         message: "Product fetched successfully",
         data: {
-          product,
-          variants,
+          product: cleanProduct,
+          variants: cleanVariants,
         },
       };
 
+      // ======================================================
+      // CACHE SAVE
+      // ======================================================
+
       await RedisCache.set(cacheKey, result);
 
-      res.json(result);
+      return res.status(200).json(result);
     } catch (err) {
       next(err);
     }
   }
-
   static async toggleProduct(req, res, next) {
     try {
       const { id } = req.params;
@@ -1274,11 +1589,8 @@ class ProductController {
       ) {
         product.vendorLocation = undefined;
       }
-
       product.disable = !product.disable;
-
       await product.save();
-
       await Promise.all([
         RedisCache.deletePattern("products:public:v2:*"),
         RedisCache.deletePattern("products:admin:v1:*"),
@@ -1719,6 +2031,105 @@ class ProductController {
   //   }
   // }
 
+  // static async getProductBySubCategory(req, res) {
+  //   try {
+  //     const { subcategoryId } = req.params;
+  //     const { page = 1, limit = 10, type } = req.query;
+
+  //     const cacheKey = `products:subcat:${subcategoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
+
+  //     // 1. CHECK CACHE
+  //     // const cachedData = await RedisCache.get(cacheKey);
+  //     // if (cachedData) {
+  //     //   // console.log("CACHE HIT");
+  //     //   return res.json(JSON.parse(cachedData));
+  //     // }
+
+  //     // console.log("CACHE MISS");
+
+  //     const skip = (page - 1) * limit;
+
+  //     const filter = { subcategoryId };
+
+  //     if (type) {
+  //       const variantIds = await Variant.find({
+  //         Type: { $regex: new RegExp(`^${type}$`, "i") },
+  //       }).select("_id");
+
+  //       filter.defaultVariantId = {
+  //         $in: variantIds.map((v) => v._id),
+  //       };
+  //     }
+
+  //     // const products = await Product.find(filter)
+  //     //   .select(
+  //     //     "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
+  //     //   )
+  //     //   .populate({
+  //     //     path: "vendorId",
+  //     //     select: "firstName lastName",
+  //     //   })
+  //     //   .populate({
+  //     //     path: "defaultVariantId",
+  //     //     select: "price discount Type",
+  //     //   })
+  //     //   .skip(skip)
+  //     //   .limit(Number(limit));
+
+  //     const products = await Product.find(filter)
+  //       .select(
+  //         "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
+  //       )
+  //       .populate({
+  //         path: "vendorId",
+  //         select: "firstName lastName",
+  //       })
+  //       .populate({
+  //         path: "defaultVariantId", // full data
+  //       })
+  //       .skip(skip)
+  //       .limit(Number(limit));
+
+  //     const formattedProducts = products.map((p) => ({
+  //       id: p._id,
+  //       name: p.name,
+  //       images: p.images,
+  //       avgRating: p.avgRating,
+  //       reviewCount: p.reviewCount,
+  //       slug: p.slug,
+  //       properties: p.properties,
+  //       minDiscount: p.minDiscount,
+  //       maxDiscount: p.maxDiscount,
+  //       vendor: {
+  //         firstName: p.vendorId?.firstName,
+  //         lastName: p.vendorId?.lastName,
+  //       },
+  //       price: p.defaultVariantId?.price ?? null,
+  //       discount: p.defaultVariantId?.discount ?? null,
+  //       type: p.defaultVariantId?.Type ?? null,
+  //     }));
+
+  //     const total = await Product.countDocuments(filter);
+
+  //     const response = {
+  //       success: true,
+  //       page: Number(page),
+  //       totalPages: Math.ceil(total / limit),
+  //       totalProducts: total,
+  //       products: formattedProducts,
+  //     };
+
+  //     //  2. SET CACHE
+  //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+
+  //     res.json(response);
+  //   } catch (error) {
+  //     // console.error(error);
+  //     res.status(500).json({ message: error.message });
+  //   }
+  // }
+
+  //draft product for vendor
   static async getProductBySubCategory(req, res) {
     try {
       const { subcategoryId } = req.params;
@@ -1729,11 +2140,8 @@ class ProductController {
       // 1. CHECK CACHE
       const cachedData = await RedisCache.get(cacheKey);
       if (cachedData) {
-        // console.log("CACHE HIT");
         return res.json(JSON.parse(cachedData));
       }
-
-      // console.log("CACHE MISS");
 
       const skip = (page - 1) * limit;
 
@@ -1759,7 +2167,6 @@ class ProductController {
         })
         .populate({
           path: "defaultVariantId",
-          select: "price discount Type",
         })
         .skip(skip)
         .limit(Number(limit));
@@ -1774,13 +2181,18 @@ class ProductController {
         properties: p.properties,
         minDiscount: p.minDiscount,
         maxDiscount: p.maxDiscount,
+
         vendor: {
           firstName: p.vendorId?.firstName,
           lastName: p.vendorId?.lastName,
         },
+
+        // quick access fields (frontend fast rendering)
         price: p.defaultVariantId?.price ?? null,
         discount: p.defaultVariantId?.discount ?? null,
         type: p.defaultVariantId?.Type ?? null,
+
+        defaultVariant: p.defaultVariantId || null,
       }));
 
       const total = await Product.countDocuments(filter);
@@ -1793,17 +2205,15 @@ class ProductController {
         products: formattedProducts,
       };
 
-      //  2. SET CACHE
+      // 2. SET CACHE (5 min)
       await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
       res.json(response);
     } catch (error) {
-      // console.error(error);
       res.status(500).json({ message: error.message });
     }
   }
 
-  //draft product for vendor
   static async getDraftProducts(req, res, next) {
     try {
       const { page = 1, limit = 20, search } = req.query;
@@ -1941,7 +2351,7 @@ class ProductController {
       next(err);
     }
   }
-  //withour all type filter
+
   // static async getProductByCategory(req, res) {
   //   try {
   //     const { categoryId } = req.params;
@@ -1949,7 +2359,6 @@ class ProductController {
 
   //     const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
 
-  //     // 1. CHECK CACHE
   //     const cachedData = await RedisCache.get(cacheKey);
   //     if (cachedData) {
   //       return res.json(JSON.parse(cachedData));
@@ -1957,9 +2366,14 @@ class ProductController {
 
   //     const skip = (page - 1) * limit;
 
-  //     const filter = { categoryId };
+  //     const filter = {};
 
-  //     //  TYPE FILTER (same as before)
+  //     // 👉 agar "all" nahi hai tabhi category filter lagao
+  //     if (categoryId !== "all") {
+  //       filter.categoryId = categoryId;
+  //     }
+
+  //     // 🔥 TYPE FILTER
   //     if (type) {
   //       const variantIds = await Variant.find({
   //         Type: { $regex: new RegExp(`^${type}$`, "i") },
@@ -2014,7 +2428,6 @@ class ProductController {
   //       products: formattedProducts,
   //     };
 
-  //     // 2. SET CACHE
   //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
   //     res.json(response);
@@ -2022,6 +2435,7 @@ class ProductController {
   //     res.status(500).json({ message: error.message });
   //   }
   // }
+
   static async getProductByCategory(req, res) {
     try {
       const { categoryId } = req.params;
@@ -2029,21 +2443,20 @@ class ProductController {
 
       const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
 
-      const cachedData = await RedisCache.get(cacheKey);
-      if (cachedData) {
-        return res.json(JSON.parse(cachedData));
-      }
+      // 1. CACHE CHECK
+      // const cachedData = await RedisCache.get(cacheKey);
+      // if (cachedData) {
+      //   return res.json(JSON.parse(cachedData));
+      // }
 
       const skip = (page - 1) * limit;
 
       const filter = {};
 
-      // 👉 agar "all" nahi hai tabhi category filter lagao
       if (categoryId !== "all") {
         filter.categoryId = categoryId;
       }
 
-      // 🔥 TYPE FILTER
       if (type) {
         const variantIds = await Variant.find({
           Type: { $regex: new RegExp(`^${type}$`, "i") },
@@ -2064,7 +2477,6 @@ class ProductController {
         })
         .populate({
           path: "defaultVariantId",
-          select: "price discount Type",
         })
         .skip(skip)
         .limit(Number(limit));
@@ -2075,17 +2487,21 @@ class ProductController {
         images: p.images,
         avgRating: p.avgRating,
         reviewCount: p.reviewCount,
-        slug: p.slug,
         properties: p.properties,
         minDiscount: p.minDiscount,
         maxDiscount: p.maxDiscount,
+
         vendor: {
           firstName: p.vendorId?.firstName,
           lastName: p.vendorId?.lastName,
         },
+
+        // quick access fields
         price: p.defaultVariantId?.price ?? null,
         discount: p.defaultVariantId?.discount ?? null,
         type: p.defaultVariantId?.Type ?? null,
+
+        defaultVariant: p.defaultVariantId || null,
       }));
 
       const total = await Product.countDocuments(filter);
@@ -2098,6 +2514,7 @@ class ProductController {
         products: formattedProducts,
       };
 
+      // 2. SET CACHE
       await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
       res.json(response);
@@ -2190,6 +2607,349 @@ class ProductController {
       });
     }
   }
-}
 
+  // static async getProductsByBrand(req, res) {
+  //   try {
+  //     const { brandId } = req.params;
+  //     const { page = 1, limit = 10, Type } = req.query;
+
+  //     const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}`;
+
+  //     // const cachedData = await RedisCache.get(cacheKey);
+  //     // if (cachedData) {
+  //     //   return res.json(JSON.parse(cachedData));
+  //     // }
+
+  //     const skip = (page - 1) * limit;
+
+  //     // 2. BASE FILTER
+  //     const filter = { brandId };
+
+  //     // 3. TYPE FILTER (BULK / RETAIL)
+  //     // We find variant IDs matching the type, then filter products whose defaultVariantId is in that list
+  //     if (Type) {
+  //       const variantIds = await Variant.find({
+  //         Type: { $regex: new RegExp(`^${Type}$`, "i") },
+  //       }).distinct("_id");
+
+  //       filter["defaultVariantId"] = { $in: variantIds };
+  //     }
+
+  //     // 4. EXECUTE QUERIES (Parallelized for performance)
+  //     const [products, total] = await Promise.all([
+  //       Product.find(filter)
+  //         .select(
+  //           "name images avgRating reviewCount slug properties vendorId defaultVariantId measurementUnit",
+  //         )
+  //         .populate({
+  //           path: "vendorId",
+  //           select: "firstName lastName",
+  //         })
+  //         .populate({
+  //           path: "defaultVariantId",
+  //           select:
+  //             " _id price discount Type discount mrp stock moq packageWeight packageDimensions",
+  //         })
+  //         .skip(skip)
+  //         .limit(Number(limit))
+  //         .lean(), // Using .lean() for faster read-only performance
+  //       Product.countDocuments(filter),
+  //     ]);
+
+  //     // 5. FORMAT RESPONSE
+  //     const formattedProducts = products.map((p) => ({
+  //       id: p._id,
+  //       name: p.name,
+  //       images: p.images,
+  //       avgRating: p.avgRating,
+  //       reviewCount: p.reviewCount,
+  //       slug: p.slug,
+  //       properties: p.properties,
+  //       vendor: {
+  //         firstName: p.vendorId?.firstName || null,
+  //         lastName: p.vendorId?.lastName || null,
+  //       },
+  //       price: p.defaultVariantId?.price ?? null,
+  //       mrp: p.defaultVariantId?.mrp ?? null,
+  //       discount: p.defaultVariantId?.discount ?? 0,
+  //       type: p.defaultVariantId?.Type ?? null,
+  //       packageWeight: p.defaultVariantId?.packageWeight ?? null,
+  //       moq: p.defaultVariantId?.moq ?? null,
+  //       defaultVariantId: p.defaultVariantId?.id ?? null,
+  //       measurementUnit: p.measurementUnit ?? "NA",
+  //     }));
+
+  //     const response = {
+  //       success: true,
+  //       page: Number(page),
+  //       totalPages: Math.ceil(total / limit),
+  //       totalProducts: total,
+  //       products: formattedProducts,
+  //     };
+
+  //     // 6. SET CACHE (Expiring in 5 minutes)
+  //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+
+  //     return res.json(response);
+  //   } catch (error) {
+  //     return res.status(500).json({
+  //       success: false,
+  //       message: "Internal Server Error",
+  //       error: error.message,
+  //     });
+  //   }
+  // }
+
+  // static async getDailyHotDeals(req, res) {
+  //   try {
+  //     const today = new Date().setHours(0, 0, 0, 0); // Aaj ki date ka midnight timestamp
+
+  //     // Redis Cache for 24 Hours
+  //     const cacheKey = `daily_deals_${today}`;
+  //     const cached = await RedisCache.get(cacheKey);
+  //     if (cached) return res.json(JSON.parse(cached));
+
+  //     // Pipeline: High discount wale products uthao aur random 10 dikhao
+  //     const products = await Product.aggregate([
+  //       { $match: { avgRating: { $gte: 4 } } },
+  //       {
+  //         $lookup: {
+  //           from: "variants",
+  //           localField: "defaultVariantId",
+  //           foreignField: "_id",
+  //           as: "variant",
+  //         },
+  //       },
+  //       { $unwind: "$variant" },
+  //       { $match: { "variant.discount": { $gte: 20 } } }, // 20% + discount
+  //       { $sample: { size: 10 } }, // Randomly pick 10 products
+  //       {
+  //         $project: {
+  //           name: 1,
+  //           slug: 1,
+  //           price: "$variant.price",
+  //           mrp: "$variant.mrp",
+  //           discount: "$variant.discount",
+  //           images: { $arrayElemAt: ["$images", 0] },
+  //         },
+  //       },
+  //     ]);
+
+  //     const response = { success: true, date: new Date(), products };
+
+  //     // Cache it until the end of the day (86400 seconds = 24h)
+  //     await RedisCache.set(cacheKey, JSON.stringify(response), 86400);
+
+  //     return res.json(response);
+  //   } catch (error) {
+  //     return res.status(500).json({ success: false, message: error.message });
+  //   }
+  // }
+
+  static async getProductsByBrand(req, res) {
+    try {
+      const { brandId } = req.params;
+      const { page = 1, limit = 10, Type } = req.query;
+
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const filter = {
+        brandId,
+        disable: false,
+        varified: true,
+      };
+
+      const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}`;
+
+      const cachedData = await RedisCache.get(cacheKey);
+      if (cachedData) {
+        return res.json(JSON.parse(cachedData));
+      }
+
+      // =========================
+      // TYPE FILTER + STORE VARIANT IDS
+      // =========================
+      let variantFilterIds = null;
+
+      if (Type) {
+        variantFilterIds = await Variant.find({
+          Type: { $regex: new RegExp(`^${Type}$`, "i") },
+        }).distinct("_id");
+
+        filter.defaultVariantId = { $in: variantFilterIds };
+      }
+
+      const [products, total] = await Promise.all([
+        Product.find(filter)
+          .select(
+            "name images avgRating reviewCount slug properties vendorId defaultVariantId measurementUnit",
+          )
+          .populate({
+            path: "vendorId",
+            select: "firstName lastName",
+          })
+          .populate({
+            path: "defaultVariantId",
+            select: "_id price mrp discount Type stock moq",
+          })
+          .skip(skip)
+          .limit(Number(limit))
+          .lean(),
+
+        Product.countDocuments(filter),
+      ]);
+
+      // =========================
+      // RESPONSE FORMAT
+      // =========================
+      const formattedProducts = products.map((p) => {
+        const variant = p.defaultVariantId;
+
+        return {
+          id: p._id,
+          name: p.name,
+          images: p.images,
+          avgRating: p.avgRating,
+          reviewCount: p.reviewCount,
+          slug: p.slug,
+
+          vendor: {
+            firstName: p.vendorId?.firstName || null,
+            lastName: p.vendorId?.lastName || null,
+          },
+
+          // =========================
+          // IMPORTANT FIX HERE 👇
+          // =========================
+          variant: variant
+            ? {
+                id: variant._id, // 🔥 this is the variant ID you wanted
+                price: variant.price,
+                mrp: variant.mrp,
+                discount: variant.discount,
+                type: variant.Type,
+                stock: variant.stock,
+                moq: variant.moq,
+              }
+            : null,
+
+          measurementUnit: p.measurementUnit || "piece",
+        };
+      });
+
+      const response = {
+        success: true,
+        page: Number(page),
+        totalPages: Math.ceil(total / limit),
+        totalProducts: total,
+        products: formattedProducts,
+      };
+
+      // 6. SET CACHE (Expiring in 5 minutes)
+      await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+
+      return res.json({
+        response,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+      });
+    }
+  }
+
+  static async getDailyHotDeals(req, res) {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const cacheKey = `daily_deals:${today}`;
+      // 1. Cache Check
+      const cached = await RedisCache.get(cacheKey);
+      if (cached) return res.json(JSON.parse(cached));
+
+      let products = await Product.aggregate([
+        {
+          $match: {
+            varified: true,
+            disable: false,
+            status: "ACTIVE",
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $limit: 100 },
+        {
+          $lookup: {
+            from: "variants",
+            localField: "defaultVariantId",
+            foreignField: "_id",
+            as: "v",
+          },
+        },
+        { $unwind: "$v" },
+        {
+          $match: {
+            $or: [{ "v.discount": { $gte: 5 } }, { avgRating: { $gte: 4 } }],
+          },
+        },
+        { $sample: { size: 10 } },
+        {
+          $project: {
+            id: "$_id",
+            name: 1,
+            defaultVariantId: 1,
+            slug: 1,
+            images: 1,
+            avgRating: 1,
+            reviewCount: 1,
+            price: "$v.price",
+            mrp: "$v.mrp",
+            discount: "$v.discount",
+            type: "$v.Type",
+          },
+        },
+      ]);
+
+      if (!products || products.length === 0) {
+        const fallbackItems = await Product.find({
+          varified: true,
+          disable: false,
+        })
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .populate("defaultVariantId")
+          .lean();
+
+        products = fallbackItems.map((p) => ({
+          // id: p._id,
+          defaultVariantId: p.defaultVariantId,
+          name: p.name,
+          slug: p.slug,
+          images: p.images,
+          avgRating: p.avgRating,
+          price: p.defaultVariantId?.price || 0,
+          mrp: p.defaultVariantId?.mrp || 0,
+          discount: p.defaultVariantId?.discount || 0,
+          type: p.defaultVariantId?.Type || null,
+        }));
+      }
+
+      const response = {
+        success: true,
+        count: products.length,
+        date: new Date(),
+        products,
+      };
+
+      // Cache results
+      if (products.length > 0) {
+        await RedisCache.set(cacheKey, JSON.stringify(response), 86400);
+      }
+
+      return res.json(response);
+    } catch (error) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+}
 export default ProductController;

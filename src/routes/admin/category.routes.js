@@ -15,7 +15,7 @@ import { s3Uploader } from "../../middlewares/uploads.js";
 const router = Router();
 
 // Protect all routes
-router.use(requireAuth, requireRole("ADMIN"));
+// router.use(requireAuth, requireRole("ADMIN"));
 
 router
   .route("/")

@@ -9,7 +9,9 @@ const vendorProfile = new mongoose.Schema(
     },
     phoneNumber: {
       type: String,
+      unique: true,
       sparse: true,
+      index: true,
     },
     phoneOtp: {
       codeHash: String,
@@ -27,7 +29,7 @@ const vendorProfile = new mongoose.Schema(
     },
 
     governmentIdNumber: { type: String },
-    uploadId: { type: String },
+    uploadId: [String],
 
     aadharOtp: {
       codeHash: String,
@@ -94,6 +96,7 @@ const vendorCompany = new mongoose.Schema(
       ref: "vendorProfile",
     },
     companyName: { type: String },
+
     companyType: {
       type: String,
       enum: [
@@ -110,6 +113,7 @@ const vendorCompany = new mongoose.Schema(
       enum: ["Retail", "Wholesale", "E-commerce", "Production", "Other"],
       default: "Other",
     },
+
     serviceArea: {
       selectedStates: [String],
       selectedCities: [String],

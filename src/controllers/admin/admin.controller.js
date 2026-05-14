@@ -11,6 +11,7 @@ import {
 } from "../../validations/auth/auth.validation.js"; // Reusing auth schemas for now, or define specific admin ones if different
 import { PERMISSIONS } from "../../utils/permissions.js";
 import bcrypt from "bcryptjs";
+import { sendAdminNotification } from "../../services/adminNotification.service.js";
 // Register New Admin (Protected: Only an existing ADMIN can create another ADMIN)
 export const registerAdmin = catchAsync(async (req, res, next) => {
   // Validate Input
@@ -126,13 +127,30 @@ export const getAdminMe = catchAsync(async (req, res, next) => {
 
 // Update Admin Profile (Self)
 export const updateAdmin = catchAsync(async (req, res, next) => {
-  const { firstName, lastName, phone, address, gender, dob } = req.body;
+  let { firstName, lastName, phone, address, gender, dob, profileImage } =
+    req.body;
 
-  // Basic update logic
+  if (req.files?.profileImage?.[0]) {
+    const finalProfileImage =
+      req.files?.profileImage?.[0]?.location || bodyImage;
+    profileImage = finalProfileImage;
+  }
+
   const updatedAdmin = await User.findByIdAndUpdate(
     req.user.id,
-    { firstName, lastName, phone, address, gender, dob },
-    { new: true, runValidators: true },
+    {
+      firstName,
+      lastName,
+      phone,
+      address,
+      gender,
+      dob,
+      profileImage,
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
   );
 
   res.status(200).json(
@@ -145,6 +163,7 @@ export const updateAdmin = catchAsync(async (req, res, next) => {
           lastName: updatedAdmin.lastName,
           email: updatedAdmin.email,
           role: updatedAdmin.role,
+          profileImage: updatedAdmin.profileImage,
         },
       },
       "Admin profile updated successfully",
@@ -376,10 +395,7 @@ export const updateSubAdminProfile = catchAsync(async (req, res, next) => {
   if (email || phone) {
     const existingUser = await User.findOne({
       _id: { $ne: id },
-      $or: [
-        ...(email ? [{ email }] : []),
-        ...(phone ? [{ phone }] : []),
-      ],
+      $or: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])],
     });
 
     if (existingUser) {
@@ -401,7 +417,7 @@ export const updateSubAdminProfile = catchAsync(async (req, res, next) => {
     {
       new: true,
       runValidators: true,
-    }
+    },
   ).select("-password");
 
   res.status(200).json({
@@ -562,4 +578,27 @@ export const getAllPermissions = catchAsync(async (req, res) => {
     success: true,
     permissions,
   });
+});
+
+export const testNotiFyAdmin = catchAsync(async (req, res) => {
+  try {
+    await sendAdminNotification({
+      title: "New User Registered",
+      message: "This is a test notification",
+      type: "USER_CREATED",
+      redirectUrl: "/admin/users",
+      color: "green",
+    });
+    res.status(200).json({
+      success: true,
+      message: "Notification sent successfully",
+    });
+  } catch (error) {
+    console.error("Error sending notification:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error sending notification",
+      error: error.message,
+    });
+  }
 });

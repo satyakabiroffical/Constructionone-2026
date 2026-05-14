@@ -2,40 +2,6 @@ import mongoose from "mongoose";
 
 const variantSchema = new mongoose.Schema(
   {
-    // moduleId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "Module",
-    //   required: true,
-    //   index: true,
-    // },
-    // pcategoryId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "PCategory",
-    //   required: true,
-    //   index: true,
-    // },
-
-    // categoryId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "Category",
-    //   required: true,
-    //   index: true,
-    // },
-
-    // subcategoryId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "Subcategory",
-    //   required: true,
-    //   index: true,
-    // },
-
-    // brandId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "Brand",
-    //   required: true,
-    //   index: true,
-    // },
-
     productId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",

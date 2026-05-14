@@ -30,6 +30,10 @@ const cartSchema = new mongoose.Schema({
         type: Number,
         required: true,
       },
+      deliveryOptions: {
+        type: [String],
+        default: [],
+      },
     },
   ],
   totalAmount: {

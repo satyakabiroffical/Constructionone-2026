@@ -15,8 +15,7 @@ import { requireAuth } from "../../middlewares/auth.middleware.js";
 const router = express.Router();
 import { s3Uploader } from "../../middlewares/uploads.js";
 
-// s3Uploader().fields([{ name: "brandImage", maxCount: 1 }]),
-// User writes / updates review
+
 router.post(
   "/review",
   requireAuth,

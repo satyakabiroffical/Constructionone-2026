@@ -12,7 +12,7 @@ import createError from "http-errors";
 import dotenv from "dotenv";
 dotenv.config();
 
-const s3 = new S3Client({
+export const s3 = new S3Client({
   region: process.env.LINODE_OBJECT_STORAGE_REGION,
   endpoint: process.env.LINODE_OBJECT_STORAGE_ENDPOINT,
   credentials: {

@@ -28,11 +28,41 @@ export const createBusinessRequest = async (req, res) => {
 };
 
 // Get all business requests
+// export const getBusinessRequests = async (req, res) => {
+//   const { page, limit } = req.query;
+//   const skip = (page - 1) * limit;
+//   // Retrieve all business requests with detailed information
+//   const requests = await BusinessRequest.find()
+//     .skip(skip)
+//     .limit(limit)
+//     .populate({
+//       path: "sellType",
+//       model: "Category",
+//       select: "name",
+//     })
+//     .exec();
+
+//   // Calculate the total number of requests
+//   const total = await BusinessRequest.countDocuments();
+
+//   // Calculate the number of pages
+//   const pages = Math.ceil(total / limit);
+//   return res.status(200).json({
+//     requests,
+//     total,
+//     pages,
+//   });
+// };
+
 export const getBusinessRequests = async (req, res) => {
-  const { page, limit } = req.query;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+
   const skip = (page - 1) * limit;
-  // Retrieve all business requests with detailed information
+
+  // Retrieve all business requests with latest first
   const requests = await BusinessRequest.find()
+    .sort({ createdAt: -1 }) // latest on top
     .skip(skip)
     .limit(limit)
     .populate({
@@ -47,10 +77,12 @@ export const getBusinessRequests = async (req, res) => {
 
   // Calculate the number of pages
   const pages = Math.ceil(total / limit);
+
   return res.status(200).json({
     requests,
     total,
     pages,
+    currentPage: page,
   });
 };
 

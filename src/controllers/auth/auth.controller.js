@@ -20,7 +20,8 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 import { generateOtp, sendOtpViaMSG91 } from "../../utils/otpUtils.js";
 import { createReferral } from "../../services/referral.service.js";
 import { sendEmailOtp } from "../../utils/emailUtils.js";
-
+import adminNotificationModel from "../../models/admin/adminNotification.model.js";
+import { sendAdminNotification } from "../../services/adminNotification.service.js";
 
 // Register User
 export const register = catchAsync(async (req, res, next) => {
@@ -49,7 +50,7 @@ export const register = catchAsync(async (req, res, next) => {
 
   // Fire-and-forget: create PENDING referral record
   if (referrer) {
-    createReferral(referrer._id, newUser._id).catch(() => { });
+    createReferral(referrer._id, newUser._id).catch(() => {});
   }
 
   const accessToken = newUser.generateAccessToken();
@@ -77,7 +78,6 @@ export const register = catchAsync(async (req, res, next) => {
     ),
   );
 });
-
 
 // Login with Email/Password
 export const login = catchAsync(async (req, res, next) => {
@@ -199,6 +199,19 @@ export const verifyOtp = catchAsync(async (req, res, next) => {
   user.refreshToken = refreshToken;
   await user.save({ validateBeforeSave: false });
 
+  // ===============================
+  // ADMIN NOTIFICATION
+  // ===============================
+
+  await sendAdminNotification({
+    title: "New User Registered",
+    message: `${user.firstName} ${user.lastName} has verified account successfully`,
+    type: "USER_CREATED",
+    userId: user._id,
+    color: "green",
+    redirectUrl: `/admin/users`,
+  });
+
   res.status(200).json(
     new ApiResponse(
       200,
@@ -234,12 +247,22 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
 
   try {
     await sendEmailOtp(user.email, otp);
-    res.status(200).json(new ApiResponse(200, null, "OTP sent successfully to your registered email"));
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          null,
+          "OTP sent successfully to your registered email",
+        ),
+      );
   } catch (error) {
     user.otp = undefined;
     user.otpExpiry = undefined;
     await user.save({ validateBeforeSave: false });
-    return next(new APIError(500, "Failed to send OTP email. Please try again later."));
+    return next(
+      new APIError(500, "Failed to send OTP email. Please try again later."),
+    );
   }
 });
 

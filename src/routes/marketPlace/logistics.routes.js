@@ -3,7 +3,7 @@ import express from "express";
 import {
   createShipment,
   logisticsWebhook,
-  getOrderTracking
+  getOrderTracking,
 } from "../../controllers/marketPlace/logistics.controller.js";
 
 const router = express.Router();

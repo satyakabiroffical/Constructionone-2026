@@ -1,3 +1,5 @@
+import orderModel from "../models/marketPlace/order.model.js";
+import { VendorCompany } from "../models/vendorShop/vendor.model.js";
 import { generateAndSaveInvoice } from "./pdfGenrator.js";
 
 // function buildInvoiceHtml(order) {
@@ -702,6 +704,362 @@ import { generateAndSaveInvoice } from "./pdfGenrator.js";
 // `;
 // }
 
+// function buildInvoiceHtml(order) {
+//   const invoiceNo = `INV-${order._id.toString().slice(-6).toUpperCase()}`;
+//   const invoiceDate = new Date(order.createdAt).toLocaleDateString("en-IN");
+
+//   // ----------------------------
+//   // USER INFO
+//   // ----------------------------
+//   const user = order.userId || {};
+//   const shipping = order.shippingAddressId || {};
+
+//   const userName =
+//     user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim();
+
+//   const userEmail = user.email || "N/A";
+//   const userPhone = user.phone || "N/A";
+
+//   const userAddress = [
+//     shipping.addressLine,
+//     shipping.city,
+//     shipping.state,
+//     shipping.pincode,
+//     shipping.country,
+//   ]
+//     .filter(Boolean)
+//     .join(", ");
+
+//   // ----------------------------
+//   // VENDOR SUMMARY (NEW ADDITION)
+//   // ----------------------------
+//   const vendorSummary =
+//     [
+//       ...new Map(
+//         (order.items || [])
+//           .map((i) => i.vendorId)
+//           .filter(Boolean)
+//           .map((v) => [
+//             v._id,
+//             `
+//             <b>${v.firstName || ""} ${v.lastName || ""}</b><br/>
+//             📧 ${v.email || "N/A"}<br/>
+//             📞 ${v.phoneNumber || "N/A"}
+//           `,
+//           ]),
+//       ).values(),
+//     ].join("<hr/>") || "N/A";
+
+//   // ----------------------------
+//   // TOTALS
+//   // ----------------------------
+//   let subtotal = 0;
+//   let deliveryTotal = 0;
+//   let gstTotal = 0;
+
+//   // ----------------------------
+//   // ITEMS
+//   // ----------------------------
+//   const itemsHtml = (order.items || [])
+//     .map((item, idx) => {
+//       const product = item.productId || {};
+//       const variant = item.variantId || {};
+//       const vendor = item.vendorCompany || {};
+
+//       const vendorProfile = item.vendorId || {};
+//       const vendorCompany = item.vendorCompany || {};
+
+//       const vendorName = `${vendorProfile.firstName || ""} ${vendorProfile.lastName || ""}`;
+//       const vendorEmail = vendorProfile.email || "-";
+//       const vendorPhone = vendorProfile.phoneNumber || "-";
+
+//       const vendorAddress = [vendorCompany.businessAddress?.address]
+//         .filter(Boolean)
+//         .join(", ");
+
+//       const price = Number(item.price || variant.price || 0);
+//       const qty = Number(item.quantity || 1);
+
+//       const deliveryFee = Number(item.deliveryFee || 0);
+//       const deliveryType = item.deliveryType || "-";
+
+//       const brand = product.brandId?.name || "-";
+
+//       const category = product.categoryId?.name || "-";
+//       const pcategory = product.pcategoryId?.name || "-";
+
+//       const subcategories = (product.subcategoryId || [])
+//         .map((s) => s.name)
+//         .join(", ");
+
+//       const productTypes = (product.productTypeId || [])
+//         .map((p) => p.typeName)
+//         .join(", ");
+
+//       const image = product.images?.[0] || "";
+
+//       const variantDetails = `
+// Weight: ${variant.packageWeight || "-"}kg
+//  | Size: ${variant.packageDimensions || "-"}
+// `;
+
+//       const base = price * qty;
+//       const gstRate = Number(item.gstRate || 18);
+//       const gst = (base * gstRate) / 100;
+
+//       const total = base + gst + deliveryFee;
+
+//       subtotal += base;
+//       deliveryTotal += deliveryFee;
+//       gstTotal += gst;
+
+//       return `
+//       <tr style="background:${idx % 2 === 0 ? "#fff" : "#f9fafb"}">
+
+//         <!-- PRODUCT + VENDOR -->
+//         <td>
+//           <b>${product.name || "Product"}</b>
+
+//           <div style="font-size:11px;color:gray;margin-top:4px;">
+//           <b>Vendor:</b> ${vendorCompany.companyName || "Vendor"}<br/>
+//               ${vendorName}<br/>
+//               📧 ${vendorEmail}<br/>
+//               📞 ${vendorPhone}<br/>
+//               📍 ${vendorAddress}
+//             Delivery Type: <b>${deliveryType}</b>
+//           </div>
+//         </td>
+
+//         <!-- PRICE -->
+//         <td style="text-align:center;">
+//           ₹${price.toFixed(2)}
+//         </td>
+
+//         <!-- QTY -->
+//         <td style="text-align:center;">
+//           ${qty}
+//         </td>
+
+//         <!-- DELIVERY -->
+//         <td style="text-align:center;">
+//           ₹${deliveryFee.toFixed(2)}
+//         </td>
+
+//         <!-- GST -->
+//         <td style="text-align:center;">
+//           ₹${gst.toFixed(2)}
+//         </td>
+
+//         <!-- TOTAL -->
+//         <td style="text-align:right;font-weight:600;">
+//           ₹${total.toFixed(2)}
+//         </td>
+
+//       </tr>
+//       `;
+//     })
+//     .join("");
+
+//   const grandTotal = subtotal + deliveryTotal + gstTotal;
+
+//   // ----------------------------
+//   // HTML
+//   // ----------------------------
+//   return `
+// <!DOCTYPE html>
+// <html>
+// <head>
+// <meta charset="UTF-8"/>
+
+// <style>
+//   body { font-family: Arial; font-size: 12px; margin:0; padding:20px; color:#111; }
+
+//   .wrap { max-width: 950px; margin:auto; }
+
+//   .header {
+//     display:flex;
+//     justify-content:space-between;
+//     border-bottom:2px solid #111;
+//     padding-bottom:10px;
+//   }
+
+//   table {
+//     width:100%;
+//     border-collapse: collapse;
+//     margin-top:15px;
+//   }
+
+//   th, td {
+//     border:1px solid #ddd;
+//     padding:8px;
+//     font-size:11px;
+//   }
+
+//   th {
+//     background:#111827;
+//     color:white;
+//   }
+
+//   .box {
+//     border:1px solid #ddd;
+//     padding:10px;
+//     margin-top:15px;
+//     border-radius:6px;
+//   }
+
+//   .totals {
+//     text-align:right;
+//     margin-top:15px;
+//     font-size:13px;
+//   }
+
+//   .grand {
+//     font-size:18px;
+//     font-weight:bold;
+//     border-top:2px solid #000;
+//     padding-top:10px;
+//   }
+// </style>
+
+// </head>
+
+// <body>
+
+// <div class="wrap">
+
+//   <!-- HEADER -->
+//   <div class="header">
+//     <div>
+//       <h2>ConstructionOne Marketplace</h2>
+//       <small>Order Invoice</small>
+//     </div>
+
+//     <div style="text-align:right">
+//       <b>Invoice:</b> ${invoiceNo}<br/>
+//       <b>Date:</b> ${invoiceDate}<br/>
+//       <b>Status:</b> ${order.paymentStatus || "UNPAID"}<br/>
+//       <b>Payment:</b> ${order.paymentMethod || "-"}
+//     </div>
+//   </div>
+
+//   <!-- CUSTOMER -->
+//   <div class="box">
+//     <h3>Customer Details</h3>
+//     <b>${userName}</b><br/>
+//     Email: ${userEmail}<br/>
+//     Phone: ${userPhone}<br/>
+//     Address: ${userAddress}
+//   </div>
+
+//   <!-- VENDOR SUMMARY (NEW) -->
+//   <div class="box">
+//     <h3>Vendor(s) Involved</h3>
+//     ${vendorSummary}
+//   </div>
+
+//   <!-- ITEMS -->
+//   <div class="box">
+//     <h3>Order Items (Multi Vendor Supported)</h3>
+
+//     <table>
+//       <thead>
+//         <tr>
+//           <th>Product / Vendor</th>
+//           <th>Price</th>
+//           <th>Qty</th>
+//           <th>Delivery</th>
+//           <th>GST</th>
+//           <th>Total</th>
+//         </tr>
+//       </thead>
+
+//       <tbody>
+//         ${itemsHtml || `<tr><td colspan="6">No items</td></tr>`}
+//       </tbody>
+//     </table>
+//   </div>
+
+//   <!-- TOTALS -->
+//   <div class="totals">
+//     <p>Subtotal: ₹${subtotal.toFixed(2)}</p>
+//     <p>Delivery: ₹${deliveryTotal.toFixed(2)}</p>
+//     <p>GST: ₹${gstTotal.toFixed(2)}</p>
+
+//     <div class="grand">
+//       Grand Total: ₹${grandTotal.toFixed(2)}
+//     </div>
+//   </div>
+
+//   <p style="text-align:center;font-size:10px;color:gray;margin-top:20px;">
+//     This is a system generated invoice (ConstructionOne Marketplace)
+//   </p>
+
+// </div>
+
+// </body>
+// </html>
+// `;
+// }
+// const invoice = async (order) => {
+//   const code = `ConstructiononeOrder/${order._id.toString()}`;
+//   const html = buildInvoiceHtml(order);
+//   // generateAndSaveInvoice returns the full public URL
+//   const pdfUrl = await generateAndSaveInvoice({ html, code });
+//   return pdfUrl;
+// };
+
+// export default invoice;
+
+export const prepareOrderForInvoice = async (orderId) => {
+  const order = await orderModel
+    .findById(orderId)
+    .populate("userId")
+    .populate("shippingAddressId")
+    .populate({
+      path: "items.productId",
+      populate: [
+        { path: "brandId", select: "name" },
+        { path: "categoryId", select: "name" },
+        { path: "pcategoryId", select: "name" },
+        { path: "subcategoryId", select: "name" },
+        { path: "productTypeId", select: "typeName" },
+      ],
+    })
+    .populate("items.variantId")
+    .populate({
+      path: "items.vendorId",
+      select: "firstName lastName email phoneNumber",
+    })
+    .lean();
+
+  // ----------------------------
+  // Attach Vendor Company
+  // ----------------------------
+  const vendorIds = [
+    ...new Set(
+      order.items.map((i) => i.vendorId?._id?.toString()).filter(Boolean),
+    ),
+  ];
+
+  const companies = await VendorCompany.find({
+    vendorId: { $in: vendorIds },
+  })
+    .select("companyName businessAddress vendorId")
+    .lean();
+
+  const companyMap = {};
+
+  companies.forEach((c) => {
+    companyMap[c.vendorId.toString()] = c;
+  });
+
+  order.items.forEach((item) => {
+    const vId = item.vendorId?._id?.toString();
+    item.vendorCompany = companyMap[vId] || null;
+  });
+
+  return order;
+};
 function buildInvoiceHtml(order) {
   const invoiceNo = `INV-${order._id.toString().slice(-6).toUpperCase()}`;
   const invoiceDate = new Date(order.createdAt).toLocaleDateString("en-IN");
@@ -714,12 +1072,12 @@ function buildInvoiceHtml(order) {
 
   const userName =
     user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim();
-
   const userEmail = user.email || "N/A";
   const userPhone = user.phone || "N/A";
 
   const userAddress = [
     shipping.addressLine,
+    shipping.landMark,
     shipping.city,
     shipping.state,
     shipping.pincode,
@@ -727,26 +1085,6 @@ function buildInvoiceHtml(order) {
   ]
     .filter(Boolean)
     .join(", ");
-
-  // ----------------------------
-  // VENDOR SUMMARY (NEW ADDITION)
-  // ----------------------------
- const vendorSummary =
-  [
-    ...new Map(
-      (order.items || [])
-        .map((i) => i.vendorId)
-        .filter(Boolean)
-        .map((v) => [
-          v._id,
-          `
-            <b>${v.firstName || ""} ${v.lastName || ""}</b><br/>
-            📧 ${v.email || "N/A"}<br/>
-            📞 ${v.phoneNumber || "N/A"}
-          `,
-        ])
-    ).values(),
-  ].join("<hr/>") || "N/A";
 
   // ----------------------------
   // TOTALS
@@ -762,11 +1100,41 @@ function buildInvoiceHtml(order) {
     .map((item, idx) => {
       const product = item.productId || {};
       const variant = item.variantId || {};
-      const vendor = item.vendorCompany || {};
+      const vendor = item.vendorId || {};
+      const company = item.vendorCompany || {};
 
+      // Vendor
+      const vendorName = `${vendor.firstName || ""} ${vendor.lastName || ""}`;
+      const vendorPhone = vendor.phoneNumber || "-";
+
+      const vendorAddress = [
+        company.businessAddress?.address,
+        company.businessAddress?.city,
+        company.businessAddress?.state,
+        company.businessAddress?.pincode,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      // Product
+      const brand = product.brandId?.name || "-";
+      const category = product.categoryId?.name || "-";
+      const pcategory = product.pcategoryId?.name || "-";
+
+      const subcategories =
+        (product.subcategoryId || []).map((s) => s.name).join(", ") || "-";
+
+      const productTypes =
+        (product.productTypeId || []).map((p) => p.typeName).join(", ") || "-";
+
+      const variantDetails = `
+        Weight: ${variant.packageWeight || "-"}kg |
+        Size: ${variant.packageDimensions || "-"}
+      `;
+
+      // Pricing
       const price = Number(item.price || variant.price || 0);
       const qty = Number(item.quantity || 1);
-
       const deliveryFee = Number(item.deliveryFee || 0);
       const deliveryType = item.deliveryType || "-";
 
@@ -783,40 +1151,31 @@ function buildInvoiceHtml(order) {
       return `
       <tr style="background:${idx % 2 === 0 ? "#fff" : "#f9fafb"}">
 
-        <!-- PRODUCT + VENDOR -->
         <td>
           <b>${product.name || "Product"}</b>
 
-          <div style="font-size:11px;color:gray;margin-top:4px;">
-            Vendor: <b>${vendor.companyName || "Vendor"}</b><br/>
-            Delivery Type: <b>${deliveryType}</b>
+          <div style="font-size:11px;color:#555;margin-top:4px;">
+            Brand: ${brand}<br/>
+            Category: ${pcategory} → ${category}<br/>
+            Subcategory: ${subcategories}<br/>
+            Type: ${productTypes}<br/>
+            Variant: ${variantDetails}
+          </div>
+
+          <div style="margin-top:6px;font-size:11px;border-top:1px dashed #ccc;padding-top:5px;">
+            <b>${company.companyName || "SKYB Pvt Ltd"}</b><br/>
+            ${vendorName}<br/>
+            ${vendorPhone}<br/>
+             ${vendorAddress || "-"}<br/>
+            Delivery: <b>${deliveryType}</b>
           </div>
         </td>
 
-        <!-- PRICE -->
-        <td style="text-align:center;">
-          ₹${price.toFixed(2)}
-        </td>
-
-        <!-- QTY -->
-        <td style="text-align:center;">
-          ${qty}
-        </td>
-
-        <!-- DELIVERY -->
-        <td style="text-align:center;">
-          ₹${deliveryFee.toFixed(2)}
-        </td>
-
-        <!-- GST -->
-        <td style="text-align:center;">
-          ₹${gst.toFixed(2)}
-        </td>
-
-        <!-- TOTAL -->
-        <td style="text-align:right;font-weight:600;">
-          ₹${total.toFixed(2)}
-        </td>
+        <td style="text-align:center;">₹${price.toFixed(2)}</td>
+        <td style="text-align:center;">${qty}</td>
+        <td style="text-align:center;">₹${deliveryFee.toFixed(2)}</td>
+        <td style="text-align:center;">₹${gst.toFixed(2)}</td>
+        <td style="text-align:right;font-weight:600;">₹${total.toFixed(2)}</td>
 
       </tr>
       `;
@@ -833,16 +1192,14 @@ function buildInvoiceHtml(order) {
 <html>
 <head>
 <meta charset="UTF-8"/>
-
 <style>
-  body { font-family: Arial; font-size: 12px; margin:0; padding:20px; color:#111; }
-
-  .wrap { max-width: 950px; margin:auto; }
+  body { font-family: Arial; font-size: 12px; padding:20px; }
+  .wrap { max-width: 900px; margin:auto; }
 
   .header {
     display:flex;
     justify-content:space-between;
-    border-bottom:2px solid #111;
+    border-bottom:2px solid #000;
     padding-bottom:10px;
   }
 
@@ -859,21 +1216,19 @@ function buildInvoiceHtml(order) {
   }
 
   th {
-    background:#111827;
-    color:white;
+    background:#000;
+    color:#fff;
   }
 
   .box {
     border:1px solid #ddd;
     padding:10px;
     margin-top:15px;
-    border-radius:6px;
   }
 
   .totals {
     text-align:right;
     margin-top:15px;
-    font-size:13px;
   }
 
   .grand {
@@ -883,93 +1238,72 @@ function buildInvoiceHtml(order) {
     padding-top:10px;
   }
 </style>
-
 </head>
 
 <body>
 
 <div class="wrap">
 
-  <!-- HEADER -->
   <div class="header">
     <div>
       <h2>ConstructionOne Marketplace</h2>
-      <small>Order Invoice</small>
+      <small>Invoice</small>
     </div>
 
     <div style="text-align:right">
-      <b>Invoice:</b> ${invoiceNo}<br/>
-      <b>Date:</b> ${invoiceDate}<br/>
-      <b>Status:</b> ${order.paymentStatus || "UNPAID"}<br/>
-      <b>Payment:</b> ${order.paymentMethod || "-"}
+      <b>${invoiceNo}</b><br/>
+      ${invoiceDate}<br/>
+      ${order.paymentStatus}<br/>
+      ${order.paymentMethod}
     </div>
   </div>
 
-  <!-- CUSTOMER -->
   <div class="box">
-    <h3>Customer Details</h3>
     <b>${userName}</b><br/>
-    Email: ${userEmail}<br/>
-    Phone: ${userPhone}<br/>
-    Address: ${userAddress}
+    ${userEmail}<br/>
+    ${userPhone}<br/>
+    ${userAddress}
   </div>
 
-  <!-- VENDOR SUMMARY (NEW) -->
-  <div class="box">
-    <h3>Vendor(s) Involved</h3>
-    ${vendorSummary}
-  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Product Details</th>
+        <th>Price</th>
+        <th>Qty</th>
+        <th>Delivery</th>
+        <th>GST</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${itemsHtml || `<tr><td colspan="6">No items</td></tr>`}
+    </tbody>
+  </table>
 
-  <!-- ITEMS -->
-  <div class="box">
-    <h3>Order Items (Multi Vendor Supported)</h3>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Product / Vendor</th>
-          <th>Price</th>
-          <th>Qty</th>
-          <th>Delivery</th>
-          <th>GST</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        ${itemsHtml || `<tr><td colspan="6">No items</td></tr>`}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- TOTALS -->
   <div class="totals">
-    <p>Subtotal: ₹${subtotal.toFixed(2)}</p>
-    <p>Delivery: ₹${deliveryTotal.toFixed(2)}</p>
-    <p>GST: ₹${gstTotal.toFixed(2)}</p>
+    vendorAmount: ₹${subtotal.toFixed(2)}<br/>
+    Delivery: ₹${deliveryTotal.toFixed(2)}<br/>
+    GST: ₹${gstTotal.toFixed(2)}<br/>
 
     <div class="grand">
-      Grand Total: ₹${grandTotal.toFixed(2)}
+      Total: ₹${grandTotal.toFixed(2)}
     </div>
   </div>
 
-  <p style="text-align:center;font-size:10px;color:gray;margin-top:20px;">
-    This is a system generated invoice (ConstructionOne Marketplace)
-  </p>
-
 </div>
-
 </body>
 </html>
 `;
 }
-const invoice = async (order) => {
-  const code = `ConstructiononeOrder/${order._id.toString()}`;
-  const html = buildInvoiceHtml(order);
-  // generateAndSaveInvoice returns the full public URL
-  const pdfUrl = await generateAndSaveInvoice({ html, code });
 
-  return pdfUrl;
+// ----------------------------
+// GENERATE PDF
+// ----------------------------
+const invoice = async (order) => {
+  const html = buildInvoiceHtml(order);
+  const code = `ConstructiononeOrder/${order._id}`;
+  return await generateAndSaveInvoice({ html, code });
 };
 
 export default invoice;

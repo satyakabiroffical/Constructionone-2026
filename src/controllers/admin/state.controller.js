@@ -4,8 +4,37 @@ import { APIError } from "../../middlewares/errorHandler.js";
 class StateController {
   static async createState(req, res, next) {
     try {
-      const state = await State.create(req.body);
-      res.status(201).json({ status: "success", data: { state } });
+      const { name, code } = req.body;
+
+      // =========================
+      // CHECK EXISTING STATE
+      // =========================
+
+      const existingState = await State.findOne({
+        $or: [{ name: name?.trim() }, { code: code?.trim().toUpperCase() }],
+      });
+
+      if (existingState) {
+        return res.status(409).json({
+          success: false,
+          message: "State already added",
+        });
+      }
+
+      // =========================
+      // CREATE STATE
+      // =========================
+
+      const state = await State.create({
+        ...req.body,
+        code: code?.trim().toUpperCase(),
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: "State created successfully",
+        data: state,
+      });
     } catch (err) {
       next(err);
     }
@@ -47,15 +76,49 @@ class StateController {
   // ✅ UPDATE
   static async updateState(req, res, next) {
     try {
-      const state = await State.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
+      const { name, code } = req.body;
+
+      // =========================
+      // CHECK DUPLICATE STATE
+      // =========================
+
+      const existingState = await State.findOne({
+        _id: { $ne: req.params.id },
+
+        $or: [{ name: name?.trim() }, { code: code?.trim().toUpperCase() }],
       });
 
-      if (!state) throw new APIError("State not found", 404);
+      if (existingState) {
+        return res.status(409).json({
+          success: false,
+          message: "State already exists",
+        });
+      }
 
-      res.json({
-        status: "success",
-        data: { state },
+      // =========================
+      // UPDATE STATE
+      // =========================
+
+      const state = await State.findByIdAndUpdate(
+        req.params.id,
+        {
+          ...req.body,
+          code: code?.trim().toUpperCase(),
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
+      );
+
+      if (!state) {
+        throw new APIError("State not found", 404);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "State updated successfully",
+        data: state,
       });
     } catch (err) {
       next(err);

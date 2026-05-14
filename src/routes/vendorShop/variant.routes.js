@@ -27,6 +27,10 @@ router.patch(
   VariantController.toggleVariantStatus,
 );
 router.put("/variant/:id", vendorMiddleware, VariantController.updateVariant);
-router.delete("/variant/:id", requireAuth, VariantController.deleteVariant);
+router.delete(
+  "/variant/:id",
+  vendorMiddleware,
+  VariantController.deleteVariant,
+);
 
 export default router;

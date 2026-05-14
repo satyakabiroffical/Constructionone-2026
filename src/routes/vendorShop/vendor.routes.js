@@ -41,6 +41,7 @@ import {
   vendorProfileValidation,
   vendorCompanyValidation,
 } from "../../validations/vendorShop/vendor.validation.js";
+import { exportVendors } from "../../controllers/marketPlace/exportDataInFiles.controller.js";
 const router = express.Router();
 
 //vendorauth
@@ -56,14 +57,14 @@ router.post("/verify-aadhar-otp/:vendorId", verifyAadharOtp);
 router.post("/resend-aadhar-otp/:vendorId", resendAadharOtp);
 
 //vendor profile
-router.get("/profile/:vendorId", authMiddleware, getVendorProfile);
+router.get("/profile", vendorMiddleware, getVendorProfile);
 router.post("/logout", vendorMiddleware, logoutVendor);
 
 //vendor profile details
 router.post(
   "/profile",
   vendorMiddleware,
-  s3Uploader().fields([{ name: "uploadId", maxCount: 1 }]),
+  s3Uploader().fields([{ name: "uploadId", maxCount: 2 }]),
   validateRequest(vendorProfileValidation),
   upsertVendorInfo,
 );
@@ -72,20 +73,20 @@ router.post(
 router.put(
   "/profile/:vendorProfileId",
   vendorMiddleware,
-  s3Uploader().fields([{ name: "uploadId", maxCount: 1 }]),
+  s3Uploader().fields([{ name: "uploadId", maxCount: 2 }]),
   updateUpsertVendorInfo,
 );
 
 //add shop
 router.post(
   "/addshop",
-  // vendorMiddleware,
+  vendorMiddleware,
   s3Uploader().fields([
     { name: "shopImages", maxCount: 5 },
     { name: "certificates", maxCount: 5 },
     { name: "cancelledCheque", maxCount: 1 },
   ]),
-  validateRequest(vendorCompanyValidation),
+  // validateRequest(vendorCompanyValidation),
   upsertVendorCompanyInfo,
 );
 
@@ -122,5 +123,7 @@ router.post("/saveFcmToken", vendorMiddleware, saveFcmToken);
 router.post("/refresh-token", refreshTokenHandler);
 router.get("/vendorshop/:vendorId", getCategoriesByVendorId);
 router.get("/vendorshop/:vendorId/:categoryId", getProductsByVendorAndCategory);
+
+router.get("/vendors/export", adminMiddleware, exportVendors);
 
 export default router;

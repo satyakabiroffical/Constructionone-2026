@@ -24,6 +24,8 @@ import referralRoutes from "./referral/referral.routes.js";
 
 const router = Router();
 
+
+
 router.use("/v1", authRoutes);
 router.use("/v1", vendorRoutes);
 router.use("/v1", marketPlaceRoutes);
@@ -52,4 +54,3 @@ router.use("/v1/material", variantRoutes);
 router.use("/v1/referrals", referralRoutes);
 
 export default router;
-

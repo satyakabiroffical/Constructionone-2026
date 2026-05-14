@@ -33,7 +33,7 @@ const shippingWorker = new Worker(
       logger.error(
         `Failed to process shipping label for order: ${orderId}. Error: ${error.message}`,
       );
-      throw error; // Let BullMQ handle retries
+      throw error; //Let BullMQ handle retries
     }
   },
   { connection },

@@ -130,6 +130,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       select: false,
     },
+    profileImage: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,

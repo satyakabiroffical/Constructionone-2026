@@ -19,21 +19,18 @@ import adminReviewRoutes from "./review.routes.js";
 import trendingRoutes from "./trending.routes.js";
 import productType from "./productType.routes.js";
 import businessRequest from "./businessRequest.routes.js";
+import adminNotification from "./adminNotifications.routes.js";
 // import countryRoute from "./country.routes.js";
 
 const router = Router();
 
-// Public admin route (login) — managed internally in admin.routes.js
-// All routes below are fully protected — requireAuth + ADMIN role enforced here
-// router.use(requireAuth, requireRole('ADMIN'));
+router.use("/pcategories", pcategoryRoutes);
+router.use("/categories", categoryRoutes);
+router.use("/sub-categories", subCategoryRoutes);
 
 router.use("/admin", adminRoutes);
-router.use("/admin", requireAuth, requireRole("ADMIN"));
+router.use("/admin", requireAuth);
 
-router.use("/admin/platform-modules", platformModuleRoutes);
-router.use("/admin/pcategories", pcategoryRoutes);
-router.use("/admin/categories", categoryRoutes);
-router.use("/admin/sub-categories", subCategoryRoutes);
 router.use("/company", companyRoutes);
 router.use("/admin/faqs", faqRoutes);
 router.use("/admin/banners", bannerRoutes);
@@ -42,9 +39,15 @@ router.use("/admin/flash-sales", flashSaleRoutes);
 router.use("/admin/trending-sections", trendingRoutes);
 router.use("/tax", taxRoutes);
 router.use("/admin/order", adminOrderRoutes);
+router.use("/admin/notifications", adminNotification);
 router.use("/user", globalSearchRoutes);
 router.use("/admin/reviews", adminReviewRoutes);
 router.use("/business-request", businessRequest);
 router.use("/product-types", productType);
+
+router.use("/admin/platform-modules", platformModuleRoutes);
+router.use("/admin/pcategories", pcategoryRoutes);
+router.use("/admin/categories", categoryRoutes);
+router.use("/admin/sub-categories", subCategoryRoutes);
 
 export default router;

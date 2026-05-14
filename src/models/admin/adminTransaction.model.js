@@ -19,11 +19,11 @@ const adminTransactionSchema = new mongoose.Schema(
       required: true,
     },
 
-    // status: {
-    //   type: String,
-    //   enum: ["PENDING", "SUCCESS", "FAILED", "HOLD", "CANCELLED"],
-    //   default: "PENDING",
-    // },
+    status: {
+      type: String,
+      enum: ["PENDING", "COMPLETED", "FAILED", "CANCELLED","REJECTED"],
+      default: "PENDING",
+    },
 
     amount: {
       type: Number,

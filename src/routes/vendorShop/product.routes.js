@@ -54,6 +54,11 @@ router.get(
   authMiddleware,
   ProductController.getTopSellingProducts,
 );
+router.get(
+  "/product/hot-deals",
+  authMiddleware,
+  ProductController.getDailyHotDeals,
+);
 
 // CREATE product with variants (vendor only)
 router.post(
@@ -125,6 +130,11 @@ router.get(
   "/product/vendorshop/:vendorId",
   authMiddleware,
   ProductController.getVendorProducts,
+);
+router.get(
+  "/product/brand/:brandId",
+  authMiddleware,
+  ProductController.getProductsByBrand,
 );
 
 export default router;

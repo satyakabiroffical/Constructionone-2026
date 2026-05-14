@@ -3,7 +3,7 @@ import {
   getVendorOverview,
   getAllOrdersForVendor,
   getOrderByIdForVendor,
-  
+  vendorUpdateOrder,
 } from "../../controllers/vendorShop/vendorDashboard.js";
 import {
   authMiddleware,
@@ -18,6 +18,11 @@ router.get(
   "/dashboard/orders/:orderId",
   vendorMiddleware,
   getOrderByIdForVendor,
+);
+router.patch(
+  "/dashboard/orders/:subOrderId",
+  vendorMiddleware,
+  vendorUpdateOrder,
 );
 
 export default router;

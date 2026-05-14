@@ -30,13 +30,20 @@ const applySourceFilter = (filter, section) => {
 };
 
 const resolveBANNER = async (section) => {
-  return Banner.find(
+  // Fetch banners and attach dummy variantId with mrp if needed (for frontend compatibility)
+  const banners = await Banner.find(
     applySourceFilter({ moduleId: section.moduleId, isActive: true }, section),
   )
     .sort({ order: 1 })
     .limit(section.limit)
     .select("image title redirectUrl order")
     .lean();
+
+  // If frontend expects a variantId with mrp, add it as null or default
+  return banners.map((banner) => ({
+    ...banner,
+    variantId: { mrp: null },
+  }));
 };
 
 import Variant from "../models/vendorShop/variant.model.js";
@@ -114,6 +121,7 @@ const resolvePRODUCT_LIST = async (section) => {
       variantId = {
         _id: variant._id,
         price: variant.price,
+        mrp: variant.mrp,
         stock: variant.stock,
         Type: variant.Type,
         moq: variant.moq,
@@ -324,9 +332,45 @@ const resolveFLASH_SALE = async (section) => {
 
   const items = await FlashSaleItem.find({ flashSaleId: activeSale._id })
     .limit(section.limit)
-    .populate("productId", "name thumbnail images slug avgRating")
+    .populate({
+      path: "productId",
+      select: "name thumbnail images slug avgRating vendorId",
+    })
     .populate("variantId")
     .lean();
+
+  // Collect all vendorIds and productIds
+  const productVendorMap = {};
+  const vendorIds = new Set();
+  items.forEach((item) => {
+    if (item.productId && item.productId.vendorId) {
+      productVendorMap[item.productId._id.toString()] =
+        item.productId.vendorId.toString();
+      vendorIds.add(item.productId.vendorId.toString());
+    }
+  });
+
+  // Fetch vendor profiles
+  const vendors = await VendorProfile.find({
+    _id: { $in: Array.from(vendorIds) },
+  })
+    .select("_id firstName lastName")
+    .lean();
+  const vendorProfileMap = {};
+  vendors.forEach((v) => {
+    vendorProfileMap[v._id.toString()] = v;
+  });
+
+  // Fetch vendor companies
+  const vendorCompanies = await (
+    await import("../models/vendorShop/vendor.model.js")
+  ).VendorCompany.find({ vendorId: { $in: Array.from(vendorIds) } })
+    .select("vendorId companyName")
+    .lean();
+  const vendorCompanyMap = {};
+  vendorCompanies.forEach((c) => {
+    vendorCompanyMap[c.vendorId.toString()] = c.companyName;
+  });
 
   // Collect variant IDs
   const variantIds = items
@@ -352,12 +396,25 @@ const resolveFLASH_SALE = async (section) => {
           ? item.variantId
           : variantMap[item.variantId?.toString()];
 
+      // Vendor info
+      let vendorName = null;
+      let companyName = null;
+      if (item.productId && item.productId.vendorId) {
+        const vId = item.productId.vendorId.toString();
+        const profile = vendorProfileMap[vId];
+        vendorName = profile
+          ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
+          : null;
+        companyName = vendorCompanyMap[vId] || null;
+      }
+
       return {
         flashItemId: item._id,
 
         product: {
           ...item.productId,
-          //   defaultVariantId: item.productId?.defaultVariantId || variant?._id,
+          vendorName,
+          companyName,
         },
 
         variant: variant

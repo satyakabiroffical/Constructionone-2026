@@ -5,8 +5,39 @@ class CityController {
   // ✅ CREATE
   static async createCity(req, res, next) {
     try {
-      const city = await City.create(req.body);
-      res.status(201).json({ status: "success", data: { city } });
+      const { name, stateId, countryId } = req.body;
+
+      // =========================
+      // CHECK EXISTING CITY
+      // =========================
+
+      const existingCity = await City.findOne({
+        name: name?.trim(),
+        stateId,
+        countryId,
+      });
+
+      if (existingCity) {
+        return res.status(409).json({
+          success: false,
+          message: `${name} city already exists in this state`,
+        });
+      }
+
+      // =========================
+      // CREATE CITY
+      // =========================
+
+      const city = await City.create({
+        ...req.body,
+        name: name?.trim(),
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: "City created successfully",
+        data: city,
+      });
     } catch (err) {
       next(err);
     }
@@ -50,15 +81,53 @@ class CityController {
   // ✅ UPDATE
   static async updateCity(req, res, next) {
     try {
-      const city = await City.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
+      const { name, stateId, countryId } = req.body;
+
+      // =========================
+      // CHECK DUPLICATE CITY
+      // =========================
+
+      const existingCity = await City.findOne({
+        _id: { $ne: req.params.id },
+
+        name: name?.trim(),
+
+        stateId,
+
+        countryId,
       });
 
-      if (!city) throw new APIError("City not found", 404);
+      if (existingCity) {
+        return res.status(409).json({
+          success: false,
+          message: `${name} city already exists in this state`,
+        });
+      }
 
-      res.json({
-        status: "success",
-        data: { city },
+      // =========================
+      // UPDATE CITY
+      // =========================
+
+      const city = await City.findByIdAndUpdate(
+        req.params.id,
+        {
+          ...req.body,
+          name: name?.trim(),
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
+      );
+
+      if (!city) {
+        throw new APIError("City not found", 404);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "City updated successfully",
+        data: city,
       });
     } catch (err) {
       next(err);
