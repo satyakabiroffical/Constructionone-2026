@@ -15,6 +15,7 @@ export const createCategory = catchAsync(async (req, res) => {
   const category = await categoryService.create(req.body, req.user.id);
   await RedisCache.deletePattern(CACHE_PREFIX + "*");
   await RedisCache.deletePattern(`${CACHE_PREFIX}*`);
+  await RedisCache.deletePattern("home:*");
   res
     .status(201)
     .json(new ApiResponse(201, category, "Category created successfully"));
@@ -73,7 +74,7 @@ export const updateCategory = catchAsync(async (req, res) => {
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
     RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
-    await RedisCache.deletePattern(`${CACHE_PREFIX}*`),
+    RedisCache.deletePattern("home:*"),
   ]);
 
   res
@@ -87,6 +88,7 @@ export const deleteCategory = catchAsync(async (req, res) => {
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
     RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
+    RedisCache.deletePattern("home:*"),
   ]);
 
   res
@@ -101,6 +103,7 @@ export const toggleCategory = catchAsync(async (req, res) => {
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
     await RedisCache.deletePattern(`${CACHE_PREFIX}*`),
     RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
+    RedisCache.deletePattern("home:*"),
   ]);
 
   res

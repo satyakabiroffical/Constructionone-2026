@@ -21,16 +21,14 @@ import productType from "./productType.routes.js";
 import businessRequest from "./businessRequest.routes.js";
 import adminNotification from "./adminNotifications.routes.js";
 // import countryRoute from "./country.routes.js";
-
+import appMaintenanceRoute from "./appMaintenance.routes.js";
+import complainRequest from "./complainRequest.routes.js";
 const router = Router();
-
-router.use("/pcategories", pcategoryRoutes);
-router.use("/categories", categoryRoutes);
-router.use("/sub-categories", subCategoryRoutes);
 
 router.use("/admin", adminRoutes);
 router.use("/admin", requireAuth);
-
+router.use("/admin", appMaintenanceRoute);
+router.use("/admin", complainRequest);
 router.use("/company", companyRoutes);
 router.use("/admin/faqs", faqRoutes);
 router.use("/admin/banners", bannerRoutes);

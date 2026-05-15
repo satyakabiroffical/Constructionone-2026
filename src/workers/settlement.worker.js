@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import { connection } from "../config/bullmq.config.js";
 import Wallet from "../models/vendorShop/vendorWallet.model.js";
 import Transaction from "../models/vendorShop/vendorTransaction.model.js";
+import logger from "../utils/logger.js";
 
 // const settlementWorker = new Worker(
 //   "wallet-settlement-queue",

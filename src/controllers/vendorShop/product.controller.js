@@ -1220,129 +1220,6 @@ class ProductController {
     }
   }
 
-  // static async getProductById(req, res, next) {
-  //   try {
-  //     const { id } = req.params;
-
-  //     const cacheKey = `product:v1:${id}`;
-  //     const cached = await RedisCache.get(cacheKey);
-
-  //     if (cached) {
-  //       return res.json(cached);
-  //     }
-
-  //     // product fetch
-  //     const product = await Product.findById(id)
-  //       .populate("brandId", "name")
-  //       .populate("subcategoryId", "name")
-  //       .populate("productTypeId", "typeName")
-  //       .lean();
-
-  //     if (!product) {
-  //       throw new APIError("Product not found", 404);
-  //     }
-
-  //     // all variants fetch
-  //     const variants = await Variant.find({
-  //       productId: id,
-  //       disable: false,
-  //     })
-  //       .sort({ createdAt: -1 })
-  //       .lean();
-
-  //     const result = {
-  //       status: "success",
-  //       message: "Product fetched successfully",
-  //       data: {
-  //         product,
-  //         variants,
-  //       },
-  //     };
-
-  //     await RedisCache.set(cacheKey, result);
-
-  //     res.json(result);
-  //   } catch (err) {
-  //     next(err);
-  //   }
-  // }
-
-  // static async getProductById(req, res, next) {
-  //   try {
-  //     const { id } = req.params;
-
-  //     const cacheKey = `product:v1:${id}`;
-  //     const cached = await RedisCache.get(cacheKey);
-
-  //     if (cached) {
-  //       return res.json(cached);
-  //     }
-
-  //     // ======================================================
-  //     // PRODUCT
-  //     // ======================================================
-
-  //     const product = await Product.findById(id)
-  //       .populate("brandId", "name")
-  //       .populate("subcategoryId", "name")
-  //       .populate("productTypeId", "typeName")
-  //       .lean();
-
-  //     if (!product) {
-  //       throw new APIError("Product not found", 404);
-  //     }
-
-  //     // ======================================================
-  //     // VARIANTS
-  //     // ======================================================
-
-  //     const variants = await Variant.find({
-  //       productId: id,
-  //       disable: false,
-  //     })
-  //       .sort({ createdAt: -1 })
-  //       .lean();
-
-  //     // ======================================================
-  //     // GROUP BY TYPE
-  //     // ======================================================
-
-  //     const groupedVariants = {
-  //       BULK: [],
-  //       RETAIL: [],
-  //     };
-
-  //     variants.forEach((variant) => {
-  //       if (variant.Type === "BULK") {
-  //         groupedVariants.BULK.push(variant);
-  //       }
-
-  //       if (variant.Type === "RETAIL") {
-  //         groupedVariants.RETAIL.push(variant);
-  //       }
-  //     });
-
-  //     // ======================================================
-  //     // RESPONSE
-  //     // ======================================================
-
-  //     const result = {
-  //       status: "success",
-  //       message: "Product fetched successfully",
-  //       data: {
-  //         product,
-  //         variants: groupedVariants,
-  //       },
-  //     };
-
-  //     await RedisCache.set(cacheKey, result);
-
-  //     return res.json(result);
-  //   } catch (err) {
-  //     next(err);
-  //   }
-  // }
-
   static async getProductById(req, res, next) {
     try {
       const { id } = req.params;
@@ -1572,6 +1449,222 @@ class ProductController {
       next(err);
     }
   }
+
+  // static async getProductById(req, res, next) {
+  //   try {
+  //     const { id } = req.params;
+  //     const { type } = req.query;
+
+  //     // ======================================================
+  //     // CACHE
+  //     // ======================================================
+  //     const cacheKey = `product:v4:${id}:${type || "ALL"}`;
+  //     const cached = await RedisCache.get(cacheKey);
+
+  //     if (cached) {
+  //       return res.json(cached);
+  //     }
+
+  //     // ======================================================
+  //     // PRODUCT
+  //     // ======================================================
+  //     const product = await Product.findById(id)
+  //       .populate("brandId", "name logo")
+  //       .populate("subcategoryId", "name")
+  //       .populate("productTypeId", "typeName")
+  //       .lean();
+
+  //     if (!product) {
+  //       throw new APIError("Product not found", 404);
+  //     }
+
+  //     // ======================================================
+  //     // VENDOR
+  //     // ======================================================
+  //     const vendorCompanyData = await VendorCompany.findOne({
+  //       vendorId: product.vendorId,
+  //     })
+  //       .populate("vendorId", "firstName lastName email mobile profileImage")
+  //       .lean();
+
+  //     // ======================================================
+  //     // VARIANTS
+  //     // ======================================================
+  //     const variantFilter = {
+  //       productId: id,
+  //       disable: false,
+  //     };
+
+  //     if (type) {
+  //       variantFilter.Type = type.toUpperCase();
+  //     }
+
+  //     const variants = await Variant.find(variantFilter)
+  //       .sort({ createdAt: -1 })
+  //       .lean();
+
+  //     // ======================================================
+  //     // CLEAN VARIANTS
+  //     // ======================================================
+  //     const cleanVariants = variants.map((variant) => ({
+  //       id: variant._id,
+
+  //       type: variant.Type,
+  //       size: variant.size,
+
+  //       outOfStock: variant.stock === 0,
+
+  //       isDefault: String(variant._id) === String(product.defaultVariantId),
+
+  //       pricing: {
+  //         price: variant.price,
+  //         mrp: variant.mrp,
+  //         discount: variant.discount,
+  //         discountAmount: variant.discountAmount,
+  //       },
+
+  //       stock: {
+  //         availableStock: variant.stock,
+  //         sold: variant.sold,
+  //       },
+
+  //       moq: variant.moq,
+
+  //       package: {
+  //         weight: variant.packageWeight,
+  //         dimensions: variant.packageDimensions,
+  //       },
+  //     }));
+
+  //     // ======================================================
+  //     // DEFAULT VARIANT OBJECT
+  //     // ======================================================
+  //     const defaultVariant =
+  //       cleanVariants.find(
+  //         (v) => String(v.id) === String(product.defaultVariantId),
+  //       ) || null;
+
+  //     // ======================================================
+  //     // CLEAN PRODUCT
+  //     // ======================================================
+  //     const cleanProduct = {
+  //       id: product._id,
+
+  //       name: product.name,
+  //       slug: product.slug,
+  //       description: product.description,
+  //       features: product.features,
+  //       specification: product.specification,
+  //       safetyInstructions: product.safetyInstructions,
+  //       images: product.images,
+
+  //       measurementUnit: product.measurementUnit,
+  //       leadTime: product.leadTime,
+  //       warrantyPeriod: product.warrantyPeriod,
+  //       returnDays: product.returnDays,
+
+  //       deliveryCharges: product.deliveryCharges,
+  //       deliveryOptions: product.deliveryOptions,
+  //       serviceableDeliveryPincode: product.serviceableDeliveryPincode,
+
+  //       shippingCharges: {
+  //         fixed: product.shippingCharges?.fixed,
+  //         distancePerKm: product.shippingCharges?.distancePerKm,
+  //         weightPerKg: product.shippingCharges?.weightPerKg,
+  //       },
+
+  //       rating: {
+  //         average: product.avgRating,
+  //         totalReviews: product.reviewCount,
+  //       },
+
+  //       sales: {
+  //         sold: product.sold,
+  //       },
+
+  //       offer: {
+  //         discount: product.discount,
+  //         isFeatured: product.isFeatured,
+  //         isFlashSale: product.isFlashSale,
+  //       },
+
+  //       brand: {
+  //         id: product.brandId?._id,
+  //         name: product.brandId?.name,
+  //         logo: product.brandId?.logo,
+  //       },
+
+  //       subcategories:
+  //         product.subcategoryId?.map((item) => ({
+  //           id: item._id,
+  //           name: item.name,
+  //         })) || [],
+
+  //       productTypes:
+  //         product.productTypeId?.map((item) => ({
+  //           id: item._id,
+  //           name: item.typeName,
+  //         })) || [],
+
+  //       metadata: {
+  //         title: product.metaData?.title,
+  //         description: product.metaData?.description,
+  //         keywords: product.metaData?.keywords,
+  //       },
+
+  //       properties: product.properties?.map((item) => ({
+  //         key: item.key,
+  //         value: item.value,
+  //       })),
+
+  //       verification: {
+  //         verified: product.varified,
+  //         reason: product.verifyReason,
+  //       },
+
+  //       status: product.status,
+
+  //       // ✅ KEEP ORIGINAL ID
+  //       defaultVariantId: product.defaultVariantId,
+
+  //       // ✅ FULL DEFAULT VARIANT OBJECT
+  //       defaultVariant,
+
+  //       vendor: {
+  //         id: vendorCompanyData?.vendorId?._id,
+  //         firstName: vendorCompanyData?.vendorId?.firstName,
+  //         lastName: vendorCompanyData?.vendorId?.lastName,
+  //         email: vendorCompanyData?.vendorId?.email,
+  //         mobile: vendorCompanyData?.vendorId?.mobile,
+  //         profileImage: vendorCompanyData?.vendorId?.profileImage,
+  //         shopName: vendorCompanyData?.companyName,
+  //         certificates: vendorCompanyData?.certificates || [],
+  //       },
+  //     };
+
+  //     // ======================================================
+  //     // RESPONSE
+  //     // ======================================================
+  //     const result = {
+  //       status: "success",
+  //       message: "Product fetched successfully",
+  //       data: {
+  //         product: cleanProduct,
+  //         variants: cleanVariants,
+  //       },
+  //     };
+
+  //     // ======================================================
+  //     // CACHE
+  //     // ======================================================
+  //     await RedisCache.set(cacheKey, result);
+
+  //     return res.status(200).json(result);
+  //   } catch (err) {
+  //     next(err);
+  //   }
+  // }
+
   static async toggleProduct(req, res, next) {
     try {
       const { id } = req.params;
@@ -1750,100 +1843,100 @@ class ProductController {
   // trending Product
 
   //asgar ---> flash sale
-  static async setFlashSale(req, res) {
-    try {
-      const { productId } = req.params;
-      const { discount, startDateTime, endDateTime, label } = req.body;
-      if (new Date(startDateTime) >= new Date(endDateTime)) {
-        return res.status(400).json({
-          success: false,
-          message: "End date/time must be greater than start date/time",
-        });
-      }
+  // static async setFlashSale(req, res) {
+  //   try {
+  //     const { productId } = req.params;
+  //     const { discount, startDateTime, endDateTime, label } = req.body;
+  //     if (new Date(startDateTime) >= new Date(endDateTime)) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: "End date/time must be greater than start date/time",
+  //       });
+  //     }
 
-      const product = await Product.findByIdAndUpdate(
-        productId,
-        {
-          flashSale: {
-            isActive: true,
-            discount,
-            startDateTime: new Date(startDateTime),
-            endDateTime: new Date(endDateTime),
-            label: label || "",
-          },
-        },
-        { new: true },
-      );
+  //     const product = await Product.findByIdAndUpdate(
+  //       productId,
+  //       {
+  //         flashSale: {
+  //           isActive: true,
+  //           discount,
+  //           startDateTime: new Date(startDateTime),
+  //           endDateTime: new Date(endDateTime),
+  //           label: label || "",
+  //         },
+  //       },
+  //       { new: true },
+  //     );
 
-      if (!product) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Product nahi mila" });
-      }
+  //     if (!product) {
+  //       return res
+  //         .status(404)
+  //         .json({ success: false, message: "Product nahi mila" });
+  //     }
 
-      res.status(200).json({ success: true, product });
-    } catch (error) {
-      next(err);
-    }
-  }
+  //     res.status(200).json({ success: true, product });
+  //   } catch (error) {
+  //     next(err);
+  //   }
+  // }
 
-  static async cancelFlashSale(req, res) {
-    try {
-      const { productId } = req.params;
-      const product = await Product.findByIdAndUpdate(
-        productId,
-        { "flashSale.isActive": false },
-        { new: true },
-      );
+  // static async cancelFlashSale(req, res) {
+  //   try {
+  //     const { productId } = req.params;
+  //     const product = await Product.findByIdAndUpdate(
+  //       productId,
+  //       { "flashSale.isActive": false },
+  //       { new: true },
+  //     );
 
-      res.status(200).json({ success: true, product });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
+  //     res.status(200).json({ success: true, product });
+  //   } catch (error) {
+  //     res.status(500).json({ success: false, message: error.message });
+  //   }
+  // }
 
-  static async getFlashSaleProducts(req, res) {
-    try {
-      const now = new Date();
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const skip = (page - 1) * limit;
-      const sortBy = req.query.sortBy || "flashSale.startDateTime"; // createdAt, discount, avgRating
-      const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+  // static async getFlashSaleProducts(req, res) {
+  //   try {
+  //     const now = new Date();
+  //     const page = parseInt(req.query.page) || 1;
+  //     const limit = parseInt(req.query.limit) || 10;
+  //     const skip = (page - 1) * limit;
+  //     const sortBy = req.query.sortBy || "flashSale.startDateTime"; // createdAt, discount, avgRating
+  //     const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
 
-      const filter = {
-        "flashSale.isActive": true,
-        "flashSale.startDateTime": { $lte: now },
-        "flashSale.endDateTime": { $gte: now },
-        disable: false,
-      };
+  //     const filter = {
+  //       "flashSale.isActive": true,
+  //       "flashSale.startDateTime": { $lte: now },
+  //       "flashSale.endDateTime": { $gte: now },
+  //       disable: false,
+  //     };
 
-      const [products, total] = await Promise.all([
-        Product.find(filter)
-          .populate("brandId categoryId subcategoryId")
-          .sort({ [sortBy]: sortOrder })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        Product.countDocuments(filter),
-      ]);
+  //     const [products, total] = await Promise.all([
+  //       Product.find(filter)
+  //         .populate("brandId categoryId subcategoryId")
+  //         .sort({ [sortBy]: sortOrder })
+  //         .skip(skip)
+  //         .limit(limit)
+  //         .lean(),
+  //       Product.countDocuments(filter),
+  //     ]);
 
-      res.status(200).json({
-        success: true,
-        products,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-          hasNextPage: page < Math.ceil(total / limit),
-          hasPrevPage: page > 1,
-        },
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
+  //     res.status(200).json({
+  //       success: true,
+  //       products,
+  //       pagination: {
+  //         total,
+  //         page,
+  //         limit,
+  //         totalPages: Math.ceil(total / limit),
+  //         hasNextPage: page < Math.ceil(total / limit),
+  //         hasPrevPage: page > 1,
+  //       },
+  //     });
+  //   } catch (error) {
+  //     res.status(500).json({ success: false, message: error.message });
+  //   }
+  // }
   //priyanshu
   // ===================== TOP SELLING PRODUCTS =====================
   static async getTopSellingProducts(req, res, next) {

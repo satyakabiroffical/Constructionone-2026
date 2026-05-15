@@ -363,6 +363,7 @@ export const rejectWithdraw = async (req, res) => {
     await adminTransaction.create(
       [
         {
+          transactionId: `TXN-${Date.now()}`,
           vendorId: withdrawal.vendorId,
           type: "WITHDRAWAL",
           status: "REJECTED",

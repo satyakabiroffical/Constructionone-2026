@@ -4,6 +4,8 @@ import {
   getAllOrdersForVendor,
   getOrderByIdForVendor,
   vendorUpdateOrder,
+  getAllProducts,
+  getProductById
 } from "../../controllers/vendorShop/vendorDashboard.js";
 import {
   authMiddleware,
@@ -24,5 +26,6 @@ router.patch(
   vendorMiddleware,
   vendorUpdateOrder,
 );
-
+router.get("/dashboard/products", vendorMiddleware, getAllProducts);
+router.get("/dashboard/products/:productId", vendorMiddleware, getProductById);
 export default router;

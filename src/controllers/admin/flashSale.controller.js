@@ -5,6 +5,8 @@ import FlashSaleItem from "../../models/flashSale/flashSaleItem.model.js";
 import { createFlashSaleSchema } from "../../validations/flashSale/flashSale.validation.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { buildStatusFilter } from "../../services/flashSale.service.js";
+import RedisCache from "../../utils/redisCache.js";
+import * as homeSectionService from "../../services/homeSection.service.js";
 
 // POST /v1/admin/flash-sales
 export const createFlashSale = catchAsync(async (req, res, next) => {
@@ -29,6 +31,7 @@ export const createFlashSale = catchAsync(async (req, res, next) => {
     items,
     createdBy: req.user.id,
   });
+  await homeSectionService.invalidateHome(moduleId);
 
   res
     .status(201)
@@ -38,9 +41,10 @@ export const createFlashSale = catchAsync(async (req, res, next) => {
 });
 
 export const updateFlashSaleController = catchAsync(async (req, res) => {
-  
   const { id } = req.params;
   const result = await FlashSaleService.updateFlashSale(id, req.body);
+  const sale = await FlashSale.findById(id).select("moduleId").lean();
+  if (sale) await homeSectionService.invalidateHome(sale.moduleId);
   res
     .status(200)
     .json(new ApiResponse(200, result, "Flash sale updated successfully"));
@@ -49,6 +53,7 @@ export const updateFlashSaleController = catchAsync(async (req, res) => {
 // PUT /v1/admin/flash-sales/:id/cancel
 export const cancelFlashSale = catchAsync(async (req, res, next) => {
   const sale = await FlashSaleService.cancelFlashSale(req.params.id);
+  await homeSectionService.invalidateHome(sale.moduleId);
   res
     .status(200)
     .json(

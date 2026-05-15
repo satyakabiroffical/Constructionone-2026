@@ -556,7 +556,7 @@ export const upsertVendorInfo = async (req, res) => {
     });
   }
 };
-//vendor profile with company details
+
 export const getVendorProfile = async (req, res, next) => {
   try {
     const vendorId = req.user.id;
@@ -3321,6 +3321,201 @@ export const getSimilarCompanies = async (req, res) => {
   } catch (error) {
     console.error("Get Similar Companies Error:", error);
 
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+//--------------->profile section - vendor
+
+export const updateVendorProfile = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+
+    if (!vendorId) {
+      return res.status(400).json({
+        success: false,
+        message: "Vendor ID is required",
+      });
+    }
+
+    const allowedFields = {
+      moduleId: req.body.moduleId,
+      phoneNumber: req.body.phoneNumber,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: req.body.email,
+      governmentIdType: req.body.governmentIdType,
+      governmentIdNumber: req.body.governmentIdNumber,
+      uploadId: req.body.uploadId,
+      fcmToken: req.body.fcmToken,
+      disable: req.body.disable,
+    };
+
+    // remove undefined fields
+    Object.keys(allowedFields).forEach(
+      (key) => allowedFields[key] === undefined && delete allowedFields[key],
+    );
+
+    const updatedVendor = await VendorProfile.findByIdAndUpdate(
+      vendorId,
+      { $set: allowedFields },
+      { new: true, runValidators: true },
+    );
+
+    if (!updatedVendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Vendor profile updated successfully",
+      data: updatedVendor,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const updateVendorCompany = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+
+    if (!vendorId) {
+      return res.status(400).json({
+        success: false,
+        message: "Company ID is required",
+      });
+    }
+
+    const allowedFields = {
+      companyName: req.body.companyName,
+      companyType: req.body.companyType,
+      businessCategory: req.body.businessCategory,
+      companyRegistrationNumber: req.body.companyRegistrationNumber,
+      businessAddress: req.body.businessAddress,
+      location: req.body.location,
+      gstNumber: req.body.gstNumber,
+      contactNumber: req.body.contactNumber,
+      shopImages: req.body.shopImages,
+      companyWebsiteURl: req.body.companyWebsiteURl,
+    };
+
+    // remove undefined fields
+    Object.keys(allowedFields).forEach(
+      (key) => allowedFields[key] === undefined && delete allowedFields[key],
+    );
+    const updatedCompany = await VendorCompany.findOneAndUpdate(
+      { vendorId: vendorId },
+      { $set: allowedFields },
+      { new: true, runValidators: true },
+    );
+
+    if (!updatedCompany) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor company not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Vendor company updated successfully",
+      data: updatedCompany,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getVendorCompany = async (req, res) => {
+  try {
+    const vendorId = req.user.id; // from token
+
+    const company = await VendorCompany.findOne({ vendorId });
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor company not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Vendor company fetched successfully",
+      data: company,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getVendorPersonalProfile = async (req, res) => {
+  try {
+    const vendorId = req.user.id; // from token
+
+    const vendor = await VendorProfile.findById(vendorId)
+      .populate("moduleId", "title id")
+      .select("-__v");
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor profile not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Vendor profile fetched successfully",
+      data: vendor,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getVendorCertificates = async (req, res) => {
+  try {
+    const vendorId = req.user.id; // from token
+
+    const company = await VendorCompany.findOne({ vendorId }).select(
+      "certificates companyName vendorId",
+    );
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor company not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Certificates fetched successfully",
+      data: {
+        companyName: company.companyName,
+        certificates: company.certificates || [],
+      },
+    });
+  } catch (error) {
     return res.status(500).json({
       success: false,
       message: error.message,

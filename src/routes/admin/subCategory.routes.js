@@ -10,7 +10,6 @@ import {
 import { requireAuth } from "../../middlewares/auth.middleware.js";
 import { requireRole } from "../../middlewares/role.middleware.js";
 import { s3Uploader } from "../../middlewares/uploads.js";
-
 const router = Router();
 
 // Protect all routes

@@ -16,6 +16,7 @@ export const createPcategory = catchAsync(async (req, res) => {
 
   // Invalidate all list caches
   await RedisCache.deletePattern(CACHE_PREFIX + "*");
+  await RedisCache.deletePattern("home:*");
 
   res
     .status(201)
@@ -76,6 +77,7 @@ export const updatePcategory = catchAsync(async (req, res) => {
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
     RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
+    RedisCache.deletePattern("home:*"),
   ]);
 
   res
@@ -89,6 +91,7 @@ export const deletePcategory = catchAsync(async (req, res) => {
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
     RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
+    RedisCache.deletePattern("home:*"),
   ]);
 
   res
@@ -102,6 +105,7 @@ export const togglePcategory = catchAsync(async (req, res) => {
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
     RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
+    RedisCache.deletePattern("home:*"),
   ]);
 
   res

@@ -6,7 +6,10 @@ import {
   adminGetOrderDetails,
 } from "../../controllers/marketPlace/order.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
-import { requireRole } from "../../middlewares/role.middleware.js";
+import {
+  requireRole,
+  requirePermission,
+} from "../../middlewares/role.middleware.js";
 import { validateRequest } from "../../middlewares/validation.js";
 import { orderValidation } from "../../validations/productOrder.validation.js";
 import { exportOrders } from "../../controllers/marketPlace/exportDataInFiles.controller.js";
@@ -17,7 +20,7 @@ router.use(requireAuth);
 router.use(requireRole("ADMIN"));
 
 // GET  /api/v1/admin/orders            — list all orders (with filters & pagination)
-router.get("/orders", adminGetAllOrders);
+router.get("/orders", requirePermission("VIEW_ORDERS"), adminGetAllOrders);
 router.get("/orders/export", exportOrders);
 
 // PATCH /api/v1/admin/orders/item-status
@@ -38,6 +41,6 @@ router.patch(
   validateRequest(orderValidation.updateStatusValidation),
   updateAllProductsStatus,
 );
-router.get("/:orderId", adminGetOrderDetails);
+router.get("/:orderId", requirePermission("VIEW_ORDERS"), adminGetOrderDetails);
 
 export default router;

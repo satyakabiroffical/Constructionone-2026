@@ -81,7 +81,9 @@ export const loginAdmin = catchAsync(async (req, res, next) => {
   if (user.role !== "ADMIN" && user.role !== "SUB_ADMIN") {
     return next(new APIError(403, "Access denied. Admin or sub-admin only."));
   }
-
+  if (user.role == "SUB_ADMIN" && user.isDisabled) {
+    return next(new APIError(403, "Your account has been disabled."));
+  }
   const accessToken = user.generateAccessToken();
   const refreshToken = user.generateRefreshToken();
 
@@ -528,6 +530,7 @@ export const toggleSubAdmin = async (req, res, next) => {
   }
 
   subAdmin.isDisabled = !subAdmin.isDisabled;
+
   await subAdmin.save();
   const status = subAdmin.isDisabled ? "disabled" : "enabled";
   const message = `SubAdmin ${status} successfully`;

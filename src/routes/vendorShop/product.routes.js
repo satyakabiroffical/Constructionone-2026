@@ -109,21 +109,21 @@ router.patch(
 );
 
 // FLASH SALE routes
-router.post(
-  "/products/:productId/flash-sale",
-  adminMiddleware,
-  ProductController.setFlashSale,
-);
-router.patch(
-  "/products/:productId/flash-sale/cancel",
-  adminMiddleware,
-  ProductController.cancelFlashSale,
-);
-router.get(
-  "/products/flash-sale",
-  authMiddleware,
-  ProductController.getFlashSaleProducts,
-);
+// router.post(
+//   "/products/:productId/flash-sale",
+//   adminMiddleware,
+//   ProductController.setFlashSale,
+// );
+// router.patch(
+//   "/products/:productId/flash-sale/cancel",
+//   adminMiddleware,
+//   ProductController.cancelFlashSale,
+// );
+// router.get(
+//   "/products/flash-sale",
+//   authMiddleware,
+//   ProductController.getFlashSaleProducts,
+// );
 
 //get vendor products
 router.get(

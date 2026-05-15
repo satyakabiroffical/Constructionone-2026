@@ -31,7 +31,6 @@ import { connection } from "../config/bullmq.config.js";
 import { sendPushNotification } from "../utils/sendPushNotification.js";
 import User from "../models/user/user.model.js";
 import { VendorProfile } from "../models/vendorShop/vendor.model.js";
-
 const notificationWorker = new Worker(
   "notification-queue",
   async (job) => {

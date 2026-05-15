@@ -5,35 +5,54 @@ import mongoose from "mongoose";
 
 // export const getInventory = async (req, res, next) => {
 //   try {
-//     const vendorId = req.user.id || "699c16b0e4bbd8cf25acc76b";
-//     // const vendorId = req.user.id;
+//     // const vendorId = "699c16b0e4bbd8cf25acc76b";
+//     const vendorId = req.user.id;
 
 //     let {
 //       page = 1,
 //       limit = 10,
 //       search = "",
 //       type = "ALL", // ALL | BULK | RETAIL
+//       categoryId = "",
+//       brandId = "",
+//       disable = "", // true / false
+//       stockSort = "", // LOW_STOCK
 //     } = req.query;
 
 //     page = Number(page);
 //     limit = Number(limit);
 //     const skip = (page - 1) * limit;
 
-//     // --------------------------------
+//     // -----------------------------------
 //     // MAIN QUERY
-//     // --------------------------------
+//     // -----------------------------------
 //     let query = {
 //       createdBy: vendorId, // agar field nahi hai to hata dena
 //     };
 
-//     // BULK / RETAIL filter
+//     // Type Filter
 //     if (type !== "ALL") {
-//       query.Type = type; // correct field name
+//       query.Type = type;
 //     }
 
-//     // --------------------------------
-//     // PRODUCT NAME SEARCH
-//     // --------------------------------
+//     // Category Filter
+//     if (categoryId) {
+//       query.categoryId = categoryId;
+//     }
+
+//     // Brand Filter
+//     if (brandId) {
+//       query.brandId = brandId;
+//     }
+
+//     // Disable Status Filter
+//     if (disable !== "") {
+//       query.disable = disable === "true";
+//     }
+
+//     // -----------------------------------
+//     // PRODUCT SEARCH
+//     // -----------------------------------
 //     let productMatch = {};
 
 //     if (search) {
@@ -43,33 +62,95 @@ import mongoose from "mongoose";
 //       };
 //     }
 
-//     // --------------------------------
+//     // -----------------------------------
+//     // SORTING
+//     // -----------------------------------
+//     let sortOption = {
+//       createdAt: -1,
+//     };
+
+//     // low stock sabse pehle
+//     if (stockSort === "LOW_STOCK") {
+//       sortOption = {
+//         stock: 1, // ascending => low stock first
+//       };
+//     }
+
+//     // -----------------------------------
 //     // FIND + POPULATE
-//     // --------------------------------
+//     // -----------------------------------
 //     let variants = await Variant.find(query)
 //       .populate({
 //         path: "productId",
 //         match: productMatch,
-//         select: "name images categoryId",
-//         populate: {
-//           path: "categoryId",
-//           select: "name",
-//         },
+//         select: "name images measurementUnit categoryId brandId",
+//         populate: [
+//           {
+//             path: "categoryId",
+//             select: "name",
+//           },
+//           {
+//             path: "brandId",
+//             select: "name",
+//           },
+//         ],
 //       })
-//       .sort({ createdAt: -1 });
+//       .sort(sortOption);
 
-//     // populate ke baad null remove
+//     // null populated products remove
 //     variants = variants.filter((item) => item.productId !== null);
 
-//     // pagination AFTER filter
+//     // -----------------------------------
+//     // CATEGORY FILTER OPTIONS
+//     // -----------------------------------
+//     const categories = [
+//       ...new Map(
+//         variants
+//           .filter((v) => v.productId?.categoryId)
+//           .map((v) => [
+//             v.productId.categoryId._id.toString(),
+//             {
+//               _id: v.productId.categoryId._id,
+//               name: v.productId.categoryId.name,
+//             },
+//           ]),
+//       ).values(),
+//     ];
+
+//     // -----------------------------------
+//     // BRAND FILTER OPTIONS
+//     // -----------------------------------
+//     const brands = [
+//       ...new Map(
+//         variants
+//           .filter((v) => v.productId?.brandId)
+//           .map((v) => [
+//             v.productId.brandId._id.toString(),
+//             {
+//               _id: v.productId.brandId._id,
+//               name: v.productId.brandId.name,
+//             },
+//           ]),
+//       ).values(),
+//     ];
+
+//     // -----------------------------------
+//     // PAGINATION
+//     // -----------------------------------
 //     const total = variants.length;
+
 //     variants = variants.slice(skip, skip + limit);
 
 //     res.status(200).json({
 //       success: true,
 //       message: "Inventory fetched successfully",
+
 //       filters: {
 //         types: ["ALL", "BULK", "RETAIL"],
+//         disableStatus: [true, false],
+//         stockSort: ["LOW_STOCK"],
+//         categories,
+//         brands,
 //       },
 
 //       pagination: {
@@ -86,169 +167,6 @@ import mongoose from "mongoose";
 //   }
 // };
 
-export const getInventory = async (req, res, next) => {
-  try {
-    // const vendorId = "699c16b0e4bbd8cf25acc76b";
-    const vendorId = req.user.id;
-
-    let {
-      page = 1,
-      limit = 10,
-      search = "",
-      type = "ALL", // ALL | BULK | RETAIL
-      categoryId = "",
-      brandId = "",
-      disable = "", // true / false
-      stockSort = "", // LOW_STOCK
-    } = req.query;
-
-    page = Number(page);
-    limit = Number(limit);
-    const skip = (page - 1) * limit;
-
-    // -----------------------------------
-    // MAIN QUERY
-    // -----------------------------------
-    let query = {
-      createdBy: vendorId, // agar field nahi hai to hata dena
-    };
-
-    // Type Filter
-    if (type !== "ALL") {
-      query.Type = type;
-    }
-
-    // Category Filter
-    if (categoryId) {
-      query.categoryId = categoryId;
-    }
-
-    // Brand Filter
-    if (brandId) {
-      query.brandId = brandId;
-    }
-
-    // Disable Status Filter
-    if (disable !== "") {
-      query.disable = disable === "true";
-    }
-
-    // -----------------------------------
-    // PRODUCT SEARCH
-    // -----------------------------------
-    let productMatch = {};
-
-    if (search) {
-      productMatch.name = {
-        $regex: search,
-        $options: "i",
-      };
-    }
-
-    // -----------------------------------
-    // SORTING
-    // -----------------------------------
-    let sortOption = {
-      createdAt: -1,
-    };
-
-    // low stock sabse pehle
-    if (stockSort === "LOW_STOCK") {
-      sortOption = {
-        stock: 1, // ascending => low stock first
-      };
-    }
-
-    // -----------------------------------
-    // FIND + POPULATE
-    // -----------------------------------
-    let variants = await Variant.find(query)
-      .populate({
-        path: "productId",
-        match: productMatch,
-        select: "name images measurementUnit categoryId brandId",
-        populate: [
-          {
-            path: "categoryId",
-            select: "name",
-          },
-          {
-            path: "brandId",
-            select: "name",
-          },
-        ],
-      })
-      .sort(sortOption);
-
-    // null populated products remove
-    variants = variants.filter((item) => item.productId !== null);
-
-    // -----------------------------------
-    // CATEGORY FILTER OPTIONS
-    // -----------------------------------
-    const categories = [
-      ...new Map(
-        variants
-          .filter((v) => v.productId?.categoryId)
-          .map((v) => [
-            v.productId.categoryId._id.toString(),
-            {
-              _id: v.productId.categoryId._id,
-              name: v.productId.categoryId.name,
-            },
-          ]),
-      ).values(),
-    ];
-
-    // -----------------------------------
-    // BRAND FILTER OPTIONS
-    // -----------------------------------
-    const brands = [
-      ...new Map(
-        variants
-          .filter((v) => v.productId?.brandId)
-          .map((v) => [
-            v.productId.brandId._id.toString(),
-            {
-              _id: v.productId.brandId._id,
-              name: v.productId.brandId.name,
-            },
-          ]),
-      ).values(),
-    ];
-
-    // -----------------------------------
-    // PAGINATION
-    // -----------------------------------
-    const total = variants.length;
-
-    variants = variants.slice(skip, skip + limit);
-
-    res.status(200).json({
-      success: true,
-      message: "Inventory fetched successfully",
-
-      filters: {
-        types: ["ALL", "BULK", "RETAIL"],
-        disableStatus: [true, false],
-        stockSort: ["LOW_STOCK"],
-        categories,
-        brands,
-      },
-
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(total / limit),
-        totalItems: total,
-        perPage: limit,
-      },
-
-      data: variants,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
 // export const getVendorVariantDetails = async (req, res, next) => {
 //   try {
 //     const { variantId } = req.params;
@@ -510,6 +428,186 @@ export const getInventory = async (req, res, next) => {
 //   }
 // };
 
+export const getInventory = async (req, res, next) => {
+  try {
+    const vendorId = req.user.id;
+
+    let {
+      page = 1,
+      limit = 10,
+      search = "",
+      type = "ALL",
+      categoryId = "",
+      brandId = "",
+      disable = "",
+      stockSort = "", // IN_STOCK | LOW_STOCK | OUT_OF_STOCK
+    } = req.query;
+
+    page = Number(page);
+    limit = Number(limit);
+    const skip = (page - 1) * limit;
+
+    // -----------------------------------
+    // MAIN QUERY
+    // -----------------------------------
+    let query = {
+      createdBy: vendorId,
+    };
+
+    // Type Filter
+    if (type !== "ALL") {
+      query.Type = type;
+    }
+
+    // Disable Status Filter
+    if (disable !== "") {
+      query.disable = disable === "true";
+    }
+
+    // -----------------------------------
+    // STOCK FILTER
+    // -----------------------------------
+    if (stockSort === "OUT_OF_STOCK") {
+      query.stock = 0;
+    }
+
+    if (stockSort === "IN_STOCK") {
+      query.stock = { $gt: 0 };
+    }
+
+    // -----------------------------------
+    // PRODUCT SEARCH FILTER
+    // -----------------------------------
+    let productMatch = {};
+
+    if (search) {
+      productMatch.name = {
+        $regex: search,
+        $options: "i",
+      };
+    }
+
+    // category filter
+    if (categoryId) {
+      productMatch.categoryId = categoryId;
+    }
+
+    // brand filter
+    if (brandId) {
+      productMatch.brandId = brandId;
+    }
+
+    // -----------------------------------
+    // SORTING
+    // -----------------------------------
+    let sortOption = {
+      createdAt: -1,
+    };
+
+    // Low stock first
+    if (stockSort === "LOW_STOCK") {
+      sortOption = {
+        stock: 1,
+      };
+    }
+
+    // High stock first
+    if (stockSort === "IN_STOCK") {
+      sortOption = {
+        stock: -1,
+      };
+    }
+
+    // -----------------------------------
+    // FIND + POPULATE
+    // -----------------------------------
+    let variants = await Variant.find(query)
+      .populate({
+        path: "productId",
+        match: productMatch,
+        select: "name images measurementUnit categoryId brandId",
+        populate: [
+          {
+            path: "categoryId",
+            select: "name",
+          },
+          {
+            path: "brandId",
+            select: "name",
+          },
+        ],
+      })
+      .sort(sortOption);
+
+    // remove null products
+    variants = variants.filter((item) => item.productId !== null);
+
+    // -----------------------------------
+    // CATEGORY FILTER OPTIONS
+    // -----------------------------------
+    const categories = [
+      ...new Map(
+        variants
+          .filter((v) => v.productId?.categoryId)
+          .map((v) => [
+            v.productId.categoryId._id.toString(),
+            {
+              _id: v.productId.categoryId._id,
+              name: v.productId.categoryId.name,
+            },
+          ]),
+      ).values(),
+    ];
+
+    // -----------------------------------
+    // BRAND FILTER OPTIONS
+    // -----------------------------------
+    const brands = [
+      ...new Map(
+        variants
+          .filter((v) => v.productId?.brandId)
+          .map((v) => [
+            v.productId.brandId._id.toString(),
+            {
+              _id: v.productId.brandId._id,
+              name: v.productId.brandId.name,
+            },
+          ]),
+      ).values(),
+    ];
+
+    // -----------------------------------
+    // PAGINATION
+    // -----------------------------------
+    const total = variants.length;
+
+    variants = variants.slice(skip, skip + limit);
+
+    res.status(200).json({
+      success: true,
+      message: "Inventory fetched successfully",
+
+      filters: {
+        types: ["ALL", "BULK", "RETAIL"],
+        disableStatus: [true, false],
+        stockSort: ["IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK"],
+        categories,
+        brands,
+      },
+
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        perPage: limit,
+      },
+
+      data: variants,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 export const getVendorVariantDetails = async (req, res, next) => {
   try {
     const { variantId } = req.params;
@@ -844,3 +942,5 @@ export const getVendorVariantDetails = async (req, res, next) => {
     next(err);
   }
 };
+
+

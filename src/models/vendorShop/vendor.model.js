@@ -5,7 +5,7 @@ const vendorProfile = new mongoose.Schema(
   {
     moduleId: {
       type: mongoose.Schema.Types.ObjectId, //business setup Id
-      ref: "Module",
+      ref: "PlatformModule",
     },
     phoneNumber: {
       type: String,

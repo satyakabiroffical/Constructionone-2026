@@ -316,145 +316,253 @@ const resolveBRAND_LIST = async (section) => {
 //   ];
 // };
 
+// const resolveFLASH_SALE = async (section) => {
+//   const now = new Date();
+
+//   const activeSale = await FlashSale.findOne({
+//     moduleId: section.moduleId,
+//     isCancelled: false,
+//     startDateTime: { $lte: now },
+//     endDateTime: { $gte: now },
+//   })
+//     .select("_id label startDateTime endDateTime")
+//     .lean();
+
+//   if (!activeSale) return [];
+
+//   const items = await FlashSaleItem.find({ flashSaleId: activeSale._id })
+//     .limit(section.limit)
+//     .populate({
+//       path: "productId",
+//       select: "name thumbnail images slug avgRating vendorId",
+//     })
+//     .populate("variantId")
+//     .lean();
+
+//   // Collect all vendorIds and productIds
+//   const productVendorMap = {};
+//   const vendorIds = new Set();
+//   items.forEach((item) => {
+//     if (item.productId && item.productId.vendorId) {
+//       productVendorMap[item.productId._id.toString()] =
+//         item.productId.vendorId.toString();
+//       vendorIds.add(item.productId.vendorId.toString());
+//     }
+//   });
+
+//   // Fetch vendor profiles
+//   const vendors = await VendorProfile.find({
+//     _id: { $in: Array.from(vendorIds) },
+//   })
+//     .select("_id firstName lastName")
+//     .lean();
+//   const vendorProfileMap = {};
+//   vendors.forEach((v) => {
+//     vendorProfileMap[v._id.toString()] = v;
+//   });
+
+//   // Fetch vendor companies
+//   const vendorCompanies = await (
+//     await import("../models/vendorShop/vendor.model.js")
+//   ).VendorCompany.find({ vendorId: { $in: Array.from(vendorIds) } })
+//     .select("vendorId companyName")
+//     .lean();
+//   const vendorCompanyMap = {};
+//   vendorCompanies.forEach((c) => {
+//     vendorCompanyMap[c.vendorId.toString()] = c.companyName;
+//   });
+
+//   // Collect variant IDs
+//   const variantIds = items
+//     .map((item) => item.variantId?._id || item.variantId)
+//     .filter(Boolean);
+
+//   let variants = [];
+//   if (variantIds.length > 0) {
+//     variants = await Variant.find({ _id: { $in: variantIds } }).lean();
+//   }
+
+//   // Create variant map
+//   const variantMap = {};
+//   variants.forEach((v) => {
+//     if (v) variantMap[v._id.toString()] = v;
+//   });
+
+//   const enriched = items
+//     .filter((item) => item.productId && item.variantId)
+//     .map((item) => {
+//       const variant =
+//         item.variantId && item.variantId._id
+//           ? item.variantId
+//           : variantMap[item.variantId?.toString()];
+
+//       // Vendor info
+//       let vendorName = null;
+//       let companyName = null;
+//       if (item.productId && item.productId.vendorId) {
+//         const vId = item.productId.vendorId.toString();
+//         const profile = vendorProfileMap[vId];
+//         vendorName = profile
+//           ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
+//           : null;
+//         companyName = vendorCompanyMap[vId] || null;
+//       }
+
+//       return {
+//         flashItemId: item._id,
+
+//         product: {
+//           ...item.productId,
+//           vendorName,
+//           companyName,
+//         },
+
+//         variant: variant
+//           ? {
+//               _id: variant._id,
+//               price: variant.price,
+//               mrp: variant.mrp,
+//               discount: variant.discount,
+//               discountAmount: variant.discountAmount,
+//               stock: variant.stock,
+//               Type: variant.Type,
+//               moq: variant.moq,
+//               packageWeight: variant.packageWeight,
+//               packageDimensions: variant.packageDimensions,
+//             }
+//           : null,
+
+//         originalPrice: item.basePriceSnapshot,
+//         flashPrice: item.flashPrice,
+//         discountPercent: item.flashDiscountPercent,
+//         discountAmount: item.basePriceSnapshot - item.flashPrice,
+
+//         remainingStock: Math.max(item.allocatedStock - item.sold, 0),
+
+//         soldPercent: Math.max(
+//           0,
+//           Math.min(100, Math.round((item.sold / item.allocatedStock) * 100)),
+//         ),
+//       };
+//     });
+
+//   return [
+//     {
+//       saleId: activeSale._id,
+//       saleLabel: activeSale.label,
+//       startsAt: activeSale.startDateTime,
+//       endsAt: activeSale.endDateTime,
+//       items: enriched,
+//     },
+//   ];
+// };
+
+import { VendorCompany } from "../models/vendorShop/vendor.model.js";
 const resolveFLASH_SALE = async (section) => {
   const now = new Date();
 
-  const activeSale = await FlashSale.findOne({
+  // =========================
+  // GET ALL VALID SALES
+  // =========================
+  const activeSales = await FlashSale.find({
     moduleId: section.moduleId,
     isCancelled: false,
-    startDateTime: { $lte: now },
     endDateTime: { $gte: now },
   })
-    .select("_id label startDateTime endDateTime")
+    .sort({ startDateTime: 1 })
     .lean();
+
+  if (!activeSales.length) return [];
+
+  // =========================
+  // PICK ACTIVE SALE (LIKE OLD LOGIC)
+  // =========================
+  let activeSale = activeSales.find((sale) => {
+    return (
+      new Date(sale.startDateTime) <= now && new Date(sale.endDateTime) >= now
+    );
+  });
+
+  // fallback → UPCOMING (OLD BEHAVIOR SAFE)
+  if (!activeSale) {
+    activeSale = activeSales[0];
+  }
 
   if (!activeSale) return [];
 
-  const items = await FlashSaleItem.find({ flashSaleId: activeSale._id })
-    .limit(section.limit)
-    .populate({
-      path: "productId",
-      select: "name thumbnail images slug avgRating vendorId",
-    })
-    .populate("variantId")
-    .lean();
+  const isUpcoming = now < new Date(activeSale.startDateTime);
+  const isExpired = now > new Date(activeSale.endDateTime);
 
-  // Collect all vendorIds and productIds
-  const productVendorMap = {};
-  const vendorIds = new Set();
-  items.forEach((item) => {
-    if (item.productId && item.productId.vendorId) {
-      productVendorMap[item.productId._id.toString()] =
-        item.productId.vendorId.toString();
-      vendorIds.add(item.productId.vendorId.toString());
-    }
-  });
+  const isFlashActive = !activeSale.isCancelled && !isUpcoming && !isExpired;
 
-  // Fetch vendor profiles
-  const vendors = await VendorProfile.find({
-    _id: { $in: Array.from(vendorIds) },
-  })
-    .select("_id firstName lastName")
-    .lean();
-  const vendorProfileMap = {};
-  vendors.forEach((v) => {
-    vendorProfileMap[v._id.toString()] = v;
-  });
+  const isClickable = isFlashActive;
 
-  // Fetch vendor companies
-  const vendorCompanies = await (
-    await import("../models/vendorShop/vendor.model.js")
-  ).VendorCompany.find({ vendorId: { $in: Array.from(vendorIds) } })
-    .select("vendorId companyName")
-    .lean();
-  const vendorCompanyMap = {};
-  vendorCompanies.forEach((c) => {
-    vendorCompanyMap[c.vendorId.toString()] = c.companyName;
-  });
+  // =========================
+  // GET ITEMS (SAME OLD STYLE)
+  // =========================
 
-  // Collect variant IDs
-  const variantIds = items
-    .map((item) => item.variantId?._id || item.variantId)
-    .filter(Boolean);
+  const result = await Promise.all(
+    activeSales.map(async (sale) => {
+      const isUpcoming = now < new Date(sale.startDateTime);
+      const isExpired = now > new Date(sale.endDateTime);
 
-  let variants = [];
-  if (variantIds.length > 0) {
-    variants = await Variant.find({ _id: { $in: variantIds } }).lean();
-  }
+      const isFlashActive = !sale.isCancelled && !isUpcoming && !isExpired;
 
-  // Create variant map
-  const variantMap = {};
-  variants.forEach((v) => {
-    if (v) variantMap[v._id.toString()] = v;
-  });
+      const items = await FlashSaleItem.find({
+        flashSaleId: sale._id,
+      })
+        .populate("productId")
+        .populate("variantId")
+        .lean();
 
-  const enriched = items
-    .filter((item) => item.productId && item.variantId)
-    .map((item) => {
-      const variant =
-        item.variantId && item.variantId._id
-          ? item.variantId
-          : variantMap[item.variantId?.toString()];
-
-      // Vendor info
-      let vendorName = null;
-      let companyName = null;
-      if (item.productId && item.productId.vendorId) {
-        const vId = item.productId.vendorId.toString();
-        const profile = vendorProfileMap[vId];
-        vendorName = profile
-          ? `${profile.firstName || ""} ${profile.lastName || ""}`.trim()
-          : null;
-        companyName = vendorCompanyMap[vId] || null;
-      }
-
-      return {
+      const enriched = items.map((item) => ({
         flashItemId: item._id,
 
         product: {
-          ...item.productId,
-          vendorName,
-          companyName,
+          _id: item.productId?._id,
+          name: item.productId?.name,
+          images: item.productId?.images || [],
+          thumbnail: item.productId?.thumbnail || [],
+          measurmentUnit: item.productId?.measurementUnit || null,
+          slug: item.productId?.slug,
+          vendorId: item.productId?.vendorId,
         },
 
-        variant: variant
-          ? {
-              _id: variant._id,
-              price: variant.price,
-              mrp: variant.mrp,
-              discount: variant.discount,
-              discountAmount: variant.discountAmount,
-              stock: variant.stock,
-              Type: variant.Type,
-              moq: variant.moq,
-              packageWeight: variant.packageWeight,
-              packageDimensions: variant.packageDimensions,
-            }
-          : null,
+        variant: item.variantId,
 
         originalPrice: item.basePriceSnapshot,
         flashPrice: item.flashPrice,
+
+        finalPrice: isFlashActive ? item.flashPrice : item.variantId?.price,
+
         discountPercent: item.flashDiscountPercent,
-        discountAmount: item.basePriceSnapshot - item.flashPrice,
+        remainingStock: (item.allocatedStock || 0) - (item.sold || 0),
 
-        remainingStock: Math.max(item.allocatedStock - item.sold, 0),
+        soldPercent: item.allocatedStock
+          ? Math.round(((item.sold || 0) / item.allocatedStock) * 100)
+          : 0,
 
-        soldPercent: Math.max(
-          0,
-          Math.min(100, Math.round((item.sold / item.allocatedStock) * 100)),
-        ),
+        saleId: sale._id,
+        saleLabel: sale.label,
+        startsAt: sale.startDateTime,
+        endsAt: sale.endDateTime,
+
+        isUpcoming,
+        isFlashActive,
+        isClickable: isFlashActive,
+      }));
+
+      return {
+        saleId: sale._id,
+        saleLabel: sale.label,
+        startsAt: sale.startDateTime,
+        endsAt: sale.endDateTime,
+        items: enriched,
       };
-    });
+    }),
+  );
 
-  return [
-    {
-      saleId: activeSale._id,
-      saleLabel: activeSale.label,
-      startsAt: activeSale.startDateTime,
-      endsAt: activeSale.endDateTime,
-      items: enriched,
-    },
-  ];
+  return result;
 };
 
 export const sectionResolvers = {

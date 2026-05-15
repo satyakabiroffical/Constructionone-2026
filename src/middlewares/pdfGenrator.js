@@ -9,7 +9,15 @@ export const generateAndSaveInvoice = async ({ html, code }) => {
     browser = await puppeteer.launch({
       ignoreDefaultArgs: ["--disable-extensions"],
       headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      executablePath:
+        process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+      // args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+      ],
     });
 
     const page = await browser.newPage();

@@ -1596,7 +1596,7 @@ export const createOrder = async (req, res, next) => {
         throw new APIError(400, "Insufficient wallet balance");
       }
       paymentStatus = "PAID";
-      orderStatus = "CONFIRMED";
+      // orderStatus = "CONFIRMED";
     }
 
     // =====================================================
@@ -1763,11 +1763,11 @@ export const createOrder = async (req, res, next) => {
         {
           paymentStatus: "PAID",
 
-          status: "CONFIRMED",
+          // status: "CONFIRMED",
 
           transactionId,
 
-          "items.$[].status": "CONFIRMED",
+          // "items.$[].status": "CONFIRMED",
         },
         { session },
       );
@@ -1786,11 +1786,11 @@ export const createOrder = async (req, res, next) => {
           $set: {
             paymentStatus: "PAID",
 
-            status: "CONFIRMED",
+            // status: "CONFIRMED",
 
             transactionId,
 
-            "items.$[].status": "CONFIRMED",
+            // "items.$[].status": "CONFIRMED",
           },
         },
         { session },
@@ -1814,7 +1814,6 @@ export const createOrder = async (req, res, next) => {
             update: {
               $inc: {
                 stock: -cartItem.quantity,
-
                 sold: cartItem.quantity,
               },
             },
@@ -1864,34 +1863,61 @@ export const createOrder = async (req, res, next) => {
     // =====================================================
 
     await session.commitTransaction();
-
     session.endSession();
 
     // =====================================================
     // INVOICE
     // =====================================================
 
+    // if (paymentMethod === "WALLET") {
+    //   await sendAdminNotification({
+    //     title: "New Order Created",
+    //     message: `A new order ${masterOrderId} has been created successfully`,
+    //     type: "ORDER_CREATED",
+    //     color: "green",
+    //     redirectUrl: `/marketplace/orders`,
+    //   });
+
+    //   const freshMasterOrder = await Order.findById(masterOrderId);
+
+    //   const freshSubOrders = await Order.find({
+    //     parentId: masterOrderId,
+    //     orderType: "SUB",
+    //   });
+
+    //   if (freshMasterOrder) {
+    //     generateOrderInvoices(freshMasterOrder, freshSubOrders).catch((err) =>
+    //       console.error("[Invoice Generation Failed]", err.message),
+    //     );
+    //   }
+    // }
+
     if (paymentMethod === "WALLET") {
-      await sendAdminNotification({
-        title: "New Order Created",
-        message: `A new order ${masterOrderId} has been created successfully`,
-        type: "ORDER_CREATED",
-        color: "green",
-        redirectUrl: `/marketplace/orders`,
-      });
+      try {
+        await sendAdminNotification({
+          title: "New Order Created",
+          message: `A new order ${masterOrderId} has been created successfully`,
+          type: "ORDER_CREATED",
+          color: "green",
+          redirectUrl: `/marketplace/orders`,
+        });
+      } catch (err) {
+        console.error("[Notification Failed]", err.message);
+      }
 
-      const freshMasterOrder = await Order.findById(masterOrderId);
+      try {
+        const freshMasterOrder = await Order.findById(masterOrderId);
 
-      const freshSubOrders = await Order.find({
-        parentId: masterOrderId,
+        const freshSubOrders = await Order.find({
+          parentId: masterOrderId,
+          orderType: "SUB",
+        });
 
-        orderType: "SUB",
-      });
-
-      if (freshMasterOrder) {
-        generateOrderInvoices(freshMasterOrder, freshSubOrders).catch((err) =>
-          console.error("[Invoice Generation Failed]", err.message),
-        );
+        if (freshMasterOrder) {
+          await generateOrderInvoices(freshMasterOrder, freshSubOrders);
+        }
+      } catch (err) {
+        console.error("[Invoice Generation Failed]", err.message);
       }
     }
 
@@ -2007,10 +2033,10 @@ export const verifyPayment = async (req, res, next) => {
       {
         $set: {
           paymentStatus: "PAID",
-          status: "CONFIRMED",
+          // status: "CONFIRMED",
           transactionId,
           expiresAt: null,
-          "items.$[].status": "ACCEPTED",
+          // "items.$[].status": "ACCEPTED",
         },
       },
       { session },
@@ -2098,32 +2124,63 @@ export const verifyPayment = async (req, res, next) => {
       sendOrderNotificationToVendor(subOrder).catch(console.error);
     });
 
+    // const freshMasterOrder = await Order.findById(masterOrder._id);
+    // const freshSubOrders = await Order.find({
+    //   parentId: masterOrder._id,
+    //   orderType: "SUB",
+    // });
+
+    // if (freshMasterOrder) {
+    //   generateOrderInvoices(freshMasterOrder, freshSubOrders).catch((err) =>
+    //     console.error("[Invoice Generation Failed]", err.message),
+    //   );
+    // }
+
+    // // -----------------------------------
+    // // RESPONSE
+    // // -----------------------------------
+    // await sendAdminNotification({
+    //   title: "New Order Created",
+    //   message: `A new order ${masterOrder._id} has been created successfully`,
+    //   type: "ORDER_CREATED",
+    //   color: "green",
+    //   redirectUrl: `/marketplace/orders`,
+    // });
+
+    // -----------------------------------
+    // GENERATE INVOICE
+    // -----------------------------------
+
     const freshMasterOrder = await Order.findById(masterOrder._id);
+
     const freshSubOrders = await Order.find({
       parentId: masterOrder._id,
       orderType: "SUB",
     });
 
     if (freshMasterOrder) {
-      generateOrderInvoices(freshMasterOrder, freshSubOrders).catch((err) =>
-        console.error("[Invoice Generation Failed]", err.message),
-      );
+      try {
+        await generateOrderInvoices(freshMasterOrder, freshSubOrders);
+      } catch (err) {
+        console.error("[Invoice Generation Failed]", err.message);
+      }
     }
 
-    // generateOrderInvoices(masterOrder, subOrders).catch((err) =>
-    //   console.error("[Invoice Generation Failed]", err.message),
-    // );
+    // -----------------------------------
+    // ADMIN NOTIFICATION
+    // -----------------------------------
 
-    // -----------------------------------
-    // RESPONSE
-    // -----------------------------------
-    await sendAdminNotification({
-      title: "New Order Created",
-      message: `A new order ${masterOrder._id} has been created successfully`,
-      type: "ORDER_CREATED",
-      color: "green",
-      redirectUrl: `/marketplace/orders`,
-    });
+    try {
+      await sendAdminNotification({
+        title: "New Order Created",
+        message: `A new order ${masterOrder._id} has been created successfully`,
+        type: "ORDER_CREATED",
+        color: "green",
+        redirectUrl: `/marketplace/orders`,
+      });
+    } catch (err) {
+      console.error("[Admin Notification Failed]", err.message);
+    }
 
     return res.status(200).json({
       success: true,

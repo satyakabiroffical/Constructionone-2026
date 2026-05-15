@@ -320,6 +320,7 @@ class BrandController {
       });
 
       await RedisCache.deletePattern("brands:*");
+      await RedisCache.deletePattern("home:*");
 
       res.status(201).json({
         success: true,
@@ -358,6 +359,7 @@ class BrandController {
 
       await RedisCache.deletePattern("brands:*"); // 👈 better than single delete
       await RedisCache.delete(`brand:${req.params.id}`);
+      await RedisCache.deletePattern("home:*");
 
       res.json({
         success: true,
@@ -378,6 +380,7 @@ class BrandController {
       await RedisCache.delete("brands:");
       await RedisCache.delete(`brand:${req.params.id}`);
       await RedisCache.deletePattern("brands:*");
+      await RedisCache.deletePattern("home:*");
 
       res.json({
         status: "success",
@@ -401,6 +404,7 @@ class BrandController {
       await RedisCache.delete("brands:");
       await RedisCache.delete(`brand:${req.params.id}`);
       await RedisCache.deletePattern("brands:*");
+      await RedisCache.deletePattern("home:*");
 
       res.json({
         status: "success",

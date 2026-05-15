@@ -8,7 +8,10 @@ import {
   togglePcategory,
 } from "../../controllers/admin/pcategory.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
-// import { requireRole } from "../../middlewares/role.middleware.js";
+import {
+  requireRole,
+  requirePermission,
+} from "../../middlewares/role.middleware.js";
 import { s3Uploader } from "../../middlewares/uploads.js";
 const router = Router();
 
@@ -17,14 +20,22 @@ const router = Router();
 
 router
   .route("/")
-  .post(s3Uploader().single("image"), createPcategory)
+  .post(
+    requirePermission("MARKETPLACE_CATEGORIES"),
+    s3Uploader().single("image"),
+    createPcategory,
+  )
   .get(getAllPcategories);
 
 router
   .route("/:id")
-  .get(getPcategoryById)
-  .put(s3Uploader().single("image"), updatePcategory)
-  .delete(deletePcategory);
+  .get(requirePermission("MARKETPLACE_CATEGORIES"), getPcategoryById)
+  .put(
+    requirePermission("MARKETPLACE_CATEGORIES"),
+    s3Uploader().single("image"),
+    updatePcategory,
+  )
+  .delete(requirePermission("MARKETPLACE_CATEGORIES"), deletePcategory);
 
 router.patch("/:id/toggle", togglePcategory);
 

@@ -232,6 +232,40 @@ export const verifyOtp = catchAsync(async (req, res, next) => {
 });
 
 // Forgot Password
+// export const forgotPassword = catchAsync(async (req, res, next) => {
+//   const { error } = forgotPasswordSchema.validate(req.body);
+//   if (error) return next(new APIError(400, error.details[0].message));
+
+//   const { email } = req.body;
+//   const user = await User.findOne({ email });
+//   if (!user) return next(new APIError(404, "User not found"));
+
+//   const otp = Math.floor(1000 + Math.random() * 9000).toString();
+//   user.otp = otp;
+//   user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 mins
+//   await user.save({ validateBeforeSave: false });
+
+//   try {
+//     await sendEmailOtp(user.email, otp);
+//     res
+//       .status(200)
+//       .json(
+//         new ApiResponse(
+//           200,
+//           null,
+//           "OTP sent successfully to your registered email",
+//         ),
+//       );
+//   } catch (error) {
+//     user.otp = undefined;
+//     user.otpExpiry = undefined;
+//     await user.save({ validateBeforeSave: false });
+//     return next(
+//       new APIError(500, "Failed to send OTP email. Please try again later."),
+//     );
+//   }
+// });
+
 export const forgotPassword = catchAsync(async (req, res, next) => {
   const { error } = forgotPasswordSchema.validate(req.body);
   if (error) return next(new APIError(400, error.details[0].message));
@@ -240,20 +274,23 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email });
   if (!user) return next(new APIError(404, "User not found"));
 
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  // const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  const otp = "1234";
+
   user.otp = otp;
   user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 mins
   await user.save({ validateBeforeSave: false });
 
   try {
-    await sendEmailOtp(user.email, otp);
+    // await sendEmailOtp(user.email, otp);
+
     res
       .status(200)
       .json(
         new ApiResponse(
           200,
           null,
-          "OTP sent successfully to your registered email",
+          "OTP generated successfully (email sending disabled for now)",
         ),
       );
   } catch (error) {
@@ -261,7 +298,10 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     user.otpExpiry = undefined;
     await user.save({ validateBeforeSave: false });
     return next(
-      new APIError(500, "Failed to send OTP email. Please try again later."),
+      new APIError(
+        500,
+        "Failed to process OTP request. Please try again later.",
+      ),
     );
   }
 });

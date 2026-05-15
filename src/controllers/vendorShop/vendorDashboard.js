@@ -1094,13 +1094,17 @@ export const getVendorOverview = async (req, res, next) => {
     ]);
 
     // 4. Total Unique Products (overall)
-    const productsRes = await Order.aggregate([
-      { $match: baseMatch },
-      { $unwind: "$items" },
-      { $match: { "items.vendorId": vendorObjectId } },
-      { $group: { _id: "$items.productId" } },
-      { $count: "count" },
-    ]);
+    // const productsRes = await Order.aggregate([
+    //   { $match: baseMatch },
+    //   { $unwind: "$items" },
+    //   { $match: { "items.vendorId": vendorObjectId } },
+    //   { $group: { _id: "$items.productId" } },
+    //   { $count: "count" },
+    // ]);
+
+    const totalProducts = await Product.countDocuments({
+      vendorId: vendorObjectId,
+    });
 
     // 5. Recent Orders
     const recentOrders = await Order.find({ ...baseMatch, ...dateFilter })
@@ -1211,8 +1215,7 @@ export const getVendorOverview = async (req, res, next) => {
         pendingOrders: pendingRes[0]?.count || 0, // ACCEPTED
         newOrders: newOrdersRes[0]?.count || 0, // PENDING
         todayOrders: totalOrdersRes[0]?.count || 0,
-        totalProducts: productsRes[0]?.count || 0,
-
+        totalProducts: totalProducts || 0,
         recentOrders: recentOrders || [],
         lowStockVariants: lowStock || [],
         popularProducts: popularRes || [],
@@ -1458,3 +1461,93 @@ export const vendorUpdateOrder = async (req, res, next) => {
 //     await generateOrderInvoices(masterOrder, subOrders);
 //   }
 // }
+
+
+export const getAllProducts = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+
+    // pagination
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // filters
+    const filter = {
+      vendorId,
+    };
+
+    // verified filter
+    // ?varified=true
+    // ?varified=false
+    if (req.query.varified !== undefined) {
+      filter.varified = req.query.varified === "true";
+    }
+
+    // total count
+    const totalProducts = await Product.countDocuments(filter);
+
+    // products
+    const products = await Product.find(filter)
+      .sort({ createdAt: -1 }) // latest top
+      .skip(skip)
+      .limit(limit);
+
+    return res.status(200).json({
+      success: true,
+      message: "Products fetched successfully",
+      pagination: {
+        totalProducts,
+        currentPage: page,
+        totalPages: Math.ceil(totalProducts / limit),
+        limit,
+      },
+      filters: {
+        varified:
+          req.query.varified !== undefined
+            ? req.query.varified === "true"
+            : "ALL",
+      },
+      data: products,
+    });
+  } catch (error) {
+    console.error("getAllProducts Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const getProductById = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+    const { productId } = req.params;
+
+    const product = await Product.findOne({
+      _id: productId,
+      vendorId,
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Product fetched successfully",
+      data: product,
+    });
+  } catch (error) {
+    console.error("getProductById Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};

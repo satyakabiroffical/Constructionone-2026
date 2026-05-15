@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import ProductType from "../../models/vendorShop/productType.model.js";
+import RedisCache from "../../utils/redisCache.js";
 class ProductTypeController {
   /*
     ============================
@@ -95,6 +96,7 @@ class ProductTypeController {
       }
 
       const created = await ProductType.insertMany(newTypes);
+      await RedisCache.deletePattern("home:*");
 
       return res.status(201).json({
         success: true,
@@ -233,6 +235,7 @@ class ProductTypeController {
           message: "Product Type not found",
         });
       }
+      await RedisCache.deletePattern("home:*");
 
       return res.status(200).json({
         success: true,
@@ -267,6 +270,8 @@ class ProductTypeController {
         });
       }
 
+      await RedisCache.deletePattern("home:*");
+
       return res.status(200).json({
         success: true,
         message: "Product Type deleted successfully",
@@ -296,6 +301,7 @@ class ProductTypeController {
       productType.status = !productType.status;
 
       const updated = await productType.save();
+      await RedisCache.deletePattern("home:*");
 
       res.status(200).json({
         success: true,

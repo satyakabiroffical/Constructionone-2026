@@ -37,6 +37,7 @@ export const buildHome = async (identifier) => {
     .lean();
 
   if (!sections.length) return { module, sections: [] };
+  
   // 3. Resolve all sections in PARALLEL (no sequential N+1)
   const resolvedData = await Promise.all(
     sections.map((section) => {
