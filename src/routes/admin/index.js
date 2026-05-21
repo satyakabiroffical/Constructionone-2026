@@ -23,6 +23,8 @@ import adminNotification from "./adminNotifications.routes.js";
 // import countryRoute from "./country.routes.js";
 import appMaintenanceRoute from "./appMaintenance.routes.js";
 import complainRequest from "./complainRequest.routes.js";
+import landingPageRoute from "./landingPage.routes.js";
+import activityLogRoute from "./activityLog.routes.js";
 const router = Router();
 
 router.use("/admin", adminRoutes);
@@ -47,5 +49,7 @@ router.use("/admin/platform-modules", platformModuleRoutes);
 router.use("/admin/pcategories", pcategoryRoutes);
 router.use("/admin/categories", categoryRoutes);
 router.use("/admin/sub-categories", subCategoryRoutes);
+router.use("/admin/landing-pages", landingPageRoute);
+router.use("/admin/activity-logs", activityLogRoute);
 
 export default router;

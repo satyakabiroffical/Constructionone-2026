@@ -18,7 +18,7 @@ import mongoose from 'mongoose';
  *  - createdBy    : admin reference
  */
 
-export const BANNER_PAGES = ['HOME', 'CATEGORY', 'PRODUCT', 'SEARCH', 'CART', 'CHECKOUT', 'CUSTOM'];
+export const BANNER_PAGES = ['HOME', 'CATEGORY', 'PRODUCT', 'SEARCH', 'CART', 'CHECKOUT', 'CUSTOM','VENDOR'];
 export const BANNER_POSITIONS = ['TOP', 'MIDDLE', 'BOTTOM', 'FLOATING', 'POPUP'];
 
 const bannerSchema = new mongoose.Schema(

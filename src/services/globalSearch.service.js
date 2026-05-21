@@ -203,23 +203,28 @@ export const globalSearchService = async (
         varified: true,
         $or: [{ name: regex }, { slug: regex }],
       })
+        // .select(
+        //   `
+        //   name
+        //   thumbnail
+        //   images
+        //   avgRating
+        //   varified
+        //   sold
+        //   disable
+        //   createdAt
+        //   slug
+        //   brandId
+        //   categoryId
+        //   subcategoryId
+        //   defaultVariantId
+        //   vendorId
+        //   vendorLocation
+        //   location
+        // `,
+        // )
         .select(
-          `
-          name
-          thumbnail
-          images
-          avgRating
-          varified
-          sold
-          disable
-          createdAt
-          slug
-          brandId
-          categoryId
-          subcategoryId
-          defaultVariantId
-          vendorId
-        `,
+          "name leadTime thumbnail images avgRating varified sold disable createdAt slug brandId categoryId subcategoryId defaultVariantId vendorId vendorLocation location",
         )
         .populate({
           path: "brandId",
@@ -243,7 +248,7 @@ export const globalSearchService = async (
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .lean(),
+        .lean({ virtuals: true }),
 
       Product.countDocuments({
         $or: [{ name: regex }, { slug: regex }],
@@ -267,6 +272,12 @@ export const globalSearchService = async (
       const finalProducts = data.map((product) => ({
         ...product,
         companyName: companyMap[product.vendorId?._id?.toString()] || null,
+        vendorLocation: product.vendorLocation?.coordinates
+    ? {
+        lng: product.vendorLocation.coordinates[0],
+        lat: product.vendorLocation.coordinates[1],
+      }
+    : null,
       }));
 
       return {

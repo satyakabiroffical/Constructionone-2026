@@ -54,11 +54,11 @@ export const createProductWithVariantSchema = Joi.object({
     .valid("free", "distanceWeightVolumeBased")
     .optional(),
 
-  shippingCharges: Joi.object({
-    fixed: Joi.number().optional(),
-    distancePerKm: Joi.number().optional(),
-    weightPerKg: Joi.number().optional(),
-  }).optional(),
+  // shippingCharges: Joi.object({
+  //   fixed: Joi.number().optional(),
+  //   distancePerKm: Joi.number().optional(),
+  //   weightPerKg: Joi.number().optional(),
+  // }).optional(),
 
   warrantyPeriod: Joi.string().allow("", null),
 
@@ -72,9 +72,9 @@ export const createProductWithVariantSchema = Joi.object({
   // VARIANTS
   // =========================
 
-  variants: Joi.array().items(createVariantSchema).min(1).required().messages({
-    "array.base": "variants must be an array",
-    "array.min": "At least one variant is required",
-    "any.required": "variants are required",
-  }),
+  // variants: Joi.array().items(createVariantSchema).min(1).required().messages({
+  //   "array.base": "variants must be an array",
+  //   "array.min": "At least one variant is required",
+  //   "any.required": "variants are required",
+  // }),
 });

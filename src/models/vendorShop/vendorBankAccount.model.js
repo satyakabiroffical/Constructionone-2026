@@ -11,29 +11,41 @@ const vendorBankAccountSchema = new mongoose.Schema(
     accountHolderName: {
       type: String,
       required: true,
+      trim: true,
     },
 
+    // optional for only UPI accounts
     accountNumber: {
       type: String,
-      required: true,
+      trim: true,
+      default: null,
     },
+
     confirmAccountNumber: {
       type: String,
+      trim: true,
+      default: null,
     },
+
     accountType: {
       type: String,
       enum: ["Saving", "Current", "NRO", "NRE", "Other"],
       default: "Other",
     },
 
+    // optional for only UPI accounts
     ifscCode: {
       type: String,
-      required: true,
+      trim: true,
+      uppercase: true,
+      default: null,
     },
 
+    // optional for only UPI accounts
     bankName: {
       type: String,
-      required: true,
+      trim: true,
+      default: null,
     },
 
     isDefault: {
@@ -45,12 +57,26 @@ const vendorBankAccountSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    // optional
     upiId: {
       type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
     },
-    cancelledCheque: { type: String },
+
+    cancelledCheque: {
+      type: String,
+      default: null,
+    },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
-export default mongoose.model("VendorBankAccount", vendorBankAccountSchema);
+export default mongoose.model(
+  "VendorBankAccount",
+  vendorBankAccountSchema,
+);

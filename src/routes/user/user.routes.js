@@ -35,7 +35,7 @@ router.delete("/:id", requireAuth, requireRole("ADMIN"), deleteUser);
 router.patch(
   "/:id/toggle",
   requireAuth,
-  requireRole("ADMIN"),
+  requireRole("ADMIN", "SUB_ADMIN"),
   toggleUserStatus,
 );
 

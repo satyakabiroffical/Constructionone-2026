@@ -4,8 +4,6 @@ import Notification from "../models/notification.model.js";
 import { sendPushNotification } from "./sendPushNotification.js";
 import User from "../models/user/user.model.js";
 import { VendorProfile } from "../models/vendorShop/vendor.model.js";
-
-
 import notificationQueue from "../config/notification.queue.js";
 
 export const notifyUser = async ({

@@ -37,7 +37,7 @@ export const buildHome = async (identifier) => {
     .lean();
 
   if (!sections.length) return { module, sections: [] };
-  
+
   // 3. Resolve all sections in PARALLEL (no sequential N+1)
   const resolvedData = await Promise.all(
     sections.map((section) => {
@@ -120,5 +120,40 @@ export const toggleSection = async (id) => {
   section.isActive = !section.isActive;
   await section.save({ validateBeforeSave: false });
   await invalidateHome(section.moduleId);
+  return section;
+};
+
+//admin-add products to home section
+export const addProductsToSection = async (sectionId, productIds) => {
+  const section = await HomeSection.findById(sectionId);
+  if (!section) {
+    throw new ApiError(404, "Section not found");
+  }
+  section.selectedProducts = productIds;
+  await section.save();
+  await invalidateHome(section.moduleId);
+  return section;
+};
+
+export const removeProduct = async (sectionId, productId) => {
+  const section = await HomeSection.findById(sectionId);
+
+  if (!section) {
+    throw new ApiError(404, "Section not found");
+  }
+
+  // ✅ SAFE ARRAY HANDLING (IMPORTANT)
+  const currentProducts = Array.isArray(section.selectedProducts)
+    ? section.selectedProducts
+    : [];
+
+  section.selectedProducts = currentProducts.filter(
+    (id) => id.toString() !== productId.toString(),
+  );
+
+  await section.save();
+
+  await invalidateHome(section.moduleId);
+
   return section;
 };

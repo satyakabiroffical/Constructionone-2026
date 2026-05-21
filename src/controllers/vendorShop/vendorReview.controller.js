@@ -1,8 +1,80 @@
 import VendorReview from "../../models/vendorShop/vendorReviews.model.js";
 import { VendorProfile } from "../../models/vendorShop/vendor.model.js";
 import RedisCache from "../../utils/redisCache.js";
+import orderModel from "../../models/marketPlace/order.model.js";
 
 //vendor profile reviews
+// export const addReview = async (req, res) => {
+//   try {
+//     const userId = req.user.id;
+//     const { vendorId, rating, review, type } = req.body;
+
+//     // ✅ validation
+//     if (!vendorId || !rating || !type) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Vendor ID, rating and type are required",
+//       });
+//     }
+
+//     // ✅ type validation (extra safety)
+//     if (!["BULK", "RETAIL"].includes(type)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Type must be BULK or RETAIL",
+//       });
+//     }
+
+//     // ✅ Prevent duplicate review (IMPORTANT 🔥)
+//     const alreadyReviewed = await VendorReview.exists({
+//       userId,
+//       vendorId,
+//       type,
+//     });
+
+//     if (alreadyReviewed) {
+//       return res.status(409).json({
+//         success: false,
+//         message: `You already reviewed this vendor for ${type}. Update instead.`,
+//       });
+//     }
+
+//     const images = req.files?.images?.length
+//       ? req.files.images.map((file) => file.location)
+//       : [];
+
+//     // ✅ create review with type
+//     const newReview = await VendorReview.create({
+//       userId,
+//       vendorId,
+//       rating,
+//       review,
+//       type, // add this
+//       images,
+//     });
+
+//     await updateVendorStats(vendorId);
+
+//     const populatedReview = await VendorReview.findById(newReview._id).populate(
+//       "userId",
+//       "firstName lastName profileImage",
+//     );
+
+//     await Promise.all([
+//       RedisCache.delete(`vendor:v1:${vendorId}`),
+//       RedisCache.deletePattern(`vendor:reviews:v2:${vendorId}:*`),
+//     ]);
+
+//     res.status(201).json({
+//       success: true,
+//       message: "Review added successfully",
+//       data: populatedReview,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
 export const addReview = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -16,7 +88,7 @@ export const addReview = async (req, res) => {
       });
     }
 
-    // ✅ type validation (extra safety)
+    // ✅ type validation
     if (!["BULK", "RETAIL"].includes(type)) {
       return res.status(400).json({
         success: false,
@@ -24,7 +96,27 @@ export const addReview = async (req, res) => {
       });
     }
 
-    // ✅ Prevent duplicate review (IMPORTANT 🔥)
+    // ✅ check delivered order exists or not
+const deliveredOrder = await orderModel.exists({
+  userId,
+  status: "DELIVERED", // master order delivered
+  items: {
+    $elemMatch: {
+      vendorId,
+      status: "DELIVERED", // item delivered
+    },
+  },
+});
+
+if (!deliveredOrder) {
+  return res.status(403).json({
+    success: false,
+    message:
+      "Please order and receive a product from this vendor before adding a review",
+  });
+}
+
+    // ✅ Prevent duplicate review
     const alreadyReviewed = await VendorReview.exists({
       userId,
       vendorId,
@@ -38,41 +130,49 @@ export const addReview = async (req, res) => {
       });
     }
 
+    // ✅ images
     const images = req.files?.images?.length
       ? req.files.images.map((file) => file.location)
       : [];
 
-    // ✅ create review with type
+  
     const newReview = await VendorReview.create({
       userId,
       vendorId,
       rating,
       review,
-      type, // add this
+      type,
       images,
     });
 
+   
     await updateVendorStats(vendorId);
 
+   
     const populatedReview = await VendorReview.findById(newReview._id).populate(
       "userId",
       "firstName lastName profileImage",
     );
 
+    
     await Promise.all([
       RedisCache.delete(`vendor:v1:${vendorId}`),
       RedisCache.deletePattern(`vendor:reviews:v2:${vendorId}:*`),
     ]);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Review added successfully",
       data: populatedReview,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
+
 export const updateReview = async (req, res) => {
   try {
     const userId = req.user.id;

@@ -26,7 +26,7 @@ export const getHome = catchAsync(async (req, res) => {
   const { identifier } = req.params;
 
   // 1. Cache check — fast path
-  const cacheKey = homeSectionService.homeCacheKey(identifier);
+  // const cacheKey = homeSectionService.homeCacheKey(identifier);
 
   // const cached = await RedisCache.get(cacheKey);
   // if (cached) {

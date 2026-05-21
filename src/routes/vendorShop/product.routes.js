@@ -68,6 +68,7 @@ router.post(
     { name: "images", maxCount: 5 },
     { name: "thumbnail", maxCount: 1 },
   ]),
+  ProductController.parseFormDataJSON,
   validate(createProductWithVariantSchema),
   ProductController.createProduct,
 );
@@ -108,22 +109,6 @@ router.patch(
   ProductController.verifyProduct,
 );
 
-// FLASH SALE routes
-// router.post(
-//   "/products/:productId/flash-sale",
-//   adminMiddleware,
-//   ProductController.setFlashSale,
-// );
-// router.patch(
-//   "/products/:productId/flash-sale/cancel",
-//   adminMiddleware,
-//   ProductController.cancelFlashSale,
-// );
-// router.get(
-//   "/products/flash-sale",
-//   authMiddleware,
-//   ProductController.getFlashSaleProducts,
-// );
 
 //get vendor products
 router.get(

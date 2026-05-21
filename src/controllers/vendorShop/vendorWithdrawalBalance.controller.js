@@ -6,6 +6,7 @@ import PDFDocument from "pdfkit";
 import adminTransaction from "../../models/admin/adminTransaction.model.js";
 import transactionModel from "../../models/user/transaction.model.js";
 import adminTransactionModel from "../../models/admin/adminTransaction.model.js";
+import { createActivityLog } from "../../controllers/admin/activityLog.controller.js";
 
 // export const requestWithdraw = async (req, res) => {
 //   const vendorId = req.user.id;
@@ -305,6 +306,24 @@ export const approveWithdraw = async (req, res) => {
 
     await session.commitTransaction();
 
+    await createActivityLog({
+      req,
+
+      action: "APPROVE_WITHDRAWAL",
+
+      module: "WALLET",
+
+      targetId: withdrawal._id,
+
+      details: {
+        vendorId: withdrawal.vendorId,
+        amount: withdrawal.amount,
+        transactionId,
+        status: "APPROVED",
+        bankAccountId: withdrawal.bankAccountId,
+      },
+    });
+
     return res.status(200).json({
       success: true,
       message: "Withdrawal approved successfully",
@@ -379,7 +398,18 @@ export const rejectWithdraw = async (req, res) => {
     );
 
     await session.commitTransaction();
-
+    await createActivityLog({
+      req,
+      action: "REJECT_WITHDRAWAL",
+      module: "WALLET",
+      targetId: withdrawal._id,
+      details: {
+        vendorId: withdrawal.vendorId,
+        amount: withdrawal.amount,
+        reason: withdrawal.rejectReason,
+        status: "REJECTED",
+      },
+    });
     return res.status(200).json({
       success: true,
       message: "Withdrawal rejected successfully",
@@ -721,6 +751,7 @@ export const getAllTransactionsHistory = async (req, res, next) => {
         // USER TRANSACTIONS
         transactionModel
           .find(transactionFilter)
+          .populate("userId", "name email phone")
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)
@@ -797,9 +828,40 @@ export const getAllTransactionsHistory = async (req, res, next) => {
     // FORMAT USER DATA
     // =====================================================
 
+    // const formattedUserTransactions = userTransactions.map((tx) => ({
+    //   ...tx,
+    //   transactionType: "USER",
+    // }));
+
     const formattedUserTransactions = userTransactions.map((tx) => ({
-      ...tx,
+      _id: tx._id,
+
       transactionType: "USER",
+
+      user: tx.userId
+        ? {
+            id: tx.userId._id,
+            name: tx.userId.name,
+            email: tx.userId.email,
+            phone: tx.userId.phone,
+          }
+        : null,
+
+      orderId: tx.orderId,
+      bookingId: tx.bookingId,
+
+      amount: tx.amount,
+      currency: tx.currency,
+
+      paymentMethod: tx.paymentMethod,
+      status: tx.status,
+
+      payType: tx.payType,
+      walletType: tx.walletType,
+      walletPurpose: tx.walletPurpose,
+
+      createdAt: tx.createdAt,
+      updatedAt: tx.updatedAt,
     }));
 
     // =====================================================

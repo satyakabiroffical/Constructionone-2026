@@ -4,7 +4,7 @@ const transactionSchema = new mongoose.Schema(
   {
     orderId: {
       type: mongoose.Types.ObjectId,
-      ref: "orderModel",
+      ref: "Order",
       default: null,
     },
 
@@ -16,7 +16,7 @@ const transactionSchema = new mongoose.Schema(
 
     userId: {
       type: mongoose.Types.ObjectId,
-      ref: "userModel",
+      ref: "User",
     },
 
     amount: Number,

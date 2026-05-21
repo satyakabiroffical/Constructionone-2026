@@ -16,7 +16,7 @@ import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
 import { addSettlement } from "../vendorShop/vendorWallet.controller.js";
 import vendorTransactionModel from "../../models/vendorShop/vendorTransaction.model.js";
 import companyModel from "../../models/admin/company.model.js";
-
+import redisCache from "../../utils/redisCache.js";
 //latest-with all details
 
 // export const getOrdersByVendor = async (req, res, next) => {
@@ -69,6 +69,7 @@ import companyModel from "../../models/admin/company.model.js";
 //     subcategoryId
 //     productTypeId
 //     brandId
+//     measurementUnit
 //   `,
 //           populate: [
 //             {
@@ -197,6 +198,7 @@ export const getOrderByIdForVendor = async (req, res, next) => {
     subcategoryId
     productTypeId
     brandId
+    measurementUnit
   `,
           populate: [
             {
@@ -958,9 +960,15 @@ export const getAllOrdersForVendor = async (req, res, next) => {
 
           status: item.status || "",
 
-          total:
-            (item.finalPrice || item.price || 0) * (item.quantity || 0) +
-            (item.gstAmount || 0),
+          // total:
+          //   (item.finalPrice || item.price || 0) * (item.quantity || 0) +
+          //   (item.gstAmount || 0),
+          total: Number(
+            (
+              (item.finalPrice || item.price || 0) * (item.quantity || 0) +
+              (item.gstAmount || 0)
+            ).toFixed(2),
+          ),
         })),
 
         // ================================================
@@ -978,11 +986,14 @@ export const getAllOrdersForVendor = async (req, res, next) => {
 
           vendorAmount: totalVendorAmount,
 
-          totalAmount:
-            totalBill +
-            totalDeliveryCharge +
-            totalGST +
-            (order.handlingCharge || 0),
+          totalAmount: Number(
+            (
+              totalBill +
+              totalDeliveryCharge +
+              totalGST +
+              (order.handlingCharge || 0)
+            ).toFixed(2),
+          ),
         },
       };
     });
@@ -1230,6 +1241,7 @@ export const getVendorOverview = async (req, res, next) => {
 };
 
 //accept order and updates all order status
+
 export const vendorUpdateOrder = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -1462,6 +1474,7 @@ export const vendorUpdateOrder = async (req, res, next) => {
 //   }
 // }
 
+// product section in dashboard --------->
 
 export const getAllProducts = async (req, res) => {
   try {
@@ -1477,6 +1490,20 @@ export const getAllProducts = async (req, res) => {
       vendorId,
     };
 
+    const cacheKey = `vendor:${vendorId}:products:page:${page}:limit:${limit}`;
+
+    // =========================
+    // CHECK CACHE
+    // =========================
+    const cachedData = await redisCache.get(cacheKey);
+
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        source: "cache",
+        data: JSON.parse(cachedData),
+      });
+    }
     // verified filter
     // ?varified=true
     // ?varified=false
@@ -1511,8 +1538,7 @@ export const getAllProducts = async (req, res) => {
       data: products,
     });
   } catch (error) {
-    console.error("getAllProducts Error:", error);
-
+    await redisCache.set(cacheKey, JSON.stringify(products));
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -1520,7 +1546,189 @@ export const getAllProducts = async (req, res) => {
   }
 };
 
-export const getProductById = async (req, res) => {
+// export const getProductById = async (req, res) => {
+//   try {
+//     const vendorId = req.user.id;
+//     const { productId } = req.params;
+
+//     // ======================
+//     // CACHE KEY
+//     // ======================
+//     const cacheKey = `vendor:${vendorId}:product:${productId}`;
+
+//     // ======================
+//     // CHECK CACHE
+//     // ======================
+//     const cachedData = await redisCache.get(cacheKey);
+
+//     if (cachedData) {
+//       return res.status(200).json({
+//         success: true,
+//         source: "cache",
+//         data: JSON.parse(cachedData),
+//       });
+//     }
+
+//     // ======================
+//     // DB QUERY
+//     // ======================
+//     const product = await Product.findOne({
+//       _id: productId,
+//       vendorId,
+//     })
+//       .populate("pcategoryId", "name")
+//       .populate("categoryId", "name")
+//       .populate("brandId", "name logo")
+//       .populate("subcategoryId", "name")
+//       .populate("productTypeId", "typeName");
+
+//     if (!product) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Product not found",
+//       });
+//     }
+
+//     // ======================
+//     // CUSTOM RESPONSE
+//     // ======================
+//     const formattedProduct = {
+//       ...product.toObject(),
+
+//       parentCategory: product.pcategoryId
+//         ? {
+//             id: product.pcategoryId._id,
+//             name: product.pcategoryId.name,
+//           }
+//         : null,
+
+//       category: product.categoryId
+//         ? {
+//             id: product.categoryId._id,
+//             name: product.categoryId.name,
+//           }
+//         : null,
+
+//       brand: product.brandId
+//         ? {
+//             id: product.brandId._id,
+//             name: product.brandId.name,
+//             logo: product.brandId.logo,
+//           }
+//         : null,
+
+//       subcategories: product.subcategoryId?.map((item) => ({
+//         id: item._id,
+//         name: item.name,
+//       })),
+
+//       productTypes: product.productTypeId?.map((item) => ({
+//         id: item._id,
+//         name: item.typeName,
+//       })),
+//     };
+
+//     // optional old ids remove
+//     delete formattedProduct.pcategoryId;
+//     delete formattedProduct.categoryId;
+//     delete formattedProduct.brandId;
+//     delete formattedProduct.subcategoryId;
+//     delete formattedProduct.productTypeId;
+
+//     // ======================
+//     // CACHE SET
+//     // ======================
+//     await redisCache.set(cacheKey, JSON.stringify(formattedProduct), 300);
+
+//     return res.status(200).json({
+//       success: true,
+//       source: "database",
+//       data: formattedProduct,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+
+export const getProductById = async (req, res, next) => {
+  try {
+    const productId = req.params.productId;
+    const vendorId = req.user.id;
+
+    // ======================
+    // CACHE KEY
+    // ======================
+    const cacheKey = `vendor:${vendorId}:product:${productId}`;
+
+    // ======================
+    // CHECK CACHE
+    // ======================
+    const cachedData = await redisCache.get(cacheKey);
+
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        source: "cache",
+        data: JSON.parse(cachedData),
+      });
+    }
+
+    // =========================
+    // 1. Get Product (same response)
+    // =========================
+    const product = await Product.findOne({
+      _id: new mongoose.Types.ObjectId(productId),
+      vendorId: new mongoose.Types.ObjectId(vendorId),
+    })
+      .populate("pcategoryId", "name")
+      .populate("categoryId", "name")
+      .populate("brandId", "name logo")
+      .populate("subcategoryId", "name")
+      .populate("productTypeId", "typeName")
+      .lean();
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    // =========================
+    // 2. Get ALL variants of product
+    // =========================
+    const variants = await Variant.find({
+      productId: product._id,
+    })
+      .select(
+        "price discountAmount quantity discount packageWeight packageDimensions moq mrp size sold stock Type",
+      )
+      .lean();
+
+    // =========================
+    // 3. Attach inside product (AS REQUESTED)
+    // =========================
+    product.variants = variants; // FULL REPLACE HERE
+
+    await redisCache.set(cacheKey, JSON.stringify(product), 300);
+
+    // =========================
+    // 5. Response SAME STRUCTURE
+    // =========================
+    return res.status(200).json({
+      success: true,
+      source: "database",
+      data: product,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const toggleProductDisable = async (req, res) => {
   try {
     const vendorId = req.user.id;
     const { productId } = req.params;
@@ -1537,17 +1745,387 @@ export const getProductById = async (req, res) => {
       });
     }
 
+    product.disable = !product.disable;
+    await product.save();
+
+    await redisCache.deletePattern("home:*");
+    await redisCache.deletePattern(`vendor:${vendorId}:products:*`);
+    await redisCache.delete(`vendor:${vendorId}:product:${productId}`);
+
+    // Clear product list cache for this vendor
     return res.status(200).json({
       success: true,
-      message: "Product fetched successfully",
+      message: product.disable
+        ? "Product disabled successfully"
+        : "Product enabled successfully",
       data: product,
     });
   } catch (error) {
-    console.error("getProductById Error:", error);
-
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message: error.message,
+    });
+  }
+};
+
+// export const updateProduct = async (req, res) => {
+//   try {
+//     const vendorId = req.user.id;
+//     const { productId } = req.params;
+
+//     const product = await Product.findOne({
+//       _id: productId,
+//       vendorId,
+//     });
+
+//     if (!product) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Product not found",
+//       });
+//     }
+
+//     if (product.disable) {
+//       return res.status(403).json({
+//         success: false,
+//         message: "Product is disabled",
+//       });
+//     }
+
+//     // =========================
+//     // SAFE FIELDS PROTECTION
+//     // =========================
+//     const blockedFields = ["_id", "vendorId", "createdAt", "updatedAt", "__v"];
+
+//     // =========================
+//     // UPDATE EVERYTHING (BODY BASED)
+//     // =========================
+//     Object.keys(req.body).forEach((key) => {
+//       if (!blockedFields.includes(key)) {
+//         product[key] = req.body[key];
+//       }
+//     });
+
+//     // =========================
+//     // IMAGES (S3 UPLOAD)
+//     // =========================
+//     if (req.files?.images?.length > 0) {
+//       product.images = req.files.images.map((f) => f.location);
+//     }
+
+//     // =========================
+//     // SAVE
+//     // =========================
+//     await product.save();
+//     await redisCache.deletePattern("home:*");
+//     await redisCache.deletePattern(`vendor:${vendorId}:products:*`);
+//     await redisCache.delete(`vendor:${vendorId}:product:${productId}`);
+//     // Clear product list cache for this vendor
+//     return res.status(200).json({
+//       success: true,
+//       message: "Product updated successfully",
+//       data: product,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+
+export const updateProduct = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+    const { productId } = req.params;
+
+    const product = await Product.findOne({
+      _id: productId,
+      vendorId,
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    if (product.disable) {
+      return res.status(403).json({
+        success: false,
+        message: "Product is disabled",
+      });
+    }
+
+    // =========================
+    // SAFE FIELDS PROTECTION
+    // =========================
+    const blockedFields = ["_id", "vendorId", "createdAt", "updatedAt", "__v"];
+
+    // =========================
+    // PARSE ARRAY FIELDS
+    // =========================
+
+    if (typeof req.body.subcategoryId === "string") {
+      try {
+        req.body.subcategoryId = JSON.parse(req.body.subcategoryId);
+      } catch (err) {
+        req.body.subcategoryId = [req.body.subcategoryId];
+      }
+    }
+
+    if (typeof req.body.productTypeId === "string") {
+      try {
+        req.body.productTypeId = JSON.parse(req.body.productTypeId);
+      } catch (err) {
+        req.body.productTypeId = [req.body.productTypeId];
+      }
+    }
+
+    // =========================
+    // SHIPPING CHARGES PARSE
+    // =========================
+
+    if (typeof req.body.shippingCharges === "string") {
+      try {
+        req.body.shippingCharges = JSON.parse(req.body.shippingCharges);
+      } catch (err) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid shippingCharges format",
+        });
+      }
+    }
+
+    if (req.body.shippingCharges) {
+      const shipping = req.body.shippingCharges;
+
+      // fixed validation
+      if (
+        shipping.fixed === undefined ||
+        shipping.fixed === null ||
+        shipping.fixed === ""
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Fixed shipping charge is required",
+        });
+      }
+
+      // distance validation
+      if (
+        shipping.distancePerKm === undefined ||
+        shipping.distancePerKm === null ||
+        shipping.distancePerKm === ""
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Distance per KM shipping charge is required",
+        });
+      }
+
+      req.body.shippingCharges = {
+        fixed: Number(shipping.fixed || 0),
+        distancePerKm: Number(shipping.distancePerKm || 0),
+
+        weightPerKg: Number(shipping.weightPerKg || 0),
+        perPieceCharge: Number(shipping.perPieceCharge || 0),
+        perLiterCharge: Number(shipping.perLiterCharge || 0),
+        perMeterCharge: Number(shipping.perMeterCharge || 0),
+        perBoxCharge: Number(shipping.perBoxCharge || 0),
+        perSuperMeterCharge: Number(shipping.perSuperMeterCharge || 0),
+        perCubicMeterCharge: Number(shipping.perCubicMeterCharge || 0),
+        perSetCharge: Number(shipping.perSetCharge || 0),
+        perRollCharge: Number(shipping.perRollCharge || 0),
+      };
+
+      // at least one extra charge
+      const extraChargeFields = [
+        "weightPerKg",
+        "perPieceCharge",
+        "perLiterCharge",
+        "perMeterCharge",
+        "perBoxCharge",
+        "perSuperMeterCharge",
+        "perCubicMeterCharge",
+        "perSetCharge",
+        "perRollCharge",
+      ];
+
+      const hasAnyExtraCharge = extraChargeFields.some(
+        (field) => Number(req.body.shippingCharges[field]) > 0,
+      );
+
+      if (!hasAnyExtraCharge) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Please provide at least one additional shipping charge type",
+        });
+      }
+    }
+
+    // =========================
+    // DUPLICATE PRODUCT CHECK
+    // =========================
+
+    if (req.body.name || req.body.slug) {
+      const duplicateProduct = await Product.findOne({
+        _id: { $ne: productId },
+        vendorId,
+        $or: [
+          req.body.name
+            ? {
+                name: {
+                  $regex: `^${req.body.name}$`,
+                  $options: "i",
+                },
+              }
+            : null,
+
+          req.body.slug
+            ? {
+                slug: {
+                  $regex: `^${req.body.slug}$`,
+                  $options: "i",
+                },
+              }
+            : null,
+        ].filter(Boolean),
+      }).select("name slug");
+
+      if (duplicateProduct) {
+        return res.status(409).json({
+          success: false,
+          message: `Product already exists with name "${duplicateProduct.name}"`,
+        });
+      }
+    }
+
+    // =========================
+    // UPDATE EVERYTHING
+    // =========================
+
+    Object.keys(req.body).forEach((key) => {
+      if (!blockedFields.includes(key)) {
+        product[key] = req.body[key];
+      }
+    });
+
+    // =========================
+    // IMAGES
+    // =========================
+
+    if (req.files?.images?.length > 0) {
+      product.images = req.files.images.map((f) => f.location);
+    }
+
+    // =========================
+    // THUMBNAIL
+    // =========================
+
+    if (req.files?.thumbnail?.[0]?.location) {
+      product.thumbnail = req.files.thumbnail[0].location;
+    }
+
+    // =========================
+    // SAVE
+    // =========================
+
+    await product.save();
+
+    // =========================
+    // CACHE CLEAR
+    // =========================
+
+    await redisCache.deletePattern("home:*");
+    await redisCache.deletePattern(`vendor:${vendorId}:products:*`);
+    await redisCache.delete(`vendor:${vendorId}:product:${productId}`);
+
+    // =========================
+    // RESPONSE
+    // =========================
+
+    return res.status(200).json({
+      success: true,
+      message: "Product updated successfully",
+      data: product,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+export const profileWallet = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+    const vendorObjectId = new mongoose.Types.ObjectId(vendorId);
+
+    const totalProducts = await Product.countDocuments({
+      vendorId: vendorObjectId,
+    });
+
+    const startOfMonth = new Date();
+    startOfMonth.setUTCDate(1);
+    startOfMonth.setUTCHours(0, 0, 0, 0);
+
+    const endOfMonth = new Date();
+    endOfMonth.setUTCMonth(endOfMonth.getUTCMonth() + 1);
+    endOfMonth.setUTCDate(0);
+    endOfMonth.setUTCHours(23, 59, 59, 999);
+
+    const totalOrders = await Order.countDocuments({
+      "items.vendorId": vendorObjectId,
+      createdAt: {
+        $gte: startOfMonth,
+        $lte: endOfMonth,
+      },
+    });
+
+    const totalEarningsData = await Order.aggregate([
+      {
+        $match: {
+          paymentStatus: "PAID",
+          "items.vendorId": vendorObjectId,
+        },
+      },
+
+      {
+        $unwind: "$items",
+      },
+
+      {
+        $match: {
+          "items.vendorId": vendorObjectId,
+          "items.status": { $ne: "CANCELLED" },
+        },
+      },
+
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: "$items.vendorAmount" },
+        },
+      },
+    ]);
+
+    const totalEarnings = totalEarningsData[0]?.totalEarnings || 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalProducts,
+        totalOrders,
+        totalEarnings,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 };

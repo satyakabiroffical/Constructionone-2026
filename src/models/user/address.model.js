@@ -27,6 +27,11 @@ const addressSchema = new mongoose.Schema(
     },
     pincode: String,
     phone: String,
+
+    isDefault: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );

@@ -3,6 +3,7 @@ import { VendorProfile } from "../models/vendorShop/vendor.model.js";
 import Notification from "../models/notification.model.js";
 import { notifyUser } from "../utils/notifyUser.js";
 import mongoose from "mongoose";
+import { createActivityLog } from "./admin/activityLog.controller.js";
 //admin funtions for notification to users and vendors
 export const notifyOnlyAllUsers = async (req, res, next) => {
   try {
@@ -26,9 +27,21 @@ export const notifyOnlyAllUsers = async (req, res, next) => {
     }
 
     await Promise.all(
-      users.map((user) => notifyUser({ title, message, image, type: "ADMIN" })),
+      users.map((user) =>
+        notifyUser({ userId: user._id, title, message, image, type: "ADMIN" }),
+      ),
     );
-
+    await createActivityLog({
+      req,
+      action: "BULK_NOTIFICATION_USERS",
+      module: "NOTIFICATION",
+      details: {
+        title,
+        message,
+        totalUsers: users.length,
+        hasImage: !!image,
+      },
+    });
     res.status(200).json({
       success: true,
       message: "Notification sent to all users",
@@ -73,6 +86,19 @@ export const notifyOnlyAllVendors = async (req, res, next) => {
       ),
     );
 
+    await createActivityLog({
+      req,
+      action: "BULK_NOTIFICATION_VENDORS",
+      module: "NOTIFICATION",
+
+      details: {
+        title,
+        message,
+        totalVendors: vendors.length,
+        hasImage: !!image,
+      },
+    });
+
     res.status(200).json({
       success: true,
       message: "Notification sent to all vendors",
@@ -85,7 +111,6 @@ export const notifyOnlyAllVendors = async (req, res, next) => {
 export const notifySingleUser = async (req, res) => {
   try {
     const { userId, vendorId, title, message } = req.body;
-
     if (!userId && !vendorId) {
       return res
         .status(400)
@@ -99,7 +124,7 @@ export const notifySingleUser = async (req, res) => {
     }
 
     if (req.files?.image?.length) {
-      req.body.image = req.files.image[0].key;
+      req.body.image = req.files.image[0].location;
     }
 
     const notificationMessage = await notifyUser({
@@ -107,6 +132,20 @@ export const notifySingleUser = async (req, res) => {
       title,
       message,
       image: req.body.image || null,
+    });
+
+    await createActivityLog({
+      req,
+      action: userId ? "SEND_NOTIFICATION_USER" : "SEND_NOTIFICATION_VENDOR",
+      module: "NOTIFICATION",
+      targetId: userId || vendorId,
+
+      details: {
+        title,
+        message,
+        hasImage: !!req.body.image,
+        type: userId ? "USER" : "VENDOR",
+      },
     });
 
     res.json({
@@ -118,6 +157,62 @@ export const notifySingleUser = async (req, res) => {
     res.status(500).json({ message: "Failed to send notification" });
   }
 };
+// export const notifyAllVendorsAndUsers = async (req, res, next) => {
+//   try {
+//     const { title, message } = req.body;
+//     if (!title || !message) {
+//       return res
+//         .status(400)
+//         .json({ message: "Title and message are required" });
+//     }
+
+//     if (req.files?.image?.length) {
+//       req.body.image = req.files.image[0].key;
+//     }
+
+//     const image = req.body.image || null;
+
+//     const [users, vendors] = await Promise.all([
+//       User.find({ fcmToken: { $ne: null } }),
+//       VendorProfile.find({ fcmToken: { $ne: null } }),
+//     ]);
+
+//     if (!users.length && !vendors.length) {
+//       return res
+//         .status(404)
+//         .json({ message: "No users or vendors found with FCM token" });
+//     }
+
+//     for (const user of users) {
+//       await notifyUser({
+//         userId: user._id,
+//         title,
+//         message,
+//         image,
+//         type: "ADMIN",
+//       });
+//     }
+
+//     for (const vendor of vendors) {
+//       await notifyUser({
+//         vendorId: vendor._id,
+//         title,
+//         message,
+//         image,
+//         type: "ADMIN",
+//       });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Notification sent to all users and vendors",
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+//mark read
+
 export const notifyAllVendorsAndUsers = async (req, res, next) => {
   try {
     const { title, message } = req.body;
@@ -128,7 +223,7 @@ export const notifyAllVendorsAndUsers = async (req, res, next) => {
     }
 
     if (req.files?.image?.length) {
-      req.body.image = req.files.image[0].key;
+      req.body.image = req.files.image[0].location;
     }
 
     const image = req.body.image || null;
@@ -144,35 +239,61 @@ export const notifyAllVendorsAndUsers = async (req, res, next) => {
         .json({ message: "No users or vendors found with FCM token" });
     }
 
-    for (const user of users) {
-      await notifyUser({
-        userId: user._id,
-        title,
-        message,
-        image,
-        type: "ADMIN",
-      });
-    }
+    // ======================================================
+    // SEND NOTIFICATIONS
+    // ======================================================
 
-    for (const vendor of vendors) {
-      await notifyUser({
-        vendorId: vendor._id,
+    await Promise.all([
+      ...users.map((user) =>
+        notifyUser({
+          userId: user._id,
+          title,
+          message,
+          image,
+          type: "ADMIN",
+        }),
+      ),
+
+      ...vendors.map((vendor) =>
+        notifyUser({
+          vendorId: vendor._id,
+          title,
+          message,
+          image,
+          type: "ADMIN",
+        }),
+      ),
+    ]);
+
+    // ======================================================
+    // ACTIVITY LOG
+    // ======================================================
+
+    await createActivityLog({
+      req,
+      action: "BULK_NOTIFICATION_ALL",
+      module: "NOTIFICATION",
+      details: {
         title,
         message,
-        image,
-        type: "ADMIN",
-      });
-    }
+        totalUsers: users.length,
+        totalVendors: vendors.length,
+        totalRecipients: users.length + vendors.length,
+        hasImage: !!image,
+      },
+    });
 
     res.status(200).json({
       success: true,
       message: "Notification sent to all users and vendors",
+      totalUsers: users.length,
+      totalVendors: vendors.length,
     });
   } catch (err) {
     next(err);
   }
 };
-//mark read
+
 export const markNotificationRead = async (req, res, next) => {
   try {
     const notification = await Notification.updateMany(
@@ -196,6 +317,7 @@ export const markNotificationRead = async (req, res, next) => {
     next(err);
   }
 };
+
 //get for notification
 // export const getUserNotifications = async (req, res) => {
 //   try {

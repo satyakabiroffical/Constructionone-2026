@@ -7,10 +7,13 @@ import { getTrending } from "../../controllers/platform/trending.controller.js";
 import { getMaintenanceStatus } from "../../controllers/admin/appMaintenance.controller.js";
 import { createComplainRequest } from "../../controllers/admin/complainRequest.controller.js";
 import { authMiddleware } from "../../middlewares/auth.js";
+import { getLandingPage } from "../../controllers/admin/landingPage.controller.js";
 const router = Router();
 
 router.get("/maintenance/status", getMaintenanceStatus);
+router.get("/landing-page", getLandingPage);
 router.post("/complain-requests", authMiddleware, createComplainRequest);
+
 
 // Public: platform modules list
 router.get("/modules", getPublicModules);

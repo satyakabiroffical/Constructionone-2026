@@ -48,7 +48,6 @@ router.put(
 router.delete(
   "/delete/:id",
   vendorMiddleware,
-  validate(validateDeleteBank),
   deleteBankAccount,
 );
 

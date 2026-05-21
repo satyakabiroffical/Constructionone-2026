@@ -3,7 +3,6 @@ import { s3Uploader } from "../../middlewares/uploads.js";
 import {
   vendorAuth,
   verifyOtp,
-  businessSetup,
   resendOtp,
   loginWithPhone,
   resendAadharOtp,
@@ -24,7 +23,6 @@ import {
   updateUpsertVendorCompanyInfo,
   saveFcmToken,
   getCategoriesByVendorId,
-  refreshTokenHandler,
   getProductsByVendorAndCategory,
   getAllVendorsViaModuleId,
   getVendorByIdForUser,
@@ -34,6 +32,7 @@ import {
   getVendorCompany,
   getVendorPersonalProfile,
   getVendorCertificates,
+  deleteVendorCascade,
 } from "../../controllers/vendorShop/vendor.controller.js";
 import {
   adminMiddleware,
@@ -49,6 +48,7 @@ import {
 import { exportVendors } from "../../controllers/marketPlace/exportDataInFiles.controller.js";
 const router = express.Router();
 
+// router.delete("/vendor-data/:vendorId", adminMiddleware, deleteVendorCascade);
 
 // profile--------
 
@@ -58,13 +58,11 @@ router.get("/certificates", vendorMiddleware, getVendorCertificates);
 router.put("/personal-profile", vendorMiddleware, updateVendorProfile);
 router.put("/company-profile", vendorMiddleware, updateVendorCompany);
 
-
 //vendorauth
 router.post("/auth", vendorAuth);
 router.post("/resend-otp", resendOtp);
 router.post("/verify-otp", verifyOtp);
 
-router.post("/business-type", vendorMiddleware, businessSetup);
 router.post("/login/phone", loginWithPhone);
 
 //aadhar varify
@@ -120,15 +118,45 @@ router.put(
 import { requirePermission } from "../../middlewares/role.middleware.js";
 
 // --------------admin api's---------
-router.get("/unverified", adminMiddleware,requirePermission("MARKETPLACE_VENDORS"), getUnverifiedVendors);
-router.get("/all", adminMiddleware ,getAllVendors); //with pagination and limit and also search - name / email / phoneNumber / disable / varified filter
-router.get("/module/:moduleId", adminMiddleware,requirePermission("MARKETPLACE_VENDORS"), getAllVendorsViaModuleId);
-router.post("/admin-varify/:vendorId", adminMiddleware,requirePermission("MARKETPLACE_VENDORS"), verifyVendorByAdmin); //vendor varification
-router.patch("/:vendorId", adminMiddleware, requirePermission("MARKETPLACE_VENDORS"), disableVendorStatus); //eneble and disable vendor profile
-router.get("/:vendorId", adminMiddleware, requirePermission("MARKETPLACE_VENDORS"), getVendorById);
+router.get(
+  "/unverified",
+  adminMiddleware,
+  requirePermission("MARKETPLACE_VENDORS"),
+  getUnverifiedVendors,
+);
+router.get("/all", adminMiddleware, getAllVendors); //with pagination and limit and also search - name / email / phoneNumber / disable / varified filter
+router.get(
+  "/module/:moduleId",
+  adminMiddleware,
+  requirePermission("MARKETPLACE_VENDORS"),
+  getAllVendorsViaModuleId,
+);
+router.post(
+  "/admin-varify/:vendorId",
+  adminMiddleware,
+  requirePermission("MARKETPLACE_VENDORS"),
+  verifyVendorByAdmin,
+); //vendor varification
+router.patch(
+  "/:vendorId",
+  adminMiddleware,
+  requirePermission("MARKETPLACE_VENDORS"),
+  disableVendorStatus,
+); //eneble and disable vendor profile
+router.get(
+  "/:vendorId",
+  adminMiddleware,
+  requirePermission("MARKETPLACE_VENDORS"),
+  getVendorById,
+);
 router.get("/user/:vendorId", authMiddleware, getVendorByIdForUser);
 router.get("/user/:vendorId/similar", authMiddleware, getSimilarCompanies);
-router.post("/badge/:vendorId", adminMiddleware, requirePermission("MARKETPLACE_VENDORS"), addMultipleBadgesByAdmin);
+router.post(
+  "/badge/:vendorId",
+  adminMiddleware,
+  requirePermission("MARKETPLACE_VENDORS"),
+  addMultipleBadgesByAdmin,
+);
 router.post(
   "/remove-badge/:vendorId",
   adminMiddleware,
@@ -137,12 +165,14 @@ router.post(
 );
 
 router.post("/saveFcmToken", vendorMiddleware, saveFcmToken);
-router.post("/refresh-token", refreshTokenHandler);
 router.get("/vendorshop/:vendorId", getCategoriesByVendorId);
 router.get("/vendorshop/:vendorId/:categoryId", getProductsByVendorAndCategory);
 
-router.get("/vendors/export", adminMiddleware,requirePermission("MARKETPLACE_VENDORS"), exportVendors);
-
-
+router.get(
+  "/vendors/export",
+  adminMiddleware,
+  requirePermission("MARKETPLACE_VENDORS"),
+  exportVendors,
+);
 
 export default router;

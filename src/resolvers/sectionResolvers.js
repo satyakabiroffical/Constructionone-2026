@@ -48,32 +48,184 @@ const resolveBANNER = async (section) => {
 
 import Variant from "../models/vendorShop/variant.model.js";
 
-const resolvePRODUCT_LIST = async (section) => {
-  const filter = applySourceFilter(
-    { moduleId: section.moduleId, disable: false },
-    section,
-  );
+// const resolvePRODUCT_LIST = async (section) => {
+//   const filter = applySourceFilter(
+//     { moduleId: section.moduleId, disable: false, varified: true },
+//     section,
+//   );
 
-  if (section.searchKeyword) {
-    filter.name = { $regex: section.searchKeyword, $options: "i" };
+//   if (section.searchKeyword) {
+//     filter.name = { $regex: section.searchKeyword, $options: "i" };
+//   }
+
+//   const products = await Product.find(filter)
+//     .sort({ createdAt: -1 })
+//     .limit(section.limit)
+//     .select(
+//       "_id varified name thumbnail images slug brandId discount sold avgRating defaultVariantId measurementUnit",
+//     )
+//     .lean();
+
+//   // Fetch variants for all products
+//   const variantIds = products.map((p) => p.defaultVariantId).filter(Boolean);
+//   // If any product doesn't have defaultVariantId, fetch first variant for that product
+//   const missingVariantProducts = products.filter((p) => !p.defaultVariantId);
+//   let missingVariants = [];
+//   if (missingVariantProducts.length > 0) {
+//     const ids = missingVariantProducts.map((p) => p._id);
+//     // Get first variant for each product without defaultVariantId
+//     missingVariants = await Variant.aggregate([
+//       { $match: { productId: { $in: ids } } },
+//       { $sort: { createdAt: 1 } },
+//       {
+//         $group: {
+//           _id: "$productId",
+//           variant: { $first: "$$ROOT" },
+//         },
+//       },
+//     ]);
+//   }
+
+//   let variants = [];
+//   if (variantIds.length > 0) {
+//     variants = await Variant.find({ _id: { $in: variantIds } }).lean();
+//   }
+
+//   // Map for quick lookup
+//   const variantMap = {};
+//   variants.forEach((v) => {
+//     if (v) variantMap[v._id?.toString()] = v;
+//   });
+//   missingVariants.forEach((vg) => {
+//     if (vg.variant) variantMap[vg.variant._id?.toString()] = vg.variant;
+//   });
+
+//   // Attach variantId field
+//   const result = products.map((product) => {
+//     let variant = null;
+//     if (
+//       product.defaultVariantId &&
+//       variantMap[product.defaultVariantId.toString()]
+//     ) {
+//       variant = variantMap[product.defaultVariantId.toString()];
+//     } else {
+//       // Find by productId
+//       const found = Object.values(variantMap).find(
+//         (v) => v.productId?.toString() === product._id.toString(),
+//       );
+//       if (found) variant = found;
+//     }
+//     // Only pick required fields for variantId
+//     let variantId = null;
+//     if (variant) {
+//       variantId = {
+//         _id: variant._id,
+//         price: variant.price,
+//         mrp: variant.mrp,
+//         stock: variant.stock,
+//         Type: variant.Type,
+//         moq: variant.moq,
+//         packageWeight: variant.packageWeight,
+//         packageDimensions: variant.packageDimensions,
+//       };
+//     }
+//     return {
+//       ...product,
+//       variantId,
+//     };
+//   });
+
+//   return result;
+// };
+
+const resolvePRODUCT_LIST = async (section) => {
+  let products = [];
+
+  // =====================================
+  // ADMIN SELECTED PRODUCTS
+  // =====================================
+  if (section.selectedProducts?.length > 0) {
+    const filter = applySourceFilter(
+      {
+        _id: { $in: section.selectedProducts },
+        disable: false,
+        varified: true,
+      },
+      section,
+    );
+
+    if (section.searchKeyword) {
+      filter.name = {
+        $regex: section.searchKeyword,
+        $options: "i",
+      };
+    }
+
+    products = await Product.find(filter)
+      .select(
+        "_id varified name thumbnail images slug brandId discount sold avgRating defaultVariantId measurementUnit",
+      )
+      .lean();
+
+    // Maintain admin selected order
+    products.sort((a, b) => {
+      return (
+        section.selectedProducts.findIndex(
+          (id) => id.toString() === a._id.toString(),
+        ) -
+        section.selectedProducts.findIndex(
+          (id) => id.toString() === b._id.toString(),
+        )
+      );
+    });
   }
 
-  const products = await Product.find(filter)
-    .sort({ createdAt: -1 })
-    .limit(section.limit)
-    .select(
-      "_id name thumbnail slug brandId discount sold avgRating defaultVariantId",
-    )
-    .lean();
+  // =====================================
+  // DEFAULT LATEST PRODUCTS
+  // =====================================
+  else {
+    const filter = applySourceFilter(
+      {
+        moduleId: section.moduleId,
+        disable: false,
+        varified: true,
+      },
+      section,
+    );
 
-  // Fetch variants for all products
-  const variantIds = products.map((p) => p.defaultVariantId).filter(Boolean);
-  // If any product doesn't have defaultVariantId, fetch first variant for that product
-  const missingVariantProducts = products.filter((p) => !p.defaultVariantId);
+    if (section.searchKeyword) {
+      filter.name = {
+        $regex: section.searchKeyword,
+        $options: "i",
+      };
+    }
+
+    products = await Product.find(filter)
+      .sort({ createdAt: -1 }) // latest products
+      .limit(section.limit)
+      .select(
+        "_id varified name thumbnail images slug brandId discount sold avgRating defaultVariantId measurementUnit",
+      )
+      .lean();
+  }
+
+  // =====================================
+  // VARIANTS
+  // =====================================
+
+  const variantIds = products
+    .map((p) => p.defaultVariantId)
+    .filter(Boolean);
+
+  const missingVariantProducts = products.filter(
+    (p) => !p.defaultVariantId,
+  );
+
   let missingVariants = [];
+
   if (missingVariantProducts.length > 0) {
     const ids = missingVariantProducts.map((p) => p._id);
-    // Get first variant for each product without defaultVariantId
+
     missingVariants = await Variant.aggregate([
       { $match: { productId: { $in: ids } } },
       { $sort: { createdAt: 1 } },
@@ -87,36 +239,53 @@ const resolvePRODUCT_LIST = async (section) => {
   }
 
   let variants = [];
+
   if (variantIds.length > 0) {
-    variants = await Variant.find({ _id: { $in: variantIds } }).lean();
+    variants = await Variant.find({
+      _id: { $in: variantIds },
+    }).lean();
   }
 
-  // Map for quick lookup
   const variantMap = {};
+
   variants.forEach((v) => {
-    if (v) variantMap[v._id?.toString()] = v;
-  });
-  missingVariants.forEach((vg) => {
-    if (vg.variant) variantMap[vg.variant._id?.toString()] = vg.variant;
+    if (v) {
+      variantMap[v._id?.toString()] = v;
+    }
   });
 
-  // Attach variantId field
+  missingVariants.forEach((vg) => {
+    if (vg.variant) {
+      variantMap[vg.variant._id?.toString()] =
+        vg.variant;
+    }
+  });
+
+  // =====================================
+  // FINAL RESPONSE
+  // =====================================
+
   const result = products.map((product) => {
     let variant = null;
+
     if (
       product.defaultVariantId &&
       variantMap[product.defaultVariantId.toString()]
     ) {
-      variant = variantMap[product.defaultVariantId.toString()];
+      variant =
+        variantMap[product.defaultVariantId.toString()];
     } else {
-      // Find by productId
       const found = Object.values(variantMap).find(
-        (v) => v.productId?.toString() === product._id.toString(),
+        (v) =>
+          v.productId?.toString() ===
+          product._id.toString(),
       );
+
       if (found) variant = found;
     }
-    // Only pick required fields for variantId
+
     let variantId = null;
+
     if (variant) {
       variantId = {
         _id: variant._id,
@@ -126,9 +295,11 @@ const resolvePRODUCT_LIST = async (section) => {
         Type: variant.Type,
         moq: variant.moq,
         packageWeight: variant.packageWeight,
-        packageDimensions: variant.packageDimensions,
+        packageDimensions:
+          variant.packageDimensions,
       };
     }
+
     return {
       ...product,
       variantId,
@@ -458,6 +629,114 @@ const resolveBRAND_LIST = async (section) => {
 // };
 
 import { VendorCompany } from "../models/vendorShop/vendor.model.js";
+
+// const resolveFLASH_SALE = async (section) => {
+//   const now = new Date();
+
+//   // =========================
+//   // GET ALL VALID SALES
+//   // =========================
+//   const activeSales = await FlashSale.find({
+//     moduleId: section.moduleId,
+//     isCancelled: false,
+//     endDateTime: { $gte: now },
+//   })
+//     .sort({ startDateTime: 1 })
+//     .lean();
+
+//   if (!activeSales.length) return [];
+
+//   // =========================
+//   // PICK ACTIVE SALE (LIKE OLD LOGIC)
+//   // =========================
+//   let activeSale = activeSales.find((sale) => {
+//     return (
+//       new Date(sale.startDateTime) <= now && new Date(sale.endDateTime) >= now
+//     );
+//   });
+
+//   // fallback → UPCOMING (OLD BEHAVIOR SAFE)
+//   if (!activeSale) {
+//     activeSale = activeSales[0];
+//   }
+
+//   if (!activeSale) return [];
+
+//   const isUpcoming = now < new Date(activeSale.startDateTime);
+//   const isExpired = now > new Date(activeSale.endDateTime);
+
+//   const isFlashActive = !activeSale.isCancelled && !isUpcoming && !isExpired;
+
+//   const isClickable = isFlashActive;
+
+//   // =========================
+//   // GET ITEMS (SAME OLD STYLE)
+//   // =========================
+
+//   const result = await Promise.all(
+//     activeSales.map(async (sale) => {
+//       const isUpcoming = now < new Date(sale.startDateTime);
+//       const isExpired = now > new Date(sale.endDateTime);
+
+//       const isFlashActive = !sale.isCancelled && !isUpcoming && !isExpired;
+
+//       const items = await FlashSaleItem.find({
+//         flashSaleId: sale._id,
+//       })
+//         .populate("productId")
+//         .populate("variantId")
+//         .lean();
+
+//       const enriched = items.map((item) => ({
+//         flashItemId: item._id,
+
+//         product: {
+//           _id: item.productId?._id,
+//           name: item.productId?.name,
+//           images: item.productId?.images || [],
+//           thumbnail: item.productId?.thumbnail || [],
+//           measurmentUnit: item.productId?.measurementUnit || null,
+//           slug: item.productId?.slug,
+//           vendorId: item.productId?.vendorId,
+//         },
+
+//         variant: item.variantId,
+
+//         originalPrice: item.basePriceSnapshot,
+//         flashPrice: item.flashPrice,
+
+//         finalPrice: isFlashActive ? item.flashPrice : item.variantId?.price,
+
+//         discountPercent: item.flashDiscountPercent,
+//         remainingStock: (item.allocatedStock || 0) - (item.sold || 0),
+
+//         soldPercent: item.allocatedStock
+//           ? Math.round(((item.sold || 0) / item.allocatedStock) * 100)
+//           : 0,
+
+//         saleId: sale._id,
+//         saleLabel: sale.label,
+//         startsAt: sale.startDateTime,
+//         endsAt: sale.endDateTime,
+
+//         isUpcoming,
+//         isFlashActive,
+//         isClickable: isFlashActive,
+//       }));
+
+//       return {
+//         saleId: sale._id,
+//         saleLabel: sale.label,
+//         startsAt: sale.startDateTime,
+//         endsAt: sale.endDateTime,
+//         items: enriched,
+//       };
+//     }),
+//   );
+
+//   return result;
+// };
+
 const resolveFLASH_SALE = async (section) => {
   const now = new Date();
 
@@ -475,7 +754,7 @@ const resolveFLASH_SALE = async (section) => {
   if (!activeSales.length) return [];
 
   // =========================
-  // PICK ACTIVE SALE (LIKE OLD LOGIC)
+  // PICK ACTIVE SALE
   // =========================
   let activeSale = activeSales.find((sale) => {
     return (
@@ -483,24 +762,15 @@ const resolveFLASH_SALE = async (section) => {
     );
   });
 
-  // fallback → UPCOMING (OLD BEHAVIOR SAFE)
   if (!activeSale) {
     activeSale = activeSales[0];
   }
 
   if (!activeSale) return [];
 
-  const isUpcoming = now < new Date(activeSale.startDateTime);
-  const isExpired = now > new Date(activeSale.endDateTime);
-
-  const isFlashActive = !activeSale.isCancelled && !isUpcoming && !isExpired;
-
-  const isClickable = isFlashActive;
-
   // =========================
-  // GET ITEMS (SAME OLD STYLE)
+  // GET ALL ITEMS
   // =========================
-
   const result = await Promise.all(
     activeSales.map(async (sale) => {
       const isUpcoming = now < new Date(sale.startDateTime);
@@ -511,46 +781,97 @@ const resolveFLASH_SALE = async (section) => {
       const items = await FlashSaleItem.find({
         flashSaleId: sale._id,
       })
-        .populate("productId")
+        .populate({
+          path: "productId",
+          populate: {
+            path: "vendorId",
+            model: "vendorProfile",
+            select: "firstName lastName",
+          },
+        })
         .populate("variantId")
         .lean();
 
-      const enriched = items.map((item) => ({
-        flashItemId: item._id,
+      // =========================
+      // COLLECT VENDOR IDS
+      // =========================
+      const vendorIds = [
+        ...new Set(
+          items.map((i) => i.productId?.vendorId?._id).filter(Boolean),
+        ),
+      ];
 
-        product: {
-          _id: item.productId?._id,
-          name: item.productId?.name,
-          images: item.productId?.images || [],
-          thumbnail: item.productId?.thumbnail || [],
-          measurmentUnit: item.productId?.measurementUnit || null,
-          slug: item.productId?.slug,
-          vendorId: item.productId?.vendorId,
-        },
+      // =========================
+      // FETCH COMPANY DATA
+      // =========================
+      const companies = await VendorCompany.find(
+        { vendorId: { $in: vendorIds } },
+        { companyName: 1, vendorId: 1 },
+      ).lean();
 
-        variant: item.variantId,
+      const companyMap = new Map(
+        companies.map((c) => [c.vendorId.toString(), c]),
+      );
 
-        originalPrice: item.basePriceSnapshot,
-        flashPrice: item.flashPrice,
+      // =========================
+      // ENRICH ITEMS
+      // =========================
+      const enriched = items.map((item) => {
+        const vendor = item.productId?.vendorId;
+        const company = companyMap.get(vendor?._id?.toString());
 
-        finalPrice: isFlashActive ? item.flashPrice : item.variantId?.price,
+        const isUpcomingItem = now < new Date(sale.startDateTime);
+        const isExpiredItem = now > new Date(sale.endDateTime);
 
-        discountPercent: item.flashDiscountPercent,
-        remainingStock: (item.allocatedStock || 0) - (item.sold || 0),
+        const isFlashActiveItem =
+          !sale.isCancelled && !isUpcomingItem && !isExpiredItem;
 
-        soldPercent: item.allocatedStock
-          ? Math.round(((item.sold || 0) / item.allocatedStock) * 100)
-          : 0,
+        return {
+          flashItemId: item._id,
 
-        saleId: sale._id,
-        saleLabel: sale.label,
-        startsAt: sale.startDateTime,
-        endsAt: sale.endDateTime,
+          product: {
+            _id: item.productId?._id,
+            name: item.productId?.name,
+            images: item.productId?.images || [],
+            thumbnail: item.productId?.thumbnail || [],
+            measurmentUnit: item.productId?.measurementUnit || null,
+            slug: item.productId?.slug,
 
-        isUpcoming,
-        isFlashActive,
-        isClickable: isFlashActive,
-      }));
+            vendor: {
+              _id: vendor?._id,
+              firstName: vendor?.firstName || null,
+              lastName: vendor?.lastName || null,
+              companyName: company?.companyName || null,
+            },
+          },
+
+          variant: item.variantId,
+
+          originalPrice: item.basePriceSnapshot,
+          flashPrice: item.flashPrice,
+
+          finalPrice: isFlashActiveItem
+            ? item.flashPrice
+            : item.variantId?.price,
+
+          discountPercent: item.flashDiscountPercent,
+
+          remainingStock: (item.allocatedStock || 0) - (item.sold || 0),
+
+          soldPercent: item.allocatedStock
+            ? Math.round(((item.sold || 0) / item.allocatedStock) * 100)
+            : 0,
+
+          saleId: sale._id,
+          saleLabel: sale.label,
+          startsAt: sale.startDateTime,
+          endsAt: sale.endDateTime,
+
+          isUpcoming: isUpcomingItem,
+          isFlashActive: isFlashActiveItem,
+          isClickable: isFlashActiveItem,
+        };
+      });
 
       return {
         saleId: sale._id,

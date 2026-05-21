@@ -10,7 +10,6 @@ const CACHE_TTL = 300; // 5 minutes
 
 export const createBanner = catchAsync(async (req, res) => {
     if (req.file) req.body.image = req.file.location;
-
     const banner = await bannerService.create(req.body, req.user.id);
     await RedisCache.deletePattern(CACHE_LIST + '*');
 

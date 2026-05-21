@@ -96,14 +96,14 @@ export const adminGlobalSearch = async (req, res, next) => {
       .join("+")}`;
 
     // ================= CACHE =================
-    const cached = await redis.get(cacheKey);
+    // const cached = await redis.get(cacheKey);
 
-    if (cached) {
-      return res.status(200).json({
-        ...JSON.parse(cached),
-        fromCache: true,
-      });
-    }
+    // if (cached) {
+    //   return res.status(200).json({
+    //     ...JSON.parse(cached),
+    //     fromCache: true,
+    //   });
+    // }
 
     // ================= SEARCH =================
     const results = await globalSearchService(q, page, limit, entities);

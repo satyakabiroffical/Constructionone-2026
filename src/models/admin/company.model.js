@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+
+
 const onboardingItemSchema = new mongoose.Schema(
   {
     title: { type: String, default: "" },
@@ -82,5 +84,7 @@ const companySchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+
 
 export default mongoose.model("Company", companySchema);

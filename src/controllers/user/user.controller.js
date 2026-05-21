@@ -5,6 +5,7 @@ import User from "../../models/user/user.model.js";
 import { APIError, catchAsync } from "../../middlewares/errorHandler.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import RedisCache from "../../utils/redisCache.js";
+import { createActivityLog } from "../admin/activityLog.controller.js";
 
 // Cache key helpers
 const userCacheKey = (userId) => `user:profile:${userId}`;
@@ -413,7 +414,18 @@ export const toggleUserStatus = catchAsync(async (req, res, next) => {
   user.isDisabled = !user.isDisabled;
 
   await user.save();
+  await createActivityLog({
+    req,
+    action: user.isDisabled ? "DISABLE_USER" : "ENABLE_USER",
+    module: "USER",
+    targetId: userId,
 
+    details: {
+      userName: user.name,
+      email: user.email,
+      status: user.isDisabled,
+    },
+  });
   // cache invalidate
   await Promise.all([
     RedisCache.delete(userCacheKey(userId)), // single user cache

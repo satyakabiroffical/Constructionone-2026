@@ -1,6 +1,7 @@
 import mongoose from "mongoose"; //Sanvi
 import Product from "../../models/vendorShop/product.model.js";
 import Variant from "../../models/vendorShop/variant.model.js";
+import Brand from "../../models/vendorShop/brand.model.js";
 import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
 import { calculateDiscount } from "../../utils/priceCalculator.js";
@@ -11,6 +12,7 @@ import {
 } from "../../models/vendorShop/vendor.model.js";
 
 import { sendAdminNotification } from "../../services/adminNotification.service.js";
+import { createActivityLog } from "../admin/activityLog.controller.js";
 
 class ProductController {
   //admingetAll
@@ -699,19 +701,74 @@ class ProductController {
     }
   }
 
-  //sanvi-code
+  //asgar-code
   // static async createProduct(req, res, next) {
   //   const session = await mongoose.startSession();
   //   session.startTransaction();
 
   //   try {
-  //     // support normal form-data (CHANGED)
+  //     // =========================
+  //     // BASIC PRODUCT DATA
+  //     // =========================
   //     let productData = { ...req.body };
 
   //     // prevent client from spoofing vendor
   //     delete productData.vendorId;
 
-  //     // parse shippingCharges from form-data
+  //     // =========================
+  //     // MULTIPLE SUBCATEGORY SUPPORT
+  //     // =========================
+
+  //     // subcategoryId => array support
+  //     if (typeof productData.subcategoryId === "string") {
+  //       try {
+  //         productData.subcategoryId = JSON.parse(productData.subcategoryId);
+
+  //         if (!Array.isArray(productData.subcategoryId)) {
+  //           productData.subcategoryId = [productData.subcategoryId];
+  //         }
+  //       } catch (err) {
+  //         productData.subcategoryId = [productData.subcategoryId];
+  //       }
+  //     }
+
+  //     if (
+  //       !productData.subcategoryId ||
+  //       !Array.isArray(productData.subcategoryId) ||
+  //       productData.subcategoryId.length === 0
+  //     ) {
+  //       throw new APIError("At least one subcategory is required", 400);
+  //     }
+
+  //     // =========================
+  //     // MULTIPLE PRODUCT TYPE SUPPORT
+  //     // =========================
+
+  //     // productTypeId => array support
+  //     if (typeof productData.productTypeId === "string") {
+  //       try {
+  //         productData.productTypeId = JSON.parse(productData.productTypeId);
+
+  //         if (!Array.isArray(productData.productTypeId)) {
+  //           productData.productTypeId = [productData.productTypeId];
+  //         }
+  //       } catch (err) {
+  //         productData.productTypeId = [productData.productTypeId];
+  //       }
+  //     }
+
+  //     if (
+  //       !productData.productTypeId ||
+  //       !Array.isArray(productData.productTypeId) ||
+  //       productData.productTypeId.length === 0
+  //     ) {
+  //       throw new APIError("At least one product type is required", 400);
+  //     }
+
+  //     // =========================
+  //     // SHIPPING CHARGES PARSE
+  //     // =========================
+
   //     if (typeof productData.shippingCharges === "string") {
   //       try {
   //         productData.shippingCharges = JSON.parse(productData.shippingCharges);
@@ -720,7 +777,6 @@ class ProductController {
   //       }
   //     }
 
-  //     // optional but recommended normalization
   //     if (productData.shippingCharges) {
   //       productData.shippingCharges = {
   //         fixed: Number(productData.shippingCharges.fixed || 0),
@@ -729,24 +785,35 @@ class ProductController {
   //       };
   //     }
 
+  //     // =========================
+  //     // VARIANTS
+  //     // =========================
+
   //     let variants = req.body.variants;
 
-  //     //  remove variants from product payload (NEW)
+  //     // remove from product payload
   //     delete productData.variants;
 
-  //     //  safer validation (UPDATED)
-  //     // when vendor add a product to add a varient is required logic
+  //     // if variants sent as string (form-data)
+  //     if (typeof variants === "string") {
+  //       try {
+  //         variants = JSON.parse(variants);
+  //       } catch (err) {
+  //         throw new APIError("Invalid variants format", 400);
+  //       }
+  //     }
+
   //     if (!variants || !Array.isArray(variants) || variants.length === 0) {
   //       throw new APIError("At least one variant is required", 400);
   //     }
 
-  //     // when vendor add a product so no need to add varient logic
-  //     // if (!variants || !Array.isArray(variants)) {
-  //     //   variants = [];
-  //     // }
-
+  //     // =========================
   //     // HANDLE FILES
-  //     const uploadedImages = req.files?.images?.map((f) => f.location) || [];
+  //     // =========================
+
+  //     const uploadedImages =
+  //       req.files?.images?.map((file) => file.location) || [];
+
   //     const uploadedThumbnail = req.files?.thumbnail?.[0]?.location || null;
 
   //     if (uploadedImages.length) {
@@ -757,12 +824,14 @@ class ProductController {
   //       productData.thumbnail = uploadedThumbnail;
   //     }
 
-  //     // CREATE PRODUCT (FIXED)
+  //     // =========================
+  //     // VENDOR LOCATION
+  //     // =========================
 
   //     const vendorCompany = await VendorCompany.findOne({
   //       vendorId: req.user.id,
   //     })
-  //       .select("location")
+  //       .select("location companyName")
   //       .lean();
 
   //     let vendorLocation = undefined;
@@ -771,87 +840,134 @@ class ProductController {
   //       vendorLocation = vendorCompany.location;
   //     }
 
-  //     // CREATE PRODUCT (FIXED)
+  //     // =========================
+  //     // CREATE PRODUCT
+  //     // =========================
+
   //     const productArr = await Product.create(
   //       [
   //         {
   //           ...productData,
   //           vendorId: req.user.id,
   //           vendorLocation,
-  //           // correct owner
   //         },
   //       ],
   //       { session },
   //     );
+
   //     const product = productArr[0];
 
+  //     // =========================
   //     // SECURITY CLEANUP
+  //     // =========================
+
   //     const forbiddenFields = [
   //       "productId",
   //       "moduleId",
   //       "pcategoryId",
   //       "categoryId",
   //       "subcategoryId",
+  //       "productTypeId",
   //       "brandId",
+  //       "vendorId",
+  //       "price",
+  //       "discountAmount",
   //     ];
 
-  //     variants = variants.map((v) => {
-  //       forbiddenFields.forEach((field) => delete v[field]);
-  //       return v;
+  //     variants = variants.map((variant) => {
+  //       forbiddenFields.forEach((field) => delete variant[field]);
+  //       return variant;
   //     });
 
+  //     // =========================
   //     // PREPARE VARIANTS
+  //     // =========================
+
   //     const preparedVariants = variants.map((variant) => {
   //       const mrp = Number(variant.mrp || 0);
   //       const discount = Number(variant.discount || 0);
 
-  //       //  calculate both values
   //       const { price, discountAmount } = calculateDiscount(mrp, discount);
 
-  //       //  prevent manual price override (PRO)
-  //       const { price: _p, discountAmount: _d, ...safeVariant } = variant;
+  //       const {
+  //         price: removedPrice,
+  //         discountAmount: removedDiscountAmount,
+  //         ...safeVariant
+  //       } = variant;
 
   //       return {
   //         ...safeVariant,
 
+  //         // auto calculated values
   //         price,
   //         discountAmount,
-  //         // AUTO INJECT
+
+  //         // auto inject relations
   //         productId: product._id,
   //         moduleId: product.moduleId,
   //         pcategoryId: product.pcategoryId,
   //         categoryId: product.categoryId,
+
+  //         // multiple array fields
   //         subcategoryId: product.subcategoryId,
+  //         productTypeId: product.productTypeId,
+
   //         brandId: product.brandId,
-  //         // ✅ FIXED vendor ownership
   //         vendorId: req.user.id,
   //       };
   //     });
 
+  //     // =========================
   //     // BULK CREATE VARIANTS
+  //     // =========================
+
   //     const createdVariants = await Variant.insertMany(preparedVariants, {
   //       session,
   //     });
 
-  //     // SET DEFAULT VARIANT
+  //     // =========================
+  //     // DEFAULT VARIANT
+  //     // =========================
+
   //     product.defaultVariantId = createdVariants[0]._id;
   //     await product.save({ session });
+
+  //     // =========================
+  //     // COMMIT TRANSACTION
+  //     // =========================
 
   //     await session.commitTransaction();
   //     session.endSession();
 
+  //     // =========================
   //     // CACHE CLEAR
+  //     // =========================
+
   //     await Promise.all([
   //       RedisCache.deletePattern("products:public:v2:*"),
   //       RedisCache.deletePattern("products:admin:v1:*"),
   //       RedisCache.deletePattern("products:vendor:*"),
   //       RedisCache.deletePattern("products:subcat:*"),
-  //       RedisCache.deletePattern("products:*"), // optional full clear
-  //       RedisCache.deletePattern(`products:cat:*`),
+  //       RedisCache.deletePattern("products:cat:*"),
+  //       RedisCache.deletePattern("products:*"),
+  //       RedisCache.deletePattern(`vendor:${req.user.id}:products:*`),
   //     ]);
+
+  //     await sendAdminNotification({
+  //       title: "New Product Added",
+  //       message: `${vendorCompany?.companyName} added new product ${product.name}`,
+  //       type: "PRODUCT_CREATED",
+  //       userId: req.user.id,
+  //       color: "blue",
+  //       redirectUrl: `/marketplace/products`,
+  //     });
+  //     // =========================
+  //     // RESPONSE
+  //     // =========================
+
   //     res.status(201).json({
   //       status: "success",
-  //       message: "Product created with variants",
+  //       message: "Product created successfully with variants",
   //       data: {
   //         product,
   //         variants: createdVariants,
@@ -863,9 +979,6 @@ class ProductController {
   //     next(err);
   //   }
   // }
-  // UPDATE PRODUCT
-
-  //asgar-code
 
   static async createProduct(req, res, next) {
     const session = await mongoose.startSession();
@@ -881,10 +994,32 @@ class ProductController {
       delete productData.vendorId;
 
       // =========================
+      // IMAGE VALIDATION
+      // =========================
+
+      const uploadedImages =
+        req.files?.images?.map((file) => file.location) || [];
+
+      const uploadedThumbnail = req.files?.thumbnail?.[0]?.location || null;
+
+      // if (!uploadedThumbnail) {
+      //   throw new APIError(
+      //     "Product thumbnail is required. Please upload at least one thumbnail image.",
+      //     400,
+      //   );
+      // }
+
+      if (!uploadedImages || uploadedImages.length === 0) {
+        throw new APIError(
+          400,
+          "Product images are required. Please upload at least one product image.",
+        );
+      }
+
+      // =========================
       // MULTIPLE SUBCATEGORY SUPPORT
       // =========================
 
-      // subcategoryId => array support
       if (typeof productData.subcategoryId === "string") {
         try {
           productData.subcategoryId = JSON.parse(productData.subcategoryId);
@@ -902,14 +1037,13 @@ class ProductController {
         !Array.isArray(productData.subcategoryId) ||
         productData.subcategoryId.length === 0
       ) {
-        throw new APIError("At least one subcategory is required", 400);
+        throw new APIError(400, "At least one subcategory is required");
       }
 
       // =========================
       // MULTIPLE PRODUCT TYPE SUPPORT
       // =========================
 
-      // productTypeId => array support
       if (typeof productData.productTypeId === "string") {
         try {
           productData.productTypeId = JSON.parse(productData.productTypeId);
@@ -927,8 +1061,43 @@ class ProductController {
         !Array.isArray(productData.productTypeId) ||
         productData.productTypeId.length === 0
       ) {
-        throw new APIError("At least one product type is required", 400);
+        throw new APIError(400, "At least one product type is required");
       }
+
+      // =========================
+      // DUPLICATE PRODUCT CHECK
+      // =========================
+
+      const duplicateProduct = await Product.findOne({
+        vendorId: req.user.id,
+        $or: [
+          {
+            name: {
+              $regex: `^${productData.name}$`,
+              $options: "i",
+            },
+          },
+          {
+            slug: {
+              $regex: `^${productData.slug}$`,
+              $options: "i",
+            },
+          },
+        ],
+      })
+        .select("name slug")
+        .lean();
+
+      if (duplicateProduct) {
+        throw new APIError(
+          409,
+          `You already created this product. Existing product: "${duplicateProduct.name}"`,
+        );
+      }
+
+      // =========================
+      // SHIPPING CHARGES PARSE
+      // =========================
 
       // =========================
       // SHIPPING CHARGES PARSE
@@ -938,56 +1107,113 @@ class ProductController {
         try {
           productData.shippingCharges = JSON.parse(productData.shippingCharges);
         } catch (err) {
-          throw new APIError("Invalid shippingCharges format", 400);
+          throw new APIError(400, "Invalid shippingCharges format");
         }
       }
 
-      if (productData.shippingCharges) {
-        productData.shippingCharges = {
-          fixed: Number(productData.shippingCharges.fixed || 0),
-          distancePerKm: Number(productData.shippingCharges.distancePerKm || 0),
-          weightPerKg: Number(productData.shippingCharges.weightPerKg || 0),
-        };
+      if (!productData.shippingCharges) {
+        throw new APIError(400, "Shipping charges are required");
       }
 
+      const shipping = productData.shippingCharges;
+
+      // =========================
+      // REQUIRED FIELDS
+      // =========================
+
+      if (
+        shipping.fixed === undefined ||
+        shipping.fixed === null ||
+        shipping.fixed === ""
+      ) {
+        throw new APIError(400, "Fixed shipping charge is required");
+      }
+
+      if (
+        shipping.distancePerKm === undefined ||
+        shipping.distancePerKm === null ||
+        shipping.distancePerKm === ""
+      ) {
+        throw new APIError(400, "Distance per KM shipping charge is required");
+      }
+
+      // =========================
+      // CONVERT TO NUMBER
+      // =========================
+
+      productData.shippingCharges = {
+        fixed: Number(shipping.fixed || 0),
+        distancePerKm: Number(shipping.distancePerKm || 0),
+
+        weightPerKg: Number(shipping.weightPerKg || 0),
+        perPieceCharge: Number(shipping.perPieceCharge || 0),
+        perLiterCharge: Number(shipping.perLiterCharge || 0),
+        perMeterCharge: Number(shipping.perMeterCharge || 0),
+        perBoxCharge: Number(shipping.perBoxCharge || 0),
+        perSuperMeterCharge: Number(shipping.perSuperMeterCharge || 0),
+        perCubicMeterCharge: Number(shipping.perCubicMeterCharge || 0),
+        perSetCharge: Number(shipping.perSetCharge || 0),
+        perRollCharge: Number(shipping.perRollCharge || 0),
+      };
+
+      // =========================
+      // AT LEAST ONE EXTRA CHARGE
+      // =========================
+
+      const extraChargeFields = [
+        "weightPerKg",
+        "perPieceCharge",
+        "perLiterCharge",
+        "perMeterCharge",
+        "perBoxCharge",
+        "perSuperMeterCharge",
+        "perCubicMeterCharge",
+        "perSetCharge",
+        "perRollCharge",
+      ];
+
+      const hasAnyExtraCharge = extraChargeFields.some(
+        (field) => Number(productData.shippingCharges[field]) > 0,
+      );
+
+      if (!hasAnyExtraCharge) {
+        throw new APIError(
+          400,
+          "Please provide at least one additional shipping charge type (Weight, Piece, Liter, Meter, Box, Set, Roll, etc.)",
+        );
+      }
       // =========================
       // VARIANTS
       // =========================
 
       let variants = req.body.variants;
 
-      // remove from product payload
       delete productData.variants;
 
-      // if variants sent as string (form-data)
-      if (typeof variants === "string") {
+      if (typeof req.body.variants === "string") {
         try {
-          variants = JSON.parse(variants);
+          req.body.variants = JSON.parse(req.body.variants);
         } catch (err) {
-          throw new APIError("Invalid variants format", 400);
+          return res.status(400).json({
+            success: false,
+            message: "Invalid variants JSON format",
+          });
         }
       }
 
-      if (!variants || !Array.isArray(variants) || variants.length === 0) {
-        throw new APIError("At least one variant is required", 400);
+      if (!Array.isArray(req.body.variants) || req.body.variants.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "At least one variant is required and must be an array",
+        });
       }
 
       // =========================
       // HANDLE FILES
       // =========================
 
-      const uploadedImages =
-        req.files?.images?.map((file) => file.location) || [];
-
-      const uploadedThumbnail = req.files?.thumbnail?.[0]?.location || null;
-
-      if (uploadedImages.length) {
-        productData.images = uploadedImages;
-      }
-
-      if (uploadedThumbnail) {
-        productData.thumbnail = uploadedThumbnail;
-      }
+      productData.images = uploadedImages;
+      productData.thumbnail = uploadedThumbnail;
 
       // =========================
       // VENDOR LOCATION
@@ -1063,17 +1289,14 @@ class ProductController {
         return {
           ...safeVariant,
 
-          // auto calculated values
           price,
           discountAmount,
 
-          // auto inject relations
           productId: product._id,
           moduleId: product.moduleId,
           pcategoryId: product.pcategoryId,
           categoryId: product.categoryId,
 
-          // multiple array fields
           subcategoryId: product.subcategoryId,
           productTypeId: product.productTypeId,
 
@@ -1115,7 +1338,12 @@ class ProductController {
         RedisCache.deletePattern("products:subcat:*"),
         RedisCache.deletePattern("products:cat:*"),
         RedisCache.deletePattern("products:*"),
+        RedisCache.deletePattern(`vendor:${req.user.id}:products:*`),
       ]);
+
+      // =========================
+      // ADMIN NOTIFICATION
+      // =========================
 
       await sendAdminNotification({
         title: "New Product Added",
@@ -1125,6 +1353,7 @@ class ProductController {
         color: "blue",
         redirectUrl: `/marketplace/products`,
       });
+
       // =========================
       // RESPONSE
       // =========================
@@ -1159,7 +1388,7 @@ class ProductController {
         try {
           updateData.shippingCharges = JSON.parse(updateData.shippingCharges);
         } catch (err) {
-          throw new APIError("Invalid shippingCharges format", 400);
+          throw new APIError(400, "Invalid shippingCharges format");
         }
       }
 
@@ -1197,7 +1426,7 @@ class ProductController {
       ).populate("brandId", "name");
 
       if (!product) {
-        throw new APIError("Product not found", 404);
+        throw new APIError(404, "Product not found");
       }
 
       // clear cache properly
@@ -1247,7 +1476,7 @@ class ProductController {
         .lean();
 
       if (!product) {
-        throw new APIError("Product not found", 404);
+        throw new APIError(404, "Product not found");
       }
 
       // ======================================================
@@ -1672,7 +1901,7 @@ class ProductController {
       const product = await Product.findById(id);
 
       if (!product) {
-        throw new APIError("Product not found", 404);
+        throw new APIError(404, "Product not found");
       }
       // FIX: remove invalid geo data
       if (
@@ -1684,6 +1913,24 @@ class ProductController {
       }
       product.disable = !product.disable;
       await product.save();
+
+      await createActivityLog({
+        req,
+
+        action: product.disable ? "DISABLE_PRODUCT" : "ENABLE_PRODUCT",
+
+        module: "PRODUCT",
+
+        targetId: product._id,
+
+        details: {
+          productName: product.name,
+          oldStatus,
+          newStatus: product.disable,
+          vendorId: product.vendorId,
+        },
+      });
+
       await Promise.all([
         RedisCache.deletePattern("products:public:v2:*"),
         RedisCache.deletePattern("products:admin:v1:*"),
@@ -1719,7 +1966,7 @@ class ProductController {
   //     );
 
   //     if (!product) {
-  //       throw new APIError("Product not found", 404);
+  //       throw new APIError(404, "Product not found");
   //     }
 
   //     //  smart cache clear
@@ -1742,7 +1989,7 @@ class ProductController {
       const { varified, reason } = req.body;
 
       if (varified === false && !reason) {
-        throw new APIError("Reason is required when un-verifying product", 400);
+        throw new APIError(400, "Reason is required when un-verifying product");
       }
 
       let finalReason = reason;
@@ -1760,8 +2007,26 @@ class ProductController {
       );
 
       if (!product) {
-        throw new APIError("Product not found", 404);
+        throw new APIError(404, "Product not found");
       }
+
+      await createActivityLog({
+        req,
+
+        action: varified ? "VERIFY_PRODUCT" : "UNVERIFY_PRODUCT",
+
+        module: "PRODUCT",
+
+        targetId: product._id,
+
+        details: {
+          productName: product.name,
+          vendorId: product.vendorId,
+          verified: Boolean(varified),
+          reason: finalReason,
+        },
+      });
+
       await Promise.all([
         RedisCache.deletePattern("products:public:v2:*"),
         RedisCache.deletePattern("products:admin:v1:*"),
@@ -1770,7 +2035,9 @@ class ProductController {
         RedisCache.deletePattern("products:*"), // optional full clear
         RedisCache.delete(`product:v1:${id}`),
         RedisCache.deletePattern(`products:cat:*`),
+        RedisCache.deletePattern(`home:*`),
       ]);
+
       res.json({
         status: "success",
         message: `Product ${varified ? "verified" : "unverified"} successfully`,
@@ -2452,21 +2719,20 @@ class ProductController {
 
   //     const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
 
-  //     const cachedData = await RedisCache.get(cacheKey);
-  //     if (cachedData) {
-  //       return res.json(JSON.parse(cachedData));
-  //     }
+  //     // 1. CACHE CHECK
+  //     // const cachedData = await RedisCache.get(cacheKey);
+  //     // if (cachedData) {
+  //     //   return res.json(JSON.parse(cachedData));
+  //     // }
 
   //     const skip = (page - 1) * limit;
 
   //     const filter = {};
 
-  //     // 👉 agar "all" nahi hai tabhi category filter lagao
   //     if (categoryId !== "all") {
   //       filter.categoryId = categoryId;
   //     }
 
-  //     // 🔥 TYPE FILTER
   //     if (type) {
   //       const variantIds = await Variant.find({
   //         Type: { $regex: new RegExp(`^${type}$`, "i") },
@@ -2479,15 +2745,18 @@ class ProductController {
 
   //     const products = await Product.find(filter)
   //       .select(
-  //         "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
+  //         "name images brandId avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
   //       )
   //       .populate({
   //         path: "vendorId",
   //         select: "firstName lastName",
   //       })
   //       .populate({
+  //         path: "brandId",
+  //         select: "name",
+  //       })
+  //       .populate({
   //         path: "defaultVariantId",
-  //         select: "price discount Type",
   //       })
   //       .skip(skip)
   //       .limit(Number(limit));
@@ -2498,17 +2767,22 @@ class ProductController {
   //       images: p.images,
   //       avgRating: p.avgRating,
   //       reviewCount: p.reviewCount,
-  //       slug: p.slug,
   //       properties: p.properties,
   //       minDiscount: p.minDiscount,
   //       maxDiscount: p.maxDiscount,
+  //       brand: p.brandId?.name || null,
+
   //       vendor: {
   //         firstName: p.vendorId?.firstName,
   //         lastName: p.vendorId?.lastName,
   //       },
+
+  //       // quick access fields
   //       price: p.defaultVariantId?.price ?? null,
   //       discount: p.defaultVariantId?.discount ?? null,
   //       type: p.defaultVariantId?.Type ?? null,
+
+  //       defaultVariant: p.defaultVariantId || null,
   //     }));
 
   //     const total = await Product.countDocuments(filter);
@@ -2521,6 +2795,7 @@ class ProductController {
   //       products: formattedProducts,
   //     };
 
+  //     // 2. SET CACHE
   //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
   //     res.json(response);
@@ -2532,57 +2807,186 @@ class ProductController {
   static async getProductByCategory(req, res) {
     try {
       const { categoryId } = req.params;
-      const { page = 1, limit = 10, type } = req.query;
 
-      const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
+      const { page = 1, limit = 10, type, brand, size, sort } = req.query;
 
-      // 1. CACHE CHECK
-      // const cachedData = await RedisCache.get(cacheKey);
-      // if (cachedData) {
-      //   return res.json(JSON.parse(cachedData));
-      // }
+      const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}:brand:${brand || "all"}:size:${size || "all"}:sort:${sort || "default"}`;
+
+      // =========================
+      // CACHE CHECK
+      // =========================
+      const cachedData = await RedisCache.get(cacheKey);
+
+      if (cachedData) {
+        return res.json(JSON.parse(cachedData));
+      }
 
       const skip = (page - 1) * limit;
 
       const filter = {};
 
+      // =========================
+      // CATEGORY FILTER
+      // =========================
       if (categoryId !== "all") {
         filter.categoryId = categoryId;
       }
 
+      // =========================
+      // TYPE FILTER
+      // =========================
       if (type) {
         const variantIds = await Variant.find({
           Type: { $regex: new RegExp(`^${type}$`, "i") },
-        }).select("_id");
+        }).distinct("_id");
 
         filter.defaultVariantId = {
-          $in: variantIds.map((v) => v._id),
+          $in: variantIds,
         };
       }
 
-      const products = await Product.find(filter)
+      // =========================
+      // BRAND FILTER
+      // =========================
+      if (brand) {
+        const brandIds = await Brand.find({
+          name: { $regex: new RegExp(brand, "i") },
+        }).distinct("_id");
+
+        filter.brandId = { $in: brandIds };
+      }
+
+      // =========================
+      // FETCH PRODUCTS
+      // =========================
+      let products = await Product.find(filter)
         .select(
-          "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
+          `
+        name
+        images
+        brandId
+        avgRating
+        reviewCount
+        slug
+        properties
+        minDiscount
+        maxDiscount
+        vendorId
+        defaultVariantId
+        createdAt
+      `,
         )
         .populate({
           path: "vendorId",
           select: "firstName lastName",
         })
         .populate({
+          path: "brandId",
+          select: "name",
+        })
+        .populate({
           path: "defaultVariantId",
         })
-        .skip(skip)
-        .limit(Number(limit));
+        .lean();
 
-      const formattedProducts = products.map((p) => ({
+      // =========================
+      // SIZE FILTER
+      // =========================
+      if (size) {
+        products = products.filter((p) => {
+          const weight = Number(p?.defaultVariantId?.packageWeight || 0);
+
+          switch (size.toLowerCase()) {
+            case "small":
+              return weight < 10;
+
+            case "medium":
+              return weight >= 10 && weight <= 50;
+
+            case "large":
+              return weight > 50 && weight <= 200;
+
+            case "extra_large":
+              return weight > 200;
+
+            default:
+              return true;
+          }
+        });
+      }
+
+      // =========================
+      // SORTING
+      // =========================
+      if (sort) {
+        switch (sort) {
+          case "low_to_high":
+            products.sort(
+              (a, b) =>
+                (a.defaultVariantId?.price || 0) -
+                (b.defaultVariantId?.price || 0),
+            );
+            break;
+
+          case "high_to_low":
+            products.sort(
+              (a, b) =>
+                (b.defaultVariantId?.price || 0) -
+                (a.defaultVariantId?.price || 0),
+            );
+            break;
+
+          case "newest_first":
+            products.sort(
+              (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+            );
+            break;
+
+          case "most_popular":
+            products.sort(
+              (a, b) =>
+                (b.defaultVariantId?.sold || 0) -
+                (a.defaultVariantId?.sold || 0),
+            );
+            break;
+
+          case "best_rating":
+            products.sort((a, b) => (b.avgRating || 0) - (a.avgRating || 0));
+            break;
+        }
+      }
+
+      // =========================
+      // TOTAL AFTER FILTER
+      // =========================
+      const total = products.length;
+
+      // =========================
+      // PAGINATION
+      // =========================
+      const paginatedProducts = products.slice(skip, skip + Number(limit));
+
+      // =========================
+      // RESPONSE FORMAT
+      // =========================
+      const formattedProducts = paginatedProducts.map((p) => ({
         id: p._id,
+
         name: p.name,
+
         images: p.images,
+
         avgRating: p.avgRating,
+
         reviewCount: p.reviewCount,
+
         properties: p.properties,
+
         minDiscount: p.minDiscount,
+
         maxDiscount: p.maxDiscount,
+
+        brand: p.brandId?.name || null,
 
         vendor: {
           firstName: p.vendorId?.firstName,
@@ -2591,28 +2995,57 @@ class ProductController {
 
         // quick access fields
         price: p.defaultVariantId?.price ?? null,
+
         discount: p.defaultVariantId?.discount ?? null,
+
         type: p.defaultVariantId?.Type ?? null,
 
         defaultVariant: p.defaultVariantId || null,
       }));
 
-      const total = await Product.countDocuments(filter);
+      // =========================
+      // FILTER OPTIONS
+      // =========================
+      const filterOptions = {
+        brand: [
+          ...new Set(products.map((p) => p.brandId?.name).filter(Boolean)),
+        ],
+
+        size: ["small", "medium", "large", "extra_large"],
+
+        sort: [
+          "low_to_high",
+          "high_to_low",
+          "newest_first",
+          "most_popular",
+          "best_rating",
+        ],
+      };
 
       const response = {
         success: true,
+
         page: Number(page),
+
         totalPages: Math.ceil(total / limit),
+
         totalProducts: total,
+
+        filters: filterOptions,
+
         products: formattedProducts,
       };
 
-      // 2. SET CACHE
+      // =========================
+      // SET CACHE
+      // =========================
       await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
       res.json(response);
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(500).json({
+        message: error.message,
+      });
     }
   }
 
@@ -2675,6 +3108,7 @@ class ProductController {
           firstName: p.vendorId?.firstName,
           lastName: p.vendorId?.lastName,
         },
+        categoryId: p.categoryId,
         price: p.defaultVariantId?.price ?? null,
         discount: p.defaultVariantId?.discount ?? null,
         type: p.defaultVariantId?.Type ?? null,
@@ -2706,71 +3140,99 @@ class ProductController {
   //     const { brandId } = req.params;
   //     const { page = 1, limit = 10, Type } = req.query;
 
-  //     const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}`;
+  //     const skip = (Number(page) - 1) * Number(limit);
+
+  //     const filter = {
+  //       brandId,
+  //       disable: false,
+  //       varified: true,
+  //     };
+
+  //     // const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}`;
 
   //     // const cachedData = await RedisCache.get(cacheKey);
   //     // if (cachedData) {
   //     //   return res.json(JSON.parse(cachedData));
   //     // }
 
-  //     const skip = (page - 1) * limit;
+  //     // =========================
+  //     // TYPE FILTER + STORE VARIANT IDS
+  //     // =========================
+  //     let variantFilterIds = null;
 
-  //     // 2. BASE FILTER
-  //     const filter = { brandId };
-
-  //     // 3. TYPE FILTER (BULK / RETAIL)
-  //     // We find variant IDs matching the type, then filter products whose defaultVariantId is in that list
   //     if (Type) {
-  //       const variantIds = await Variant.find({
+  //       variantFilterIds = await Variant.find({
   //         Type: { $regex: new RegExp(`^${Type}$`, "i") },
   //       }).distinct("_id");
 
-  //       filter["defaultVariantId"] = { $in: variantIds };
+  //       filter.defaultVariantId = { $in: variantFilterIds };
   //     }
 
-  //     // 4. EXECUTE QUERIES (Parallelized for performance)
   //     const [products, total] = await Promise.all([
   //       Product.find(filter)
   //         .select(
-  //           "name images avgRating reviewCount slug properties vendorId defaultVariantId measurementUnit",
+  //           "name images categoryId avgRating reviewCount slug properties vendorId defaultVariantId measurementUnit",
   //         )
   //         .populate({
   //           path: "vendorId",
   //           select: "firstName lastName",
   //         })
   //         .populate({
+  //           path: "categoryId",
+  //           select: "name",
+  //         })
+  //         .populate({
   //           path: "defaultVariantId",
-  //           select:
-  //             " _id price discount Type discount mrp stock moq packageWeight packageDimensions",
+  //           select: "_id price mrp discount Type stock moq packageWeight size sold",
   //         })
   //         .skip(skip)
   //         .limit(Number(limit))
-  //         .lean(), // Using .lean() for faster read-only performance
+  //         .lean(),
+
   //       Product.countDocuments(filter),
   //     ]);
 
-  //     // 5. FORMAT RESPONSE
-  //     const formattedProducts = products.map((p) => ({
-  //       id: p._id,
-  //       name: p.name,
-  //       images: p.images,
-  //       avgRating: p.avgRating,
-  //       reviewCount: p.reviewCount,
-  //       slug: p.slug,
-  //       properties: p.properties,
-  //       vendor: {
-  //         firstName: p.vendorId?.firstName || null,
-  //         lastName: p.vendorId?.lastName || null,
-  //       },
-  //       price: p.defaultVariantId?.price ?? null,
-  //       mrp: p.defaultVariantId?.mrp ?? null,
-  //       discount: p.defaultVariantId?.discount ?? 0,
-  //       type: p.defaultVariantId?.Type ?? null,
-  //       packageWeight: p.defaultVariantId?.packageWeight ?? null,
-  //       moq: p.defaultVariantId?.moq ?? null,
-  //       defaultVariantId: p.defaultVariantId?.id ?? null,
-  //       measurementUnit: p.measurementUnit ?? "NA",
-  //     }));
+  //     // =========================
+  //     // RESPONSE FORMAT
+  //     // =========================
+  //     const formattedProducts = products.map((p) => {
+  //       const variant = p.defaultVariantId;
+
+  //       return {
+  //         id: p._id,
+  //         name: p.name,
+  //         images: p.images,
+  //         avgRating: p.avgRating,
+  //         reviewCount: p.reviewCount,
+  //         slug: p.slug,
+  //         categoryId: p.categoryId,
+
+  //         vendor: {
+  //           firstName: p.vendorId?.firstName || null,
+  //           lastName: p.vendorId?.lastName || null,
+  //         },
+
+  //         // =========================
+  //         // IMPORTANT FIX HERE
+  //         // =========================
+  //         variant: variant
+  //           ? {
+  //               id: variant._id,
+  //               price: variant.price,
+  //               mrp: variant.mrp,
+  //               discount: variant.discount,
+  //               type: variant.Type,
+  //               stock: variant.stock,
+  //               sold: variant.sold || 0,
+  //               moq: variant.moq,
+  //               packageWeight: variant.packageWeight || " ",
+  //               size: variant.size || " ",
+  //             }
+  //           : null,
+
+  //         measurementUnit: p.measurementUnit || " ",
+  //       };
+  //     });
 
   //     const response = {
   //       success: true,
@@ -2781,9 +3243,11 @@ class ProductController {
   //     };
 
   //     // 6. SET CACHE (Expiring in 5 minutes)
-  //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+  //     // await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
-  //     return res.json(response);
+  //     return res.json({
+  //       response,
+  //     });
   //   } catch (error) {
   //     return res.status(500).json({
   //       success: false,
@@ -2793,152 +3257,225 @@ class ProductController {
   //   }
   // }
 
-  // static async getDailyHotDeals(req, res) {
-  //   try {
-  //     const today = new Date().setHours(0, 0, 0, 0); // Aaj ki date ka midnight timestamp
-
-  //     // Redis Cache for 24 Hours
-  //     const cacheKey = `daily_deals_${today}`;
-  //     const cached = await RedisCache.get(cacheKey);
-  //     if (cached) return res.json(JSON.parse(cached));
-
-  //     // Pipeline: High discount wale products uthao aur random 10 dikhao
-  //     const products = await Product.aggregate([
-  //       { $match: { avgRating: { $gte: 4 } } },
-  //       {
-  //         $lookup: {
-  //           from: "variants",
-  //           localField: "defaultVariantId",
-  //           foreignField: "_id",
-  //           as: "variant",
-  //         },
-  //       },
-  //       { $unwind: "$variant" },
-  //       { $match: { "variant.discount": { $gte: 20 } } }, // 20% + discount
-  //       { $sample: { size: 10 } }, // Randomly pick 10 products
-  //       {
-  //         $project: {
-  //           name: 1,
-  //           slug: 1,
-  //           price: "$variant.price",
-  //           mrp: "$variant.mrp",
-  //           discount: "$variant.discount",
-  //           images: { $arrayElemAt: ["$images", 0] },
-  //         },
-  //       },
-  //     ]);
-
-  //     const response = { success: true, date: new Date(), products };
-
-  //     // Cache it until the end of the day (86400 seconds = 24h)
-  //     await RedisCache.set(cacheKey, JSON.stringify(response), 86400);
-
-  //     return res.json(response);
-  //   } catch (error) {
-  //     return res.status(500).json({ success: false, message: error.message });
-  //   }
-  // }
-
   static async getProductsByBrand(req, res) {
     try {
       const { brandId } = req.params;
-      const { page = 1, limit = 10, Type } = req.query;
+
+      const { page = 1, limit = 10, Type, category, size, sort } = req.query;
 
       const skip = (Number(page) - 1) * Number(limit);
-
       const filter = {
         brandId,
         disable: false,
         varified: true,
       };
-
-      const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}`;
-
+      const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}:category:${category || "all"}:size:${size || "all"}:sort:${sort || "default"}`;
       const cachedData = await RedisCache.get(cacheKey);
       if (cachedData) {
         return res.json(JSON.parse(cachedData));
       }
 
       // =========================
-      // TYPE FILTER + STORE VARIANT IDS
+      // TYPE FILTER
       // =========================
-      let variantFilterIds = null;
-
       if (Type) {
-        variantFilterIds = await Variant.find({
+        const variantFilterIds = await Variant.find({
           Type: { $regex: new RegExp(`^${Type}$`, "i") },
         }).distinct("_id");
 
         filter.defaultVariantId = { $in: variantFilterIds };
       }
 
-      const [products, total] = await Promise.all([
-        Product.find(filter)
-          .select(
-            "name images avgRating reviewCount slug properties vendorId defaultVariantId measurementUnit",
-          )
-          .populate({
-            path: "vendorId",
-            select: "firstName lastName",
-          })
-          .populate({
-            path: "defaultVariantId",
-            select: "_id price mrp discount Type stock moq",
-          })
-          .skip(skip)
-          .limit(Number(limit))
-          .lean(),
+      // =========================
+      // CATEGORY FILTER
+      // =========================
+      if (category) {
+        const categoryIds = await Category.find({
+          name: { $regex: new RegExp(category, "i") },
+        }).distinct("_id");
 
-        Product.countDocuments(filter),
-      ]);
+        filter.categoryId = { $in: categoryIds };
+      }
+
+      // =========================
+      // FETCH PRODUCTS
+      // =========================
+      let products = await Product.find(filter)
+        .select(
+          `
+        name
+        images
+        categoryId
+        avgRating
+        reviewCount
+        slug
+        properties
+        vendorId
+        defaultVariantId
+        measurementUnit
+        createdAt
+      `,
+        )
+        .populate({
+          path: "vendorId",
+          select: "firstName lastName",
+        })
+        .populate({
+          path: "categoryId",
+          select: "name",
+        })
+        .populate({
+          path: "defaultVariantId",
+          select:
+            "_id price mrp discount Type stock moq packageWeight size sold",
+        })
+        .lean();
+
+      // =========================
+      // SIZE FILTER
+      // =========================
+      if (size) {
+        products = products.filter((p) => {
+          const weight = Number(p?.defaultVariantId?.packageWeight || 0);
+
+          switch (size.toLowerCase()) {
+            case "small":
+              return weight < 10;
+
+            case "medium":
+              return weight >= 10 && weight <= 50;
+
+            case "large":
+              return weight > 50 && weight <= 200;
+
+            case "extra_large":
+              return weight > 200;
+
+            default:
+              return true;
+          }
+        });
+      }
+
+      // =========================
+      // SORTING
+      // =========================
+      if (sort) {
+        switch (sort) {
+          case "low_to_high":
+            products.sort(
+              (a, b) =>
+                (a.defaultVariantId?.price || 0) -
+                (b.defaultVariantId?.price || 0),
+            );
+            break;
+
+          case "high_to_low":
+            products.sort(
+              (a, b) =>
+                (b.defaultVariantId?.price || 0) -
+                (a.defaultVariantId?.price || 0),
+            );
+            break;
+
+          case "newest_first":
+            products.sort(
+              (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+            );
+            break;
+
+          case "most_popular":
+            products.sort(
+              (a, b) =>
+                (b.defaultVariantId?.sold || 0) -
+                (a.defaultVariantId?.sold || 0),
+            );
+            break;
+        }
+      }
+
+      // =========================
+      // TOTAL AFTER FILTER
+      // =========================
+      const total = products.length;
+
+      // =========================
+      // PAGINATION
+      // =========================
+      const paginatedProducts = products.slice(skip, skip + Number(limit));
 
       // =========================
       // RESPONSE FORMAT
       // =========================
-      const formattedProducts = products.map((p) => {
+      const formattedProducts = paginatedProducts.map((p) => {
         const variant = p.defaultVariantId;
 
         return {
           id: p._id,
+
           name: p.name,
+
           images: p.images,
+
           avgRating: p.avgRating,
+
           reviewCount: p.reviewCount,
+
           slug: p.slug,
+
+          categoryId: p.categoryId,
 
           vendor: {
             firstName: p.vendorId?.firstName || null,
             lastName: p.vendorId?.lastName || null,
           },
 
-          // =========================
-          // IMPORTANT FIX HERE 👇
-          // =========================
           variant: variant
             ? {
-                id: variant._id, // 🔥 this is the variant ID you wanted
+                id: variant._id,
                 price: variant.price,
                 mrp: variant.mrp,
                 discount: variant.discount,
                 type: variant.Type,
                 stock: variant.stock,
+                sold: variant.sold || 0,
                 moq: variant.moq,
+                packageWeight: variant.packageWeight || " ",
+                size: variant.size || " ",
               }
             : null,
 
-          measurementUnit: p.measurementUnit || "piece",
+          measurementUnit: p.measurementUnit || " ",
         };
       });
 
+      // =========================
+      // FILTER OPTIONS
+      // =========================
+      const filterOptions = {
+        category: [
+          ...new Set(products.map((p) => p.categoryId?.name).filter(Boolean)),
+        ],
+
+        size: ["small", "medium", "large", "extra_large"],
+
+        sort: ["low_to_high", "high_to_low", "newest_first", "most_popular"],
+      };
+
       const response = {
         success: true,
+
         page: Number(page),
+
         totalPages: Math.ceil(total / limit),
+
         totalProducts: total,
+
+        filters: filterOptions,
+
         products: formattedProducts,
       };
 
-      // 6. SET CACHE (Expiring in 5 minutes)
       await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
       return res.json({
@@ -2947,8 +3484,7 @@ class ProductController {
     } catch (error) {
       return res.status(500).json({
         success: false,
-        message: "Internal Server Error",
-        error: error.message,
+        message: error.message,
       });
     }
   }
@@ -3044,5 +3580,41 @@ class ProductController {
       return res.status(500).json({ success: false, message: error.message });
     }
   }
+
+  static async parseFormDataJSON(req, res, next) {
+    try {
+      const fields = [
+        "variants",
+        "shippingCharges",
+        "properties",
+        "metaData",
+        "deliveryOptions",
+        "serviceableDeliveryPincode",
+        "subcategoryId",
+        "productTypeId",
+      ];
+
+      for (let field of fields) {
+        if (req.body[field] && typeof req.body[field] === "string") {
+          try {
+            req.body[field] = JSON.parse(req.body[field]);
+          } catch (e) {
+            return res.status(400).json({
+              success: false,
+              message: `Invalid JSON in field: ${field}`,
+            });
+          }
+        }
+      }
+
+      next();
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: "Parsing error in form-data",
+      });
+    }
+  }
 }
+
 export default ProductController;
