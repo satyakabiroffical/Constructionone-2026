@@ -83,11 +83,18 @@ export const updateComplainStatus = async (req, res) => {
 };
 
 /**
- * USER: Get My Complaint
+ * ADMIN: Get My Complaint
  */
 export const getComplainRequests = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;

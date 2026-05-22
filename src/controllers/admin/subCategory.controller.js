@@ -5,6 +5,7 @@ import * as subCategoryService from "../../services/subCategory.service.js";
 import { catchAsync } from "../../middlewares/errorHandler.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import RedisCache from "../../utils/redisCache.js";
+import { createActivityLog } from "./activityLog.controller.js";
 
 const CACHE_PREFIX = "subcategories:";
 const SINGLE_PREFIX = "subcategory:";
@@ -13,6 +14,16 @@ const CACHE_TTL = 300; // 5 minutes
 export const createSubCategory = catchAsync(async (req, res) => {
   if (req.file) req.body.image = req.file.location;
   const subCategory = await subCategoryService.create(req.body, req.user.id);
+  await createActivityLog({
+    req,
+    action: "CREATE",
+    module: "SUB_CATEGORY",
+    targetId: subCategory._id,
+    details: {
+      name: subCategory.name,
+      isActive: subCategory.isActive,
+    },
+  });
   await RedisCache.deletePattern(CACHE_PREFIX + "*");
   await RedisCache.deletePattern("home:*");
 
@@ -75,7 +86,19 @@ export const getSubCategoryById = catchAsync(async (req, res) => {
 
 export const updateSubCategory = catchAsync(async (req, res) => {
   if (req.file) req.body.image = req.file.location;
+
   const subCategory = await subCategoryService.update(req.params.id, req.body);
+
+  // ✅ Activity Log
+  await createActivityLog({
+    req,
+    action: "UPDATE",
+    module: "SUB_CATEGORY",
+    targetId: subCategory._id,
+    details: {
+      updatedFields: Object.keys(req.body),
+    },
+  });
 
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
@@ -91,7 +114,19 @@ export const updateSubCategory = catchAsync(async (req, res) => {
 });
 
 export const deleteSubCategory = catchAsync(async (req, res) => {
-  await subCategoryService.remove(req.params.id);
+  // remove() should return deleted document
+  const subCategory = await subCategoryService.remove(req.params.id);
+
+  // ✅ Activity Log
+  await createActivityLog({
+    req,
+    action: "DELETE",
+    module: "SUB_CATEGORY",
+    targetId: req.params.id,
+    details: {
+      name: subCategory?.name,
+    },
+  });
 
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
@@ -106,6 +141,17 @@ export const deleteSubCategory = catchAsync(async (req, res) => {
 
 export const toggleSubCategory = catchAsync(async (req, res) => {
   const subCategory = await subCategoryService.toggle(req.params.id);
+
+  // ✅ Activity Log
+  await createActivityLog({
+    req,
+    action: "TOGGLE_STATUS",
+    module: "SUB_CATEGORY",
+    targetId: subCategory._id,
+    details: {
+      newStatus: subCategory.isActive,
+    },
+  });
 
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),

@@ -4,6 +4,7 @@ import RedisCache from "../../utils/redisCache.js";
 import productModel from "../../models/vendorShop/product.model.js";
 import mongoose from "mongoose";
 import { deleteFromS3 } from "../../middlewares/uploads.js";
+import { createActivityLog } from "../admin/activityLog.controller.js";
 
 class BrandController {
   //  GET ALL
@@ -319,6 +320,17 @@ class BrandController {
         createdBy: req.user?.id,
       });
 
+      await createActivityLog({
+        req,
+        action: "CREATE",
+        module: "BRAND",
+        targetId: brand._id,
+        details: {
+          name: brand.name,
+          status: brand.status,
+        },
+      });
+
       await RedisCache.deletePattern("brands:*");
       await RedisCache.deletePattern("home:*");
 
@@ -357,6 +369,15 @@ class BrandController {
         runValidators: true,
       });
 
+      await createActivityLog({
+        req,
+        action: "UPDATE",
+        module: "BRAND",
+        targetId: brand._id,
+        details: {
+          updatedFields: Object.keys(updatedData),
+        },
+      });
       await RedisCache.deletePattern("brands:*"); // 👈 better than single delete
       await RedisCache.delete(`brand:${req.params.id}`);
       await RedisCache.deletePattern("home:*");
@@ -376,6 +397,16 @@ class BrandController {
     try {
       const brand = await Brand.findByIdAndDelete(req.params.id);
       if (!brand) throw new APIError(404, "Brand not found");
+
+      await createActivityLog({
+        req,
+        action: "DELETE",
+        module: "BRAND",
+        targetId: brand._id,
+        details: {
+          name: brand.name,
+        },
+      });
 
       await RedisCache.delete("brands:");
       await RedisCache.delete(`brand:${req.params.id}`);
@@ -400,6 +431,16 @@ class BrandController {
 
       brand.status = brand.status === "active" ? "inactive" : "active";
       await brand.save();
+
+      await createActivityLog({
+        req,
+        action: "STATUS_CHANGE",
+        module: "BRAND",
+        targetId: brand._id,
+        details: {
+          newStatus: brand.status,
+        },
+      });
 
       await RedisCache.delete("brands:");
       await RedisCache.delete(`brand:${req.params.id}`);

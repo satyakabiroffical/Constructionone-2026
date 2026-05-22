@@ -9,7 +9,10 @@ import {
   toggleModuleVisibility,
 } from "../../controllers/admin/platformModule.controller.js";
 import { requireAuth } from "../../middlewares/auth.middleware.js";
-import { requireRole ,requirePermission} from "../../middlewares/role.middleware.js"; // Ensure correct path for role middleware
+import {
+  requireRole,
+  requirePermission,
+} from "../../middlewares/role.middleware.js"; // Ensure correct path for role middleware
 import { s3Uploader } from "../../middlewares/uploads.js";
 
 const router = Router();
@@ -23,7 +26,7 @@ const uploadFields = s3Uploader().fields([
 
 router
   .route("/")
-  .post(requirePermission("MODULE"), uploadFields, createPlatformModule)
+  .post(uploadFields, createPlatformModule)
   .get(getAllPlatformModules);
 
 router

@@ -191,6 +191,18 @@
 // export default mongoose.model("orderModel", orderSchema);
 
 import mongoose from "mongoose";
+const statusProgressSchema = new mongoose.Schema(
+  {
+    status: { type: String, required: true },
+    label: { type: String, required: true },
+    icon: { type: String, default: "" },
+    isCompleted: { type: Boolean, default: false },
+    isCurrent: { type: Boolean, default: false },
+    updatedAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -270,6 +282,7 @@ const orderItemSchema = new mongoose.Schema(
         default: 0,
       },
     },
+    statusProgress: [statusProgressSchema],
   },
   { _id: false },
 );

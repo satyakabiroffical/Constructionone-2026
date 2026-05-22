@@ -2711,452 +2711,105 @@ export const vendorUpdateOrder = async (req, res, next) => {
 };
 
 /* ========================== GET ORDER BY ID (USER) ========================== */
-// export const getOrderById = async (req, res, next) => {
-//   try {
-//     const userId = req.user._id;
-//     const { orderId } = req.params;
 
-//     const version = (await redis.get(`order:version:${orderId}`)) || 1;
-
-//     const cacheKey = `order:${orderId}:user:${userId}:v${version}`;
-
-//     const cached = await redis.get(cacheKey);
-//     if (cached) return res.status(200).json(JSON.parse(cached));
-
-//     const masterOrder = await Order.findOne({
-//       _id: orderId,
-//       userId,
-//     })
-//       .populate({
-//         path: "items.product",
-//         select: "name thumbnail",
-//       })
-//       .populate({
-//         path: "items.variant",
-//         select: "size price mrp discount",
-//       })
-//       .lean();
-
-//     if (!masterOrder) throw new APIError(404, "Order not found");
-
-//     const transactionPromise = Transaction.findById(masterOrder.transactionId)
-//       .select("amount status paymentMethod razorpayOrderId createdAt")
-//       .lean();
-
-//     const [transaction] = await Promise.all([transactionPromise]);
-
-//     masterOrder.transactionId = transaction;
-
-//     const response = {
-//       success: true,
-//       message: "Order fetched successfully",
-//       data: {
-//         order: { ...masterOrder },
-//       },
-//     };
-
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
-//     return res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
-//asgr-invoice nhi h
-// export const getOrderById = async (req, res, next) => {
-//   try {
-//     const userId = req.user.id;
-//     const { orderId } = req.params;
-
-//     // =========================
-//     // Redis Cache Version
-//     // =========================
-
-//     // const version = (await redis.get(`order:version:${orderId}`)) || 1;
-
-//     // const cacheKey = `order:${orderId}:user:${userId}:v${version}`;
-
-//     // const cached = await redis.get(cacheKey);
-
-//     // if (cached) {
-//     //   return res.status(200).json(JSON.parse(cached));
-//     // }
-
-//     // =========================
-//     // Fetch Master Order
-//     // =========================
-
-//     const masterOrder = await Order.findOne({
-//       _id: orderId,
-//       userId,
-//       orderType: "MASTER",
-//     })
-//       .select("+invoice")
-//       // product details
-//       .populate({
-//         path: "items.productId",
-//         select: `
-//           name
-//           images
-//           categoryId
-//           pcategoryId
-//           subcategoryId
-//           productTypeId
-//           brandId
-//         `,
-//         populate: [
-//           {
-//             path: "categoryId",
-//             select: "name",
-//           },
-//           {
-//             path: "pcategoryId",
-//             select: "name",
-//           },
-//           {
-//             path: "subcategoryId",
-//             select: "name",
-//           },
-//           {
-//             path: "productTypeId",
-//             select: "typeName",
-//           },
-//           {
-//             path: "brandId",
-//             select: "name",
-//           },
-//         ],
-//       })
-
-//       // variant details
-//       .populate({
-//         path: "items.variantId",
-//         select: `
-//           price
-//           packageWeight
-//           packageDimensions
-//           stock
-//           sold
-//         `,
-//       })
-
-//       // vendor profile details
-//       .populate({
-//         path: "items.vendorId",
-//         select: `
-//           firstName
-//           lastName
-//           email
-//           phoneNumber
-//         `,
-//       })
-
-//       // user details
-//       .populate({
-//         path: "userId",
-//         select: `
-//           name
-//           email
-//           phone
-//         `,
-//       })
-
-//       // shipping address
-//       .populate({
-//         path: "shippingAddressId",
-//         select: `
-//           label
-//           userName
-//           addressLine
-//           country
-//           state
-//           city
-//           pincode
-//           landMark
-//         `,
-//       })
-//       .lean();
-
-//     if (!masterOrder) {
-//       throw new APIError(404, "Order not found");
-//     }
-
-//     // =========================
-//     // Fetch Vendor Company Details
-//     // =========================
-
-//     const vendorIds = [];
-
-//     masterOrder.items.forEach((item) => {
-//       const vendorProfileId =
-//         item.vendorId?._id?.toString() || item.vendorId?.toString();
-
-//       if (vendorProfileId) {
-//         vendorIds.push(vendorProfileId);
-//       }
-//     });
-
-//     const vendorCompanies = await VendorCompany.find({
-//       vendorId: { $in: vendorIds },
-//     })
-//       .select(
-//         `
-//         companyName
-//         contactNumber
-//         businessAddress
-//         vendorId
-//       `,
-//       )
-//       .lean();
-
-//     const companyMap = {};
-
-//     vendorCompanies.forEach((company) => {
-//       companyMap[company.vendorId.toString()] = company;
-//     });
-
-//     // attach company details inside each item
-//     masterOrder.items.forEach((item) => {
-//       const vendorProfileId =
-//         item.vendorId?._id?.toString() || item.vendorId?.toString();
-
-//       item.vendorCompany = companyMap[vendorProfileId] || null;
-//     });
-//     let transaction = null;
-
-//     if (masterOrder.transactionId) {
-//       transaction = await Transaction.findById(masterOrder.transactionId)
-//         .select(
-//           `
-//           amount
-//           status
-//           paymentMethod
-//           razorpayOrderId
-//           createdAt
-//         `,
-//         )
-//         .lean();
-//     }
-
-//     masterOrder.transactionId = transaction;
-
-//     const response = {
-//       success: true,
-//       message: "Order fetched successfully",
-//       data: {
-//         order: masterOrder,
-//       },
-//     };
-
-//     // await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
-
-//     return res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
-//user get own order with details
 export const getOrderById = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { orderId } = req.params;
 
-    // =========================
     // Fetch Master Order
-    // =========================
-
     const masterOrder = await Order.findOne({
       _id: orderId,
       userId,
       orderType: "MASTER",
     })
-      .select(
-        `
-        invoice
-        userId
-        orderType
-        parentId
-        items
-        shippingAddressId
-        subTotal
-        totalDeliveryFee
-        netAmount
-        status
-        paymentStatus
-        paymentMethod
-        transactionRef
-        transactionId
-        createdAt
-        updatedAt
-      `,
-      )
-
-      // Product Details
+      .select(`
+        invoice userId orderType parentId items shippingAddressId 
+        subTotal totalDeliveryFee netAmount status paymentStatus 
+        paymentMethod transactionRef transactionId createdAt updatedAt
+      `)
       .populate({
         path: "items.productId",
-        select: `
-          name
-          images
-          categoryId
-          pcategoryId
-          subcategoryId
-          productTypeId
-          brandId
-        `,
+        select: "name images pcategoryId categoryId subcategoryId productTypeId brandId",
         populate: [
-          {
-            path: "categoryId",
-            select: "name",
-          },
-          {
-            path: "pcategoryId",
-            select: "name",
-          },
-          {
-            path: "subcategoryId",
-            select: "name",
-          },
-          {
-            path: "productTypeId",
-            select: "typeName",
-          },
-          {
-            path: "brandId",
-            select: "name",
-          },
+          { path: "pcategoryId", select: "name" },
+          { path: "categoryId", select: "name" },
+          { path: "subcategoryId", select: "name" },
+          { path: "productTypeId", select: "typeName" },
+          { path: "brandId", select: "name" },
         ],
       })
-
-      // Variant Details
-      .populate({
-        path: "items.variantId",
-        select: `
-          price
-          packageWeight
-          packageDimensions
-          stock
-          sold
-        `,
-      })
-
-      // Vendor Profile Details
-      .populate({
-        path: "items.vendorId",
-        select: `
-          firstName
-          lastName
-          email
-          phoneNumber
-        `,
-      })
-
-      // User Details
-      .populate({
-        path: "userId",
-        select: `
-          name
-          email
-          phone
-        `,
-      })
-
-      // Shipping Address
-      .populate({
-        path: "shippingAddressId",
-        select: `
-          label
-          userName
-          addressLine
-          country
-          state
-          city
-          pincode
-          landMark
-        `,
-      })
-
+      .populate({ path: "items.variantId", select: "price packageWeight packageDimensions stock sold" })
+      .populate({ path: "items.vendorId", select: "firstName lastName email phoneNumber" })
+      .populate({ path: "userId", select: "name email phone" })
+      .populate({ path: "shippingAddressId", select: "label userName addressLine country state city pincode landMark" })
       .lean();
 
     if (!masterOrder) {
       throw new APIError(404, "Order not found");
     }
 
-    // =========================
-    // Fetch Vendor Company Details
-    // =========================
+    // Fetch Sub Orders (jisme statusProgress saved hai)
+    const subOrders = await Order.find({
+      parentId: masterOrder._id,
+      orderType: "SUB",
+    })
+      .select("items status")
+      .lean();
 
-    const vendorIds = [];
+    // Merge statusProgress from Sub Orders into Master Order Items
+    masterOrder.items.forEach((masterItem) => {
+      const productId = masterItem.productId?._id?.toString() || masterItem.productId?.toString();
 
-    masterOrder.items.forEach((item) => {
-      const vendorProfileId =
-        item.vendorId?._id?.toString() || item.vendorId?.toString();
+      // Find matching item in any subOrder
+      for (const sub of subOrders) {
+        const matchingItem = sub.items.find(
+          (subItem) => subItem.productId?.toString() === productId
+        );
 
-      if (vendorProfileId) {
-        vendorIds.push(vendorProfileId);
+        if (matchingItem && matchingItem.statusProgress) {
+          masterItem.status = matchingItem.status;                    // Latest status
+          masterItem.statusProgress = matchingItem.statusProgress;    // 🔥 Important
+          break;
+        }
       }
     });
 
+    // Vendor Company Details
+    const vendorIds = masterOrder.items.map(item => 
+      item.vendorId?._id?.toString() || item.vendorId?.toString()
+    ).filter(Boolean);
+
     const vendorCompanies = await VendorCompany.find({
       vendorId: { $in: vendorIds },
-    })
-      .select(
-        `
-    companyName
-    companyType
-    businessAddress
-    contactNumber
-    companyRegistrationNumber
-    gstNumber
-    vendorId
-  `,
-      )
+    }).select("companyName companyType businessAddress contactNumber companyRegistrationNumber gstNumber vendorId")
       .lean();
 
     const companyMap = {};
-
-    vendorCompanies.forEach((company) => {
+    vendorCompanies.forEach(company => {
       companyMap[company.vendorId.toString()] = company;
     });
 
-    // Attach company details inside each item
-    masterOrder.items.forEach((item) => {
-      const vendorProfileId =
-        item.vendorId?._id?.toString() || item.vendorId?.toString();
-
-      item.vendorCompany = companyMap[vendorProfileId] || null;
+    masterOrder.items.forEach(item => {
+      const vId = item.vendorId?._id?.toString() || item.vendorId?.toString();
+      item.vendorCompany = companyMap[vId] || null;
     });
 
-    // =========================
-    // Fetch Transaction Details
-    // =========================
-
-    let transaction = null;
-
+    // Transaction Details
     if (masterOrder.transactionId) {
-      transaction = await Transaction.findById(masterOrder.transactionId)
-        .select(
-          `
-          amount
-          status
-          paymentMethod
-          razorpayOrderId
-          createdAt
-        `,
-        )
+      const transaction = await Transaction.findById(masterOrder.transactionId)
+        .select("amount status paymentMethod razorpayOrderId createdAt")
         .lean();
+      masterOrder.transactionId = transaction;
     }
 
-    masterOrder.transactionId = transaction;
-    // Debug check
-    // console.log("invoice =>", masterOrder.invoice);
+    // Optional: Overall Progress
+    masterOrder.progressPercentage = calculateProgress(masterOrder.status);
 
     const response = {
       success: true,
       message: "Order fetched successfully",
-      data: {
-        order: masterOrder,
-      },
+      data: { order: masterOrder },
     };
 
     return res.status(200).json(response);
@@ -3258,6 +2911,198 @@ export const getOrderById = async (req, res, next) => {
 //     next(error);
 //   }
 // };
+
+// export const getOrderById = async (req, res, next) => {
+//   try {
+//     const userId = req.user.id;
+//     const { orderId } = req.params;
+
+//     // =========================
+//     // Fetch Master Order
+//     // =========================
+//     const masterOrder = await Order.findOne({
+//       _id: orderId,
+//       userId,
+//       orderType: "MASTER",
+//     })
+//       .select(
+//         `
+//         invoice userId orderType parentId items shippingAddressId 
+//         subTotal totalDeliveryFee netAmount status paymentStatus 
+//         paymentMethod transactionRef transactionId createdAt updatedAt
+//       `,
+//       )
+//       .populate({
+//         path: "items.productId",
+//         select:
+//           "name images pcategoryId categoryId subcategoryId productTypeId brandId",
+//         populate: [
+//           { path: "pcategoryId", select: "name" },
+//           { path: "categoryId", select: "name" },
+//           { path: "subcategoryId", select: "name" },
+//           { path: "productTypeId", select: "typeName" },
+//           { path: "brandId", select: "name" },
+//         ],
+//       })
+//       .populate({
+//         path: "items.variantId",
+//         select: "price packageWeight packageDimensions stock sold",
+//       })
+//       .populate({
+//         path: "items.vendorId",
+//         select: "firstName lastName email phoneNumber",
+//       })
+//       .populate({
+//         path: "userId",
+//         select: "name email phone",
+//       })
+//       .populate({
+//         path: "shippingAddressId",
+//         select:
+//           "label userName addressLine country state city pincode landMark",
+//       })
+//       .populate({
+//         path: "transactionId",
+//         select: "amount status paymentMethod razorpayOrderId createdAt",
+//       })
+//       .lean();
+
+//     if (!masterOrder) {
+//       throw new APIError(404, "Order not found");
+//     }
+  
+//     // // Master Order Level - Overall Progress
+//    // Master Order Level
+//     // masterOrder.statusProgress = getStatusProgress(masterOrder.status, masterOrder.updatedAt);
+
+//   if (masterOrder.items && masterOrder.items.length > 0) {
+//       masterOrder.items.forEach((item) => {
+//         item.statusProgress = getStatusProgress(item.status, masterOrder.updatedAt);
+//       });
+//     }
+
+//     // masterOrder.progressPercentage = Math.round(
+//     //   ((getStatusIndex(masterOrder.status) + 1) / 5) * 100,
+//     // );
+
+//     // ====================== IMPORTANT ======================
+//     // Item Level Status Progress (Product wise)
+//     // ======================================================
+//     if (masterOrder.items && masterOrder.items.length > 0) {
+//       masterOrder.items.forEach((item) => {
+//         // Har product ke apna statusProgress
+//         item.statusProgress = getStatusProgress(
+//           item.status,
+//           masterOrder.updatedAt,
+//         );
+//       });
+//     }
+
+//     // =========================
+//     // Final Response (subOrders removed as per your request)
+//     // =========================
+//     const response = {
+//       success: true,
+//       message: "Order fetched successfully",
+//       data: {
+//         order: masterOrder,
+//       },
+//     };
+
+//     return res.status(200).json(response);
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+
+// export const getOrderById = async (req, res, next) => {
+//   try {
+//     const userId = req.user.id;
+//     const { orderId } = req.params;
+
+//     const masterOrder = await Order.findOne({
+//       _id: orderId,
+//       userId,
+//       orderType: "MASTER",
+//     })
+//       .select(`
+//         invoice 
+//         userId 
+//         orderType 
+//         parentId 
+//         items 
+//         shippingAddressId 
+//         subTotal 
+//         totalDeliveryFee 
+//         netAmount 
+//         status 
+//         paymentStatus 
+//         paymentMethod 
+//         transactionRef 
+//         transactionId 
+//         createdAt 
+//         updatedAt
+//       `)
+//       .populate({
+//         path: "items.productId",
+//         select: "name images pcategoryId categoryId subcategoryId productTypeId brandId",
+//         populate: [
+//           { path: "pcategoryId", select: "name" },
+//           { path: "categoryId", select: "name" },
+//           { path: "subcategoryId", select: "name" },
+//           { path: "productTypeId", select: "typeName" },
+//           { path: "brandId", select: "name" },
+//         ],
+//       })
+//       .populate({
+//         path: "items.variantId",
+//         select: "price packageWeight packageDimensions stock sold",
+//       })
+//       .populate({
+//         path: "items.vendorId",
+//         select: "firstName lastName email phoneNumber",
+//       })
+//       .populate({
+//         path: "userId",
+//         select: "name email phone",
+//       })
+//       .populate({
+//         path: "shippingAddressId",
+//         select: "label userName addressLine country state city pincode landMark",
+//       })
+//       .populate({
+//         path: "transactionId",
+//         select: "amount status paymentMethod razorpayOrderId createdAt",
+//       })
+//       .lean();
+
+//     if (!masterOrder) {
+//       throw new APIError(404, "Order not found");
+//     }
+
+//     // Progress Percentage
+//     masterOrder.progressPercentage = calculateProgress(masterOrder.status);
+
+//     const response = {
+//       success: true,
+//       message: "Order fetched successfully",
+//       data: {
+//         order: masterOrder,
+//       },
+//     };
+
+//     return res.status(200).json(response);
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+// Helper Function
+const calculateProgress = (status) => {
+  const orderList = ["PENDING", "CONFIRMED", "PROCESSING", "OUT_FOR_DELIVERY", "DELIVERED"];
+  const index = orderList.indexOf(status || "PENDING");
+  return Math.round(((index + 1) / 5) * 100);
+};
 export const adminGetAllOrders = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -3608,6 +3453,8 @@ export const adminGetOrderDetails = async (req, res, next) => {
   }
 };
 
+
+
 const ITEM_VALID_STATUSES = [
   "PENDING",
   "CONFIRMED",
@@ -3902,10 +3749,15 @@ export const createShippingLabel = async (req, res, next) => {
     next(error);
   }
 };
+
 import { addSettlement } from "../vendorShop/vendorWallet.controller.js";
 import RedisCache from "../../utils/redisCache.js";
 import adminNotificationModel from "../../models/admin/adminNotification.model.js";
 import { sendAdminNotification } from "../../services/adminNotification.service.js";
+import {
+  getStatusIndex,
+  getStatusProgress,
+} from "../../utils/orderStatusProgress.js";
 export const updateOrderToDelivered = async (req, res, next) => {
   const { orderId } = req.params;
   try {

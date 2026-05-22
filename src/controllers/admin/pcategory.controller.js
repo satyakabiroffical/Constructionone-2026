@@ -5,6 +5,7 @@ import * as pcategoryService from "../../services/pcategory.service.js";
 import { catchAsync } from "../../middlewares/errorHandler.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import RedisCache from "../../utils/redisCache.js";
+import { createActivityLog } from "./activityLog.controller.js";
 
 const CACHE_PREFIX = "pcategories:";
 const SINGLE_PREFIX = "pcategory:";
@@ -14,6 +15,16 @@ export const createPcategory = catchAsync(async (req, res) => {
   if (req.file) req.body.image = req.file.location;
   const pcategory = await pcategoryService.create(req.body, req.user.id);
 
+  await createActivityLog({
+    req,
+    action: "CREATE",
+    module: "PCATEGORY",
+    targetId: pcategory._id,
+    details: {
+      name: pcategory.name,
+      moduleId: pcategory.moduleId,
+    },
+  });
   // Invalidate all list caches
   await RedisCache.deletePattern(CACHE_PREFIX + "*");
   await RedisCache.deletePattern("home:*");
@@ -73,6 +84,17 @@ export const updatePcategory = catchAsync(async (req, res) => {
   if (req.file) req.body.image = req.file.location;
   const pcategory = await pcategoryService.update(req.params.id, req.body);
 
+  //  Activity Log
+  await createActivityLog({
+    req,
+    action: "UPDATE",
+    module: "PCATEGORY",
+    targetId: pcategory._id,
+    details: {
+      updatedFields: Object.keys(req.body),
+    },
+  });
+
   // Invalidate list and single caches
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
@@ -88,6 +110,16 @@ export const updatePcategory = catchAsync(async (req, res) => {
 export const deletePcategory = catchAsync(async (req, res) => {
   await pcategoryService.remove(req.params.id);
 
+  await createActivityLog({
+    req,
+    action: "DELETE",
+    module: "PCATEGORY",
+    targetId: req.params.id,
+    details: {
+      name: pcategory?.name,
+    },
+  });
+
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),
     RedisCache.delete(`${SINGLE_PREFIX}${req.params.id}`),
@@ -101,6 +133,16 @@ export const deletePcategory = catchAsync(async (req, res) => {
 
 export const togglePcategory = catchAsync(async (req, res) => {
   const pcategory = await pcategoryService.toggle(req.params.id);
+
+  await createActivityLog({
+    req,
+    action: "TOGGLE_STATUS",
+    module: "PCATEGORY",
+    targetId: pcategory._id,
+    details: {
+      newStatus: pcategory.isActive,
+    },
+  });
 
   await Promise.all([
     RedisCache.deletePattern(CACHE_PREFIX + "*"),

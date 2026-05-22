@@ -47,6 +47,7 @@ const brandSchema = new mongoose.Schema(
 
     logo: String,
     description: String,
+    bgColor: String,
 
     status: {
       type: String,

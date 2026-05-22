@@ -1,18 +1,28 @@
 import Country from "../../models/admin/country.model.js"; // Sanvi
 import { APIError } from "../../middlewares/errorHandler.js";
+import { createActivityLog } from "./activityLog.controller.js";
 
 class CountryController {
-  // ✅ CREATE
+  //  CREATE
   static async createCountry(req, res, next) {
     try {
       const country = await Country.create(req.body);
+      await createActivityLog({
+        req,
+        action: "CREATE",
+        module: "COUNTRY",
+        targetId: country._id,
+        details: {
+          countryName: country.name,
+        },
+      });
       res.status(201).json({ status: "success", data: { country } });
     } catch (err) {
       next(err);
     }
   }
 
-  // ✅ GET ALL
+  // GET ALL
   static async getCountries(req, res, next) {
     try {
       const countries = await Country.find().sort("name");
@@ -22,7 +32,7 @@ class CountryController {
     }
   }
 
-  // ✅ GET SINGLE
+  //  GET SINGLE
   static async getCountry(req, res, next) {
     try {
       const country = await Country.findById(req.params.id);
@@ -34,21 +44,39 @@ class CountryController {
     }
   }
 
-  // ✅ UPDATE
+  //  UPDATE
   static async updateCountry(req, res, next) {
     try {
       const country = await Country.findByIdAndUpdate(req.params.id, req.body, {
         new: true,
       });
-      if (!country) throw new APIError("Country not found", 404);
 
-      res.json({ status: "success", data: { country } });
+      if (!country) {
+        throw new APIError("Country not found", 404);
+      }
+
+      //  Activity Log
+      await createActivityLog({
+        req,
+        action: "UPDATE",
+        module: "COUNTRY",
+        targetId: country._id,
+        details: {
+          updatedFields: Object.keys(req.body),
+          countryName: country.name,
+        },
+      });
+
+      res.json({
+        status: "success",
+        data: { country },
+      });
     } catch (err) {
       next(err);
     }
   }
 
-  // ✅ TOGGLE STATUS (you were missing this 🚨)
+  //  TOGGLE STATUS
   static async toggleCountryStatus(req, res, next) {
     try {
       const country = await Country.findById(req.params.id);
@@ -60,7 +88,20 @@ class CountryController {
       const newStatus = country.status === "active" ? "inactive" : "active";
 
       country.status = newStatus;
+
       await country.save();
+
+      //  Activity Log
+      await createActivityLog({
+        req,
+        action: "TOGGLE_STATUS",
+        module: "COUNTRY",
+        targetId: country._id,
+        details: {
+          newStatus,
+          countryName: country.name,
+        },
+      });
 
       res.json({
         status: "success",
@@ -72,11 +113,30 @@ class CountryController {
     }
   }
 
-  // ✅ DELETE
+  //  DELETE
   static async deleteCountry(req, res, next) {
     try {
-      await Country.findByIdAndDelete(req.params.id);
-      res.json({ status: "success", message: "Country deleted" });
+      const country = await Country.findByIdAndDelete(req.params.id);
+
+      if (!country) {
+        throw new APIError("Country not found", 404);
+      }
+
+      //  Activity Log
+      await createActivityLog({
+        req,
+        action: "DELETE",
+        module: "COUNTRY",
+        targetId: country._id,
+        details: {
+          countryName: country.name,
+        },
+      });
+
+      res.json({
+        status: "success",
+        message: "Country deleted",
+      });
     } catch (err) {
       next(err);
     }

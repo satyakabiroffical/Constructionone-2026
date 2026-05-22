@@ -17,151 +17,48 @@ import { addSettlement } from "../vendorShop/vendorWallet.controller.js";
 import vendorTransactionModel from "../../models/vendorShop/vendorTransaction.model.js";
 import companyModel from "../../models/admin/company.model.js";
 import redisCache from "../../utils/redisCache.js";
-//latest-with all details
 
-// export const getOrdersByVendor = async (req, res, next) => {
-//   try {
-//     const vendorId = req.params.vendorId;
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 10;
-//     const skip = (page - 1) * limit;
+const getItemStatusProgress = (itemStatus, updatedAt) => {
+  const statusMapping = {
+    PENDING: "PENDING",
+    ACCEPTED: "CONFIRMED",
+    PACKED: "PROCESSING",
+    SHIPPED: "OUT_FOR_DELIVERY",
+    DELIVERED: "DELIVERED",
+    CANCELLED: "PENDING",
+  };
 
-//     const version = (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
-//     const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
-//       req.query,
-//     )}`;
+  const effectiveStatus = statusMapping[itemStatus] || "PENDING";
+  const currentIndex = getStatusIndex(effectiveStatus);
 
-//     const cached = await redis.get(cacheKey);
-//     if (cached) {
-//       return res.status(200).json(JSON.parse(cached));
-//     }
+  const sequence = [
+    { key: "PENDING", label: "Order Placed", icon: "📝" },
+    { key: "CONFIRMED", label: "Order Confirmed", icon: "✅" },
+    { key: "PROCESSING", label: "Processing", icon: "🔄" },
+    { key: "OUT_FOR_DELIVERY", label: "Out for Delivery", icon: "🚚" },
+    { key: "DELIVERED", label: "Delivered", icon: "🎉" },
+  ];
 
-//     const filter = {
-//       "items.vendorId": vendorId,
-//       orderType: "SUB",
-//     };
+  return sequence.map((step, index) => ({
+    status: step.key,
+    label: step.label,
+    icon: step.icon,
+    isCompleted: index < currentIndex,
+    isCurrent: index === currentIndex,
+    updatedAt: updatedAt,
+  }));
+};
 
-//     if (req.query.status) {
-//       filter.status = req.query.status;
-//     }
-
-//     if (req.query.paymentStatus) {
-//       filter.paymentStatus = req.query.paymentStatus;
-//     }
-
-//     const statsFilter = {
-//       "items.vendorId": new mongoose.Types.ObjectId(vendorId),
-//       orderType: "SUB",
-//     };
-
-//     const [orders, total, revenueResult, pendingCount] = await Promise.all([
-//       Order.find(filter)
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(limit)
-//         .populate({
-//           path: "items.productId",
-//           select: `
-//     name
-//     images
-//     categoryId
-//     pcategoryId
-//     subcategoryId
-//     productTypeId
-//     brandId
-//     measurementUnit
-//   `,
-//           populate: [
-//             {
-//               path: "categoryId",
-//               select: "name",
-//             },
-//             {
-//               path: "pcategoryId",
-//               select: "name",
-//             },
-//             {
-//               path: "subcategoryId",
-//               select: "name",
-//             },
-//             {
-//               path: "productTypeId",
-//               select: "typeName",
-//             },
-//             {
-//               path: "brandId",
-//               select: "name",
-//             },
-//           ],
-//         })
-//         .populate({
-//           path: "items.variantId",
-//           select: "price packageWeight packageDimensions",
-//         })
-//         .populate({
-//           path: "userId",
-//           select: "name email phone",
-//         })
-//         .populate({
-//           path: "shippingAddressId",
-//           select:
-//             "label userName addressLine country city state pincode landMark",
-//         })
-//         .lean(),
-
-//       Order.countDocuments(filter),
-
-//       Order.aggregate([
-//         {
-//           $match: {
-//             ...statsFilter,
-//             paymentStatus: "PAID",
-//             status: "DELIVERED",
-//           },
-//         },
-//         {
-//           $group: {
-//             _id: null,
-//             totalRevenue: {
-//               $sum: "$netAmount",
-//             },
-//           },
-//         },
-//       ]),
-
-//       Order.countDocuments({
-//         ...statsFilter,
-//         status: "PENDING",
-//       }),
-//     ]);
-
-//     const totalRevenue = revenueResult[0]?.totalRevenue || 0;
-
-//     const response = {
-//       success: true,
-//       message: "Vendor orders fetched successfully",
-//       stats: {
-//         totalRevenue,
-//         pendingCount,
-//       },
-//       data: {
-//         orders,
-//         pagination: {
-//           total,
-//           page,
-//           limit,
-//           totalPages: Math.ceil(total / limit),
-//         },
-//       },
-//     };
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
-//     return res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
-//get single order with details
+const getStatusIndex = (status) => {
+  const orderList = [
+    "PENDING",
+    "CONFIRMED",
+    "PROCESSING",
+    "OUT_FOR_DELIVERY",
+    "DELIVERED",
+  ];
+  return orderList.indexOf(status);
+};
 
 export const getOrderByIdForVendor = async (req, res, next) => {
   try {
@@ -1242,14 +1139,233 @@ export const getVendorOverview = async (req, res, next) => {
 
 //accept order and updates all order status
 
+// export const vendorUpdateOrder = async (req, res, next) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+//     const vendorId = req.user.id;
+
+//     // console.log("vendorId-middleware", vendorId);
+//     const { subOrderId } = req.params;
+//     const { action, reason } = req.body;
+
+//     const allowedActions = [
+//       "ACCEPT",
+//       "REJECT",
+//       "READY_FOR_SHIP",
+//       "SHIP",
+//       "DELIVER",
+//     ];
+
+//     if (!allowedActions.includes(action)) {
+//       throw new APIError(400, "Invalid action");
+//     }
+
+//     const subOrder = await Order.findOne({
+//       _id: subOrderId,
+//       orderType: "SUB",
+//     }).session(session);
+
+//     if (!subOrder) throw new APIError(404, "Sub order not found");
+
+//     // // vendor check
+//     const isValidVendor = subOrder.items.some(
+//       (item) => item.vendorId.toString() === vendorId.toString(),
+//     );
+
+//     if (!isValidVendor) {
+//       throw new APIError(
+//         403,
+//         "You do not have permission to update this order",
+//       );
+//     }
+
+//     const currentStatus = subOrder.items[0].status;
+
+//     const validTransitions = {
+//       PENDING: ["ACCEPT", "REJECT"],
+//       ACCEPTED: ["READY_FOR_SHIP"],
+//       PACKED: ["SHIP"],
+//       SHIPPED: ["DELIVER"],
+//     };
+
+//     if (!validTransitions[currentStatus]?.includes(action)) {
+//       throw new APIError(
+//         400,
+//         `Cannot ${action} when status is ${currentStatus}`,
+//       );
+//     }
+
+//     const actionMap = {
+//       ACCEPT: { item: "ACCEPTED", order: "CONFIRMED" },
+//       REJECT: { item: "CANCELLED", order: "CANCELLED" },
+//       READY_FOR_SHIP: { item: "PACKED", order: "PROCESSING" },
+//       SHIP: { item: "SHIPPED", order: "OUT_FOR_DELIVERY" },
+//       DELIVER: { item: "DELIVERED", order: "DELIVERED" },
+//     };
+
+//     const { item: itemStatus, order: orderStatus } = actionMap[action];
+
+//     const now = new Date();
+
+//     //  Generate statusProgress for Item
+//     const itemStatusProgress = getItemStatusProgress(itemStatus, now);
+
+//     //  SELF delivery check
+//     // if (action === "SHIP") {
+//     //   const isSelf = subOrder.items.some((i) => i.deliveryType === "self");
+
+//     //   if (!isSelf) {
+//     //     throw new APIError(
+//     //       400,
+//     //       "Only SELF delivery orders can be shipped by vendor",
+//     //     );
+//     //   }
+//     // }
+
+//     await Order.updateOne(
+//       { _id: subOrder._id },
+//       {
+//         $set: {
+//           status: orderStatus,
+//           reason: reason || null,
+//           cancleBy: action === "REJECT" ? "VENDOR" : null,
+//           "items.$[].status": itemStatus,
+//           "items.$[].statusProgress": itemStatusProgress,
+//         },
+//       },
+//       { session },
+//     );
+
+//     if (action === "REJECT") {
+//       const variantOps = subOrder.items.map((item) => ({
+//         updateOne: {
+//           filter: { _id: item.variantId },
+//           update: { $inc: { stock: item.quantity, sold: -item.quantity } },
+//         },
+//       }));
+
+//       if (variantOps.length) {
+//         await Variant.bulkWrite(variantOps, { session });
+//       }
+//     }
+
+//     const subOrders = await Order.find({
+//       parentId: subOrder.parentId,
+//       orderType: "SUB",
+//     }).session(session);
+
+//     let masterStatus = "PROCESSING";
+
+//     if (subOrders.every((o) => o.status === "DELIVERED")) {
+//       masterStatus = "DELIVERED";
+
+//       // for (const sub of subOrders) {
+//       //   const vendorId = sub.items[0].vendorId;
+//       //   const alreadySettled = await vendorTransactionModel
+//       //     .findOne({
+//       //       orderId: sub._id,
+//       //       type: "ORDER_SETTLEMENT",
+//       //     })
+//       //     .session(session);
+
+//       //   if (!alreadySettled) {
+//       //     await addSettlement(vendorId, sub._id, sub.netAmount, session);
+//       //   }
+//       // }
+
+//       // for (const sub of subOrders) {
+//       //   const vendorId = sub.items[0].vendorId;
+
+//       //   const alreadySettled = await vendorTransactionModel
+//       //     .findOne({
+//       //       orderId: sub._id,
+//       //       type: "ORDER_SETTLEMENT",
+//       //     })
+//       //     .session(session);
+
+//       //   if (!alreadySettled) {
+//       //     const vendorTotal = sub.items.reduce((sum, item) => {
+//       //       return sum + (item.vendorAmount || 0);
+//       //     }, 0);
+
+//       //     await addSettlement(vendorId, sub._id, vendorTotal, session);
+//       //   }
+//       // }
+
+//       for (const sub of subOrders) {
+//         // ======================================================
+//         // GROUP ITEMS BY VENDOR
+//         // ======================================================
+
+//         const vendorMap = {};
+
+//         for (const item of sub.items) {
+//           const vendorId = item.vendorId.toString();
+
+//           if (!vendorMap[vendorId]) {
+//             vendorMap[vendorId] = 0;
+//           }
+
+//           vendorMap[vendorId] += item.vendorAmount || 0;
+//         }
+
+//         // ======================================================
+//         // CREATE SETTLEMENT FOR EACH VENDOR
+//         // ======================================================
+
+//         for (const [vendorId, vendorTotal] of Object.entries(vendorMap)) {
+//           const alreadySettled = await vendorTransactionModel
+//             .findOne({
+//               orderId: sub._id,
+//               vendorId,
+//               type: "ORDER_SETTLEMENT",
+//             })
+//             .session(session);
+
+//           if (!alreadySettled) {
+//             await addSettlement(vendorId, sub._id, vendorTotal, session);
+//           }
+//         }
+//       }
+//     } else if (subOrders.some((o) => o.status === "OUT_FOR_DELIVERY")) {
+//       masterStatus = "OUT_FOR_DELIVERY";
+//     } else if (subOrders.some((o) => o.status === "CONFIRMED")) {
+//       masterStatus = "CONFIRMED";
+//     }
+
+//     await Order.updateOne(
+//       { _id: subOrder.parentId },
+//       { $set: { status: masterStatus } },
+//       { session },
+//     );
+
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     await redis.incr(`vendor:orders:version:${vendorId}`);
+
+//     return res.status(200).json({
+//       success: true,
+//       message: `${action} successful`,
+//       itemStatus,
+//       orderStatus,
+//       masterStatus,
+//     });
+//   } catch (error) {
+//     await session.abortTransaction();
+//     session.endSession();
+//     next(error);
+//   }
+// };
+
 export const vendorUpdateOrder = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     const vendorId = req.user.id;
-
-    // console.log("vendorId-middleware", vendorId);
     const { subOrderId } = req.params;
     const { action, reason } = req.body;
 
@@ -1272,19 +1388,18 @@ export const vendorUpdateOrder = async (req, res, next) => {
 
     if (!subOrder) throw new APIError(404, "Sub order not found");
 
-    // // vendor check
-    const isValidVendor = subOrder.items.some(
+    const vendorItems = subOrder.items.filter(
       (item) => item.vendorId.toString() === vendorId.toString(),
     );
 
-    if (!isValidVendor) {
+    if (vendorItems.length === 0) {
       throw new APIError(
         403,
         "You do not have permission to update this order",
       );
     }
 
-    const currentStatus = subOrder.items[0].status;
+    const currentItemStatus = vendorItems[0].status;
 
     const validTransitions = {
       PENDING: ["ACCEPT", "REJECT"],
@@ -1293,10 +1408,10 @@ export const vendorUpdateOrder = async (req, res, next) => {
       SHIPPED: ["DELIVER"],
     };
 
-    if (!validTransitions[currentStatus]?.includes(action)) {
+    if (!validTransitions[currentItemStatus]?.includes(action)) {
       throw new APIError(
         400,
-        `Cannot ${action} when status is ${currentStatus}`,
+        `Cannot ${action} when status is ${currentItemStatus}`,
       );
     }
 
@@ -1309,45 +1424,44 @@ export const vendorUpdateOrder = async (req, res, next) => {
     };
 
     const { item: itemStatus, order: orderStatus } = actionMap[action];
+    const now = new Date();
 
-    //  SELF delivery check
-    // if (action === "SHIP") {
-    //   const isSelf = subOrder.items.some((i) => i.deliveryType === "self");
+    const itemStatusProgress = getItemStatusProgress(itemStatus, now);
 
-    //   if (!isSelf) {
-    //     throw new APIError(
-    //       400,
-    //       "Only SELF delivery orders can be shipped by vendor",
-    //     );
-    //   }
-    // }
-
-    await Order.updateOne(
-      { _id: subOrder._id },
+    // 🔥 Fixed Update Query
+    const updateResult = await Order.updateOne(
+      {
+        _id: subOrder._id,
+        "items.vendorId": new mongoose.Types.ObjectId(vendorId), // ← 'new' added
+      },
       {
         $set: {
           status: orderStatus,
-          reason: reason || null,
+          reason: reason?.trim() || null,
           cancleBy: action === "REJECT" ? "VENDOR" : null,
-          "items.$[].status": itemStatus,
+          "items.$.status": itemStatus,
+          "items.$.statusProgress": itemStatusProgress,
         },
       },
       { session },
     );
 
+    if (updateResult.modifiedCount === 0) {
+      throw new APIError(400, "Failed to update order status");
+    }
+
+    // Reject - Stock Revert
     if (action === "REJECT") {
-      const variantOps = subOrder.items.map((item) => ({
+      const variantOps = vendorItems.map((item) => ({
         updateOne: {
           filter: { _id: item.variantId },
           update: { $inc: { stock: item.quantity, sold: -item.quantity } },
         },
       }));
-
-      if (variantOps.length) {
-        await Variant.bulkWrite(variantOps, { session });
-      }
+      if (variantOps.length) await Variant.bulkWrite(variantOps, { session });
     }
 
+    // Master Order + Settlement Logic
     const subOrders = await Order.find({
       parentId: subOrder.parentId,
       orderType: "SUB",
@@ -1358,71 +1472,24 @@ export const vendorUpdateOrder = async (req, res, next) => {
     if (subOrders.every((o) => o.status === "DELIVERED")) {
       masterStatus = "DELIVERED";
 
-      // for (const sub of subOrders) {
-      //   const vendorId = sub.items[0].vendorId;
-      //   const alreadySettled = await vendorTransactionModel
-      //     .findOne({
-      //       orderId: sub._id,
-      //       type: "ORDER_SETTLEMENT",
-      //     })
-      //     .session(session);
-
-      //   if (!alreadySettled) {
-      //     await addSettlement(vendorId, sub._id, sub.netAmount, session);
-      //   }
-      // }
-
-      // for (const sub of subOrders) {
-      //   const vendorId = sub.items[0].vendorId;
-
-      //   const alreadySettled = await vendorTransactionModel
-      //     .findOne({
-      //       orderId: sub._id,
-      //       type: "ORDER_SETTLEMENT",
-      //     })
-      //     .session(session);
-
-      //   if (!alreadySettled) {
-      //     const vendorTotal = sub.items.reduce((sum, item) => {
-      //       return sum + (item.vendorAmount || 0);
-      //     }, 0);
-
-      //     await addSettlement(vendorId, sub._id, vendorTotal, session);
-      //   }
-      // }
-
       for (const sub of subOrders) {
-        // ======================================================
-        // GROUP ITEMS BY VENDOR
-        // ======================================================
-
         const vendorMap = {};
-
         for (const item of sub.items) {
-          const vendorId = item.vendorId.toString();
-
-          if (!vendorMap[vendorId]) {
-            vendorMap[vendorId] = 0;
-          }
-
-          vendorMap[vendorId] += item.vendorAmount || 58;
+          const vId = item.vendorId.toString();
+          vendorMap[vId] = (vendorMap[vId] || 0) + (item.vendorAmount || 0);
         }
 
-        // ======================================================
-        // CREATE SETTLEMENT FOR EACH VENDOR
-        // ======================================================
-
-        for (const [vendorId, vendorTotal] of Object.entries(vendorMap)) {
+        for (const [vId, amount] of Object.entries(vendorMap)) {
           const alreadySettled = await vendorTransactionModel
             .findOne({
               orderId: sub._id,
-              vendorId,
+              vendorId: vId,
               type: "ORDER_SETTLEMENT",
             })
             .session(session);
 
           if (!alreadySettled) {
-            await addSettlement(vendorId, sub._id, vendorTotal, session);
+            await addSettlement(vId, sub._id, Number(amount), session);
           }
         }
       }
@@ -1453,6 +1520,7 @@ export const vendorUpdateOrder = async (req, res, next) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
+    console.error("Vendor Update Error:", error);
     next(error);
   }
 };

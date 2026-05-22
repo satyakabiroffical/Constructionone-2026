@@ -66,3 +66,40 @@ export const getDistanceInKm = async (
     };
   }
 };
+
+
+export const calculateDistanceAndDuration = (
+  userLat,
+  userLng,
+  vendorLat,
+  vendorLng,
+) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+
+  const R = 6371; // Earth radius in KM
+
+  const dLat = toRad(vendorLat - userLat);
+  const dLng = toRad(vendorLng - userLng);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(userLat)) *
+      Math.cos(toRad(vendorLat)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  const distanceInKm = R * c;
+
+  // Approx delivery duration
+  // Average speed = 30 KM/H
+  const durationInMinutes = Math.ceil(
+    (distanceInKm / 30) * 60,
+  );
+
+  return {
+    distanceInKm: Number(distanceInKm.toFixed(2)),
+    durationInMinutes,
+  };
+};

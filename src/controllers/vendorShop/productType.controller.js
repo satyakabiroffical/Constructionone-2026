@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import ProductType from "../../models/vendorShop/productType.model.js";
 import RedisCache from "../../utils/redisCache.js";
+import { createActivityLog } from "../admin/activityLog.controller.js";
 class ProductTypeController {
   /*
     ============================
@@ -96,6 +97,18 @@ class ProductTypeController {
       }
 
       const created = await ProductType.insertMany(newTypes);
+
+      await createActivityLog({
+        req,
+        action: "CREATE",
+        module: "PRODUCT_TYPE",
+        details: {
+          createdCount: created.length,
+          createdTypes: created.map((item) => item.typeName),
+          subcategoryId,
+        },
+      });
+
       await RedisCache.deletePattern("home:*");
 
       return res.status(201).json({
@@ -235,6 +248,18 @@ class ProductTypeController {
           message: "Product Type not found",
         });
       }
+
+      // ✅ Activity Log
+      await createActivityLog({
+        req,
+        action: "UPDATE",
+        module: "PRODUCT_TYPE",
+        targetId: updated._id,
+        details: {
+          updatedFields: Object.keys(req.body),
+        },
+      });
+
       await RedisCache.deletePattern("home:*");
 
       return res.status(200).json({
@@ -252,10 +277,10 @@ class ProductTypeController {
   }
 
   /*
-    ============================
-    DELETE Product Type
-    ============================
-  */
+  ============================
+  DELETE Product Type
+  ============================
+*/
 
   static async deleteProductType(req, res) {
     try {
@@ -269,6 +294,17 @@ class ProductTypeController {
           message: "Product Type not found",
         });
       }
+
+      // ✅ Activity Log
+      await createActivityLog({
+        req,
+        action: "DELETE",
+        module: "PRODUCT_TYPE",
+        targetId: deleted._id,
+        details: {
+          name: deleted.typeName,
+        },
+      });
 
       await RedisCache.deletePattern("home:*");
 
@@ -301,11 +337,25 @@ class ProductTypeController {
       productType.status = !productType.status;
 
       const updated = await productType.save();
+
+      // ✅ Activity Log
+      await createActivityLog({
+        req,
+        action: "TOGGLE_STATUS",
+        module: "PRODUCT_TYPE",
+        targetId: updated._id,
+        details: {
+          newStatus: updated.status,
+        },
+      });
+
       await RedisCache.deletePattern("home:*");
 
       res.status(200).json({
         success: true,
-        message: `Product Type ${updated.status ? "activated" : "deactivated"} successfully`,
+        message: `Product Type ${
+          updated.status ? "activated" : "deactivated"
+        } successfully`,
         data: updated,
       });
     } catch (error) {

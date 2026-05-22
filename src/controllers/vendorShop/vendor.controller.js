@@ -632,14 +632,23 @@ export const loginWithPhone = async (req, res) => {
     if (user.disable) {
       return res.status(400).json({
         success: false,
-        error: "Your account has been disabled.",
+        message:
+          "Your account has been disabled. please contact ConstructionOne team for more info.",
       });
     }
 
-    if (!user || !user.isAdminVerified) {
+    if (!user) {
       return res.status(404).json({
         success: false,
-        error: "User not found. Please register first.",
+        message: "User not found. Please register first.",
+      });
+    }
+
+    if (!user.isAdminVerified) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Thank you for registering. Your profile is currently being reviewed by our team. You’ll be able to log in once the approval process is completed.",
       });
     }
     const now = new Date();

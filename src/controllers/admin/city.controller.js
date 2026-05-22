@@ -1,8 +1,9 @@
 import City from "../../models/admin/city.model.js"; //Sanvi
 import { APIError } from "../../middlewares/errorHandler.js";
+import { createActivityLog } from "./activityLog.controller.js";
 
 class CityController {
-  // ✅ CREATE
+  // CREATE
   static async createCity(req, res, next) {
     try {
       const { name, stateId, countryId } = req.body;
@@ -33,6 +34,19 @@ class CityController {
         name: name?.trim(),
       });
 
+      // ✅ Activity Log
+      await createActivityLog({
+        req,
+        action: "CREATE",
+        module: "CITY",
+        targetId: city._id,
+        details: {
+          cityName: city.name,
+          stateId: city.stateId,
+          countryId: city.countryId,
+        },
+      });
+
       return res.status(201).json({
         success: true,
         message: "City created successfully",
@@ -43,7 +57,7 @@ class CityController {
     }
   }
 
-  // ✅ GET ALL
+  //  GET ALL
   static async getCities(req, res, next) {
     try {
       const query = {};
@@ -89,11 +103,8 @@ class CityController {
 
       const existingCity = await City.findOne({
         _id: { $ne: req.params.id },
-
         name: name?.trim(),
-
         stateId,
-
         countryId,
       });
 
@@ -124,6 +135,18 @@ class CityController {
         throw new APIError("City not found", 404);
       }
 
+      // ✅ Activity Log
+      await createActivityLog({
+        req,
+        action: "UPDATE",
+        module: "CITY",
+        targetId: city._id,
+        details: {
+          updatedFields: Object.keys(req.body),
+          cityName: city.name,
+        },
+      });
+
       return res.status(200).json({
         success: true,
         message: "City updated successfully",
@@ -134,17 +157,29 @@ class CityController {
     }
   }
 
-  // ✅ TOGGLE STATUS (was missing)
+  // ✅ TOGGLE STATUS
   static async toggleCityStatus(req, res, next) {
     try {
       const city = await City.findById(req.params.id);
 
       if (!city) throw new APIError("City not found", 404);
 
-      // Toggle between "active" and "inactive"
+      // Toggle between active/inactive
       city.status = city.status === "active" ? "inactive" : "active";
 
       await city.save();
+
+      // ✅ Activity Log
+      await createActivityLog({
+        req,
+        action: "TOGGLE_STATUS",
+        module: "CITY",
+        targetId: city._id,
+        details: {
+          newStatus: city.status,
+          cityName: city.name,
+        },
+      });
 
       res.json({
         status: "success",
@@ -159,7 +194,22 @@ class CityController {
   // ✅ DELETE
   static async deleteCity(req, res, next) {
     try {
-      await City.findByIdAndDelete(req.params.id);
+      const city = await City.findByIdAndDelete(req.params.id);
+
+      if (!city) {
+        throw new APIError("City not found", 404);
+      }
+
+      // ✅ Activity Log
+      await createActivityLog({
+        req,
+        action: "DELETE",
+        module: "CITY",
+        targetId: city._id,
+        details: {
+          cityName: city.name,
+        },
+      });
 
       res.json({
         status: "success",
