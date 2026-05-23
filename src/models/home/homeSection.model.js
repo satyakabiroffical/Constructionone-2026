@@ -7,6 +7,7 @@ const SECTION_TYPES = [
   "VENDOR_LIST",
   "BRAND_LIST",
   "FLASH_SALE",
+
 ];
 const SOURCE_TYPES = [
   "FLASH",

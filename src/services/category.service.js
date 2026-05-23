@@ -192,60 +192,60 @@ export const toggle = async (id) => {
   return category;
 };
 
-export const getCategoryTreeService = async () => {
-  const pipeline = [
-    { $match: { isActive: true } },
-    { $sort: { order: 1 } },
-    {
-      $lookup: {
-        from: "categories",
-        localField: "_id",
-        foreignField: "pcategoryId",
-        as: "categories",
-        pipeline: [
-          { $match: { isActive: true } },
-          { $sort: { order: 1 } },
-          {
-            $lookup: {
-              from: "subcategories",
-              localField: "_id",
-              foreignField: "categoryId",
-              as: "subCategories",
-              pipeline: [
-                { $match: { isActive: true } },
-                { $sort: { order: 1 } },
-                { $project: { name: 1, slug: 1, image: 1, _id: 1, order: 1 } },
-              ],
-            },
-          },
-          {
-            $project: {
-              name: 1,
-              slug: 1,
-              image: 1,
-              subCategories: 1,
-              _id: 1,
-              order: 1,
-            },
-          },
-        ],
-      },
-    },
-    {
-      $project: {
-        name: 1,
-        slug: 1,
-        image: 1,
-        categories: 1,
-        _id: 1,
-        moduleId: 1,
-        order: 1,
-      },
-    },
-  ];
+// export const getCategoryTreeService = async () => {
+//   const pipeline = [
+//     { $match: { isActive: true } },
+//     { $sort: { order: 1 } },
+//     {
+//       $lookup: {
+//         from: "categories",
+//         localField: "_id",
+//         foreignField: "pcategoryId",
+//         as: "categories",
+//         pipeline: [
+//           { $match: { isActive: true } },
+//           { $sort: { order: 1 } },
+//           {
+//             $lookup: {
+//               from: "subcategories",
+//               localField: "_id",
+//               foreignField: "categoryId",
+//               as: "subCategories",
+//               pipeline: [
+//                 { $match: { isActive: true } },
+//                 { $sort: { order: 1 } },
+//                 { $project: { name: 1, slug: 1, image: 1, _id: 1, order: 1 } },
+//               ],
+//             },
+//           },
+//           {
+//             $project: {
+//               name: 1,
+//               slug: 1,
+//               image: 1,
+//               subCategories: 1,
+//               _id: 1,
+//               order: 1,
+//             },
+//           },
+//         ],
+//       },
+//     },
+//     {
+//       $project: {
+//         name: 1,
+//         slug: 1,
+//         image: 1,
+//         categories: 1,
+//         _id: 1,
+//         moduleId: 1,
+//         order: 1,
+//       },
+//     },
+//   ];
 
-  return await Pcategory.aggregate(pipeline);
-};
+//   return await Pcategory.aggregate(pipeline);
+// };
 
 //old
 // export const getCategoryTreeServiceForAdmin = async (query) => {
@@ -332,6 +332,120 @@ export const getCategoryTreeService = async () => {
 
 //   return await Pcategory.aggregate(pipeline);
 // };
+
+
+export const getCategoryTreeService = async (query = {}) => {
+  const { search } = query;
+
+  const pipeline = [];
+
+  // 1. Base match
+  const matchStage = {
+    isActive: true,
+  };
+
+  pipeline.push({ $match: matchStage });
+
+  // 2. Lookup categories + subcategories (same as yours)
+  pipeline.push(
+    {
+      $sort: { order: 1 },
+    },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "_id",
+        foreignField: "pcategoryId",
+        as: "categories",
+        pipeline: [
+          { $match: { isActive: true } },
+          { $sort: { order: 1 } },
+          {
+            $lookup: {
+              from: "subcategories",
+              localField: "_id",
+              foreignField: "categoryId",
+              as: "subCategories",
+              pipeline: [
+                { $match: { isActive: true } },
+                { $sort: { order: 1 } },
+                {
+                  $project: {
+                    name: 1,
+                    slug: 1,
+                    image: 1,
+                    _id: 1,
+                    order: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $project: {
+              name: 1,
+              slug: 1,
+              image: 1,
+              subCategories: 1,
+              _id: 1,
+              order: 1,
+            },
+          },
+        ],
+      },
+    }
+  );
+
+  // 3. SEARCH FILTER (IMPORTANT PART)
+  if (search) {
+    const regex = new RegExp(search, "i");
+
+    pipeline.push({
+      $match: {
+        $or: [
+          // parent category
+          { name: regex },
+
+          // category level
+          { "categories.name": regex },
+
+          // subcategory level (deep match)
+          {
+            categories: {
+              $elemMatch: {
+                $or: [
+                  { name: regex },
+                  {
+                    subCategories: {
+                      $elemMatch: {
+                        name: regex,
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  // 4. Final projection
+  pipeline.push({
+    $project: {
+      name: 1,
+      slug: 1,
+      image: 1,
+      categories: 1,
+      _id: 1,
+      moduleId: 1,
+      order: 1,
+    },
+  });
+
+  return await Pcategory.aggregate(pipeline);
+};
 
 export const getAllCategoriesService = async (query) => {
   const page = parseInt(query.page) || 1;

@@ -167,6 +167,7 @@ export const verifyWalletTopup = async (req, res) => {
 
     const cacheKey = `wallet:history:${userId}:`;
     await redis.del(cacheKey);
+    await redis.deletePattern(`wallet:history:${userId}:*`);
 
     return res.status(200).json({
       success: true,

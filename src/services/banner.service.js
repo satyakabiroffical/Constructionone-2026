@@ -118,13 +118,13 @@ export const toggle = async (id) => {
  *  - current date is between startDate and endDate (or null = always show)
  */
 export const getPublicBanners = async ({ moduleId, page, position }) => {
-  if (!moduleId) throw new APIError(400, "moduleId is required");
+  // if (!moduleId) throw new APIError(400, "moduleId is required");
   if (!page) throw new APIError(400, "page is required");
 
   const now = new Date();
 
   const matchStage = {
-    moduleId: new mongoose.Types.ObjectId(moduleId),
+    // moduleId: new mongoose.Types.ObjectId(moduleId),
     page: page.toUpperCase(),
     isActive: true,
     $and: [

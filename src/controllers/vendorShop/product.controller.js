@@ -2715,37 +2715,74 @@ class ProductController {
   // static async getProductByCategory(req, res) {
   //   try {
   //     const { categoryId } = req.params;
-  //     const { page = 1, limit = 10, type } = req.query;
 
-  //     const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
+  //     const { page = 1, limit = 10, type, brand, size, sort } = req.query;
 
-  //     // 1. CACHE CHECK
-  //     // const cachedData = await RedisCache.get(cacheKey);
-  //     // if (cachedData) {
-  //     //   return res.json(JSON.parse(cachedData));
-  //     // }
+  //     const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}:brand:${brand || "all"}:size:${size || "all"}:sort:${sort || "default"}`;
+
+  //     // =========================
+  //     // CACHE CHECK
+  //     // =========================
+  //     const cachedData = await RedisCache.get(cacheKey);
+
+  //     if (cachedData) {
+  //       return res.json(JSON.parse(cachedData));
+  //     }
 
   //     const skip = (page - 1) * limit;
 
   //     const filter = {};
 
+  //     // =========================
+  //     // CATEGORY FILTER
+  //     // =========================
   //     if (categoryId !== "all") {
   //       filter.categoryId = categoryId;
   //     }
 
+  //     // =========================
+  //     // TYPE FILTER
+  //     // =========================
   //     if (type) {
   //       const variantIds = await Variant.find({
   //         Type: { $regex: new RegExp(`^${type}$`, "i") },
-  //       }).select("_id");
+  //       }).distinct("_id");
 
   //       filter.defaultVariantId = {
-  //         $in: variantIds.map((v) => v._id),
+  //         $in: variantIds,
   //       };
   //     }
 
-  //     const products = await Product.find(filter)
+  //     // =========================
+  //     // BRAND FILTER
+  //     // =========================
+  //     if (brand) {
+  //       const brandIds = await Brand.find({
+  //         name: { $regex: new RegExp(brand, "i") },
+  //       }).distinct("_id");
+
+  //       filter.brandId = { $in: brandIds };
+  //     }
+
+  //     // =========================
+  //     // FETCH PRODUCTS
+  //     // =========================
+  //     let products = await Product.find(filter)
   //       .select(
-  //         "name images brandId avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
+  //         `
+  //       name
+  //       images
+  //       brandId
+  //       avgRating
+  //       reviewCount
+  //       slug
+  //       properties
+  //       minDiscount
+  //       maxDiscount
+  //       vendorId
+  //       defaultVariantId
+  //       createdAt
+  //     `,
   //       )
   //       .populate({
   //         path: "vendorId",
@@ -2758,18 +2795,105 @@ class ProductController {
   //       .populate({
   //         path: "defaultVariantId",
   //       })
-  //       .skip(skip)
-  //       .limit(Number(limit));
+  //       .lean();
 
-  //     const formattedProducts = products.map((p) => ({
+  //     // =========================
+  //     // SIZE FILTER
+  //     // =========================
+  //     if (size) {
+  //       products = products.filter((p) => {
+  //         const weight = Number(p?.defaultVariantId?.packageWeight || 0);
+
+  //         switch (size.toLowerCase()) {
+  //           case "small":
+  //             return weight < 10;
+
+  //           case "medium":
+  //             return weight >= 10 && weight <= 50;
+
+  //           case "large":
+  //             return weight > 50 && weight <= 200;
+
+  //           case "extra_large":
+  //             return weight > 200;
+
+  //           default:
+  //             return true;
+  //         }
+  //       });
+  //     }
+
+  //     // =========================
+  //     // SORTING
+  //     // =========================
+  //     if (sort) {
+  //       switch (sort) {
+  //         case "low_to_high":
+  //           products.sort(
+  //             (a, b) =>
+  //               (a.defaultVariantId?.price || 0) -
+  //               (b.defaultVariantId?.price || 0),
+  //           );
+  //           break;
+
+  //         case "high_to_low":
+  //           products.sort(
+  //             (a, b) =>
+  //               (b.defaultVariantId?.price || 0) -
+  //               (a.defaultVariantId?.price || 0),
+  //           );
+  //           break;
+
+  //         case "newest_first":
+  //           products.sort(
+  //             (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+  //           );
+  //           break;
+
+  //         case "most_popular":
+  //           products.sort(
+  //             (a, b) =>
+  //               (b.defaultVariantId?.sold || 0) -
+  //               (a.defaultVariantId?.sold || 0),
+  //           );
+  //           break;
+
+  //         case "best_rating":
+  //           products.sort((a, b) => (b.avgRating || 0) - (a.avgRating || 0));
+  //           break;
+  //       }
+  //     }
+
+  //     // =========================
+  //     // TOTAL AFTER FILTER
+  //     // =========================
+  //     const total = products.length;
+
+  //     // =========================
+  //     // PAGINATION
+  //     // =========================
+  //     const paginatedProducts = products.slice(skip, skip + Number(limit));
+
+  //     // =========================
+  //     // RESPONSE FORMAT
+  //     // =========================
+  //     const formattedProducts = paginatedProducts.map((p) => ({
   //       id: p._id,
+
   //       name: p.name,
+
   //       images: p.images,
+
   //       avgRating: p.avgRating,
+
   //       reviewCount: p.reviewCount,
+
   //       properties: p.properties,
+
   //       minDiscount: p.minDiscount,
+
   //       maxDiscount: p.maxDiscount,
+
   //       brand: p.brandId?.name || null,
 
   //       vendor: {
@@ -2779,28 +2903,57 @@ class ProductController {
 
   //       // quick access fields
   //       price: p.defaultVariantId?.price ?? null,
+
   //       discount: p.defaultVariantId?.discount ?? null,
+
   //       type: p.defaultVariantId?.Type ?? null,
 
   //       defaultVariant: p.defaultVariantId || null,
   //     }));
 
-  //     const total = await Product.countDocuments(filter);
+  //     // =========================
+  //     // FILTER OPTIONS
+  //     // =========================
+  //     const filterOptions = {
+  //       brand: [
+  //         ...new Set(products.map((p) => p.brandId?.name).filter(Boolean)),
+  //       ],
+
+  //       size: ["small", "medium", "large", "extra_large"],
+
+  //       sort: [
+  //         "low_to_high",
+  //         "high_to_low",
+  //         "newest_first",
+  //         "most_popular",
+  //         "best_rating",
+  //       ],
+  //     };
 
   //     const response = {
   //       success: true,
+
   //       page: Number(page),
+
   //       totalPages: Math.ceil(total / limit),
+
   //       totalProducts: total,
+
+  //       filters: filterOptions,
+
   //       products: formattedProducts,
   //     };
 
-  //     // 2. SET CACHE
+  //     // =========================
+  //     // SET CACHE
+  //     // =========================
   //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
   //     res.json(response);
   //   } catch (error) {
-  //     res.status(500).json({ message: error.message });
+  //     res.status(500).json({
+  //       message: error.message,
+  //     });
   //   }
   // }
 
@@ -2808,9 +2961,17 @@ class ProductController {
     try {
       const { categoryId } = req.params;
 
-      const { page = 1, limit = 10, type, brand, size, sort } = req.query;
+      const {
+        page = 1,
+        limit = 10,
+        type,
+        brand,
+        size,
+        sort,
+        search, // ✅ NEW ADDED
+      } = req.query;
 
-      const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}:brand:${brand || "all"}:size:${size || "all"}:sort:${sort || "default"}`;
+      const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}:brand:${brand || "all"}:size:${size || "all"}:sort:${sort || "default"}:search:${search || "all"}`;
 
       // =========================
       // CACHE CHECK
@@ -2854,6 +3015,13 @@ class ProductController {
         }).distinct("_id");
 
         filter.brandId = { $in: brandIds };
+      }
+
+      // =========================
+      // 🔥 SEARCH FILTER (NEW)
+      // =========================
+      if (search) {
+        filter.name = { $regex: search, $options: "i" };
       }
 
       // =========================
@@ -2971,35 +3139,21 @@ class ProductController {
       // =========================
       const formattedProducts = paginatedProducts.map((p) => ({
         id: p._id,
-
         name: p.name,
-
         images: p.images,
-
         avgRating: p.avgRating,
-
         reviewCount: p.reviewCount,
-
         properties: p.properties,
-
         minDiscount: p.minDiscount,
-
         maxDiscount: p.maxDiscount,
-
         brand: p.brandId?.name || null,
-
         vendor: {
           firstName: p.vendorId?.firstName,
           lastName: p.vendorId?.lastName,
         },
-
-        // quick access fields
         price: p.defaultVariantId?.price ?? null,
-
         discount: p.defaultVariantId?.discount ?? null,
-
         type: p.defaultVariantId?.Type ?? null,
-
         defaultVariant: p.defaultVariantId || null,
       }));
 
@@ -3010,9 +3164,7 @@ class ProductController {
         brand: [
           ...new Set(products.map((p) => p.brandId?.name).filter(Boolean)),
         ],
-
         size: ["small", "medium", "large", "extra_large"],
-
         sort: [
           "low_to_high",
           "high_to_low",
@@ -3024,20 +3176,15 @@ class ProductController {
 
       const response = {
         success: true,
-
         page: Number(page),
-
         totalPages: Math.ceil(total / limit),
-
         totalProducts: total,
-
         filters: filterOptions,
-
         products: formattedProducts,
       };
 
       // =========================
-      // SET CACHE
+      // CACHE SET
       // =========================
       await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 

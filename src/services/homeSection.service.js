@@ -66,34 +66,83 @@ export const createSection = async (data, userId) => {
   return section;
 };
 
+// export const getAllSections = async (query) => {
+//   const { moduleId, isActive, page = 1, limit = 20 } = query;
+//   const filter = {};
+//   if (moduleId) filter.moduleId = moduleId;
+//   if (isActive === "true") filter.isActive = true;
+//   if (isActive === "false") filter.isActive = false;
+
+//   const skip = (parseInt(page) - 1) * parseInt(limit);
+//   const [sections, total] = await Promise.all([
+//     HomeSection.find(filter)
+//       .sort({ order: 1 })
+//       .skip(skip)
+//       .limit(parseInt(limit))
+//       .lean(),
+//     HomeSection.countDocuments(filter),
+//   ]);
+//   return {
+//     sections,
+//     total,
+//     page: parseInt(page),
+//     limit: parseInt(limit),
+//     totalPages: Math.ceil(total / parseInt(limit)),
+//   };
+// };
+
 export const getAllSections = async (query) => {
   const { moduleId, isActive, page = 1, limit = 20 } = query;
+
   const filter = {};
+
   if (moduleId) filter.moduleId = moduleId;
   if (isActive === "true") filter.isActive = true;
   if (isActive === "false") filter.isActive = false;
 
-  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const skip = (Number(page) - 1) * Number(limit);
+
   const [sections, total] = await Promise.all([
     HomeSection.find(filter)
+      .populate({
+        path: "selectedProducts",
+        select: "name slug images price mrp discount avgRating reviewCount",
+      })
+      .populate({
+        path: "moduleId",
+        select: "name key",
+      })
       .sort({ order: 1 })
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(Number(limit))
       .lean(),
+
     HomeSection.countDocuments(filter),
   ]);
+
   return {
     sections,
     total,
-    page: parseInt(page),
-    limit: parseInt(limit),
-    totalPages: Math.ceil(total / parseInt(limit)),
+    page: Number(page),
+    limit: Number(limit),
+    totalPages: Math.ceil(total / Number(limit)),
   };
 };
 
 export const getSectionById = async (id) => {
-  const section = await HomeSection.findById(id).lean();
+  const section = await HomeSection.findById(id)
+    .populate({
+      path: "selectedProducts",
+      select: "name slug images price mrp discount avgRating reviewCount",
+    })
+    .populate({
+      path: "moduleId",
+      select: "name key",
+    })
+    .lean();
+
   if (!section) throw new APIError(404, "HomeSection not found");
+
   return section;
 };
 

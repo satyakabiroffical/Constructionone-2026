@@ -2723,14 +2723,17 @@ export const getOrderById = async (req, res, next) => {
       userId,
       orderType: "MASTER",
     })
-      .select(`
+      .select(
+        `
         invoice userId orderType parentId items shippingAddressId 
         subTotal totalDeliveryFee netAmount status paymentStatus 
         paymentMethod transactionRef transactionId createdAt updatedAt
-      `)
+      `,
+      )
       .populate({
         path: "items.productId",
-        select: "name images pcategoryId categoryId subcategoryId productTypeId brandId",
+        select:
+          "name images pcategoryId categoryId subcategoryId productTypeId brandId",
         populate: [
           { path: "pcategoryId", select: "name" },
           { path: "categoryId", select: "name" },
@@ -2739,10 +2742,20 @@ export const getOrderById = async (req, res, next) => {
           { path: "brandId", select: "name" },
         ],
       })
-      .populate({ path: "items.variantId", select: "price packageWeight packageDimensions stock sold" })
-      .populate({ path: "items.vendorId", select: "firstName lastName email phoneNumber" })
+      .populate({
+        path: "items.variantId",
+        select: "price packageWeight packageDimensions stock sold",
+      })
+      .populate({
+        path: "items.vendorId",
+        select: "firstName lastName email phoneNumber",
+      })
       .populate({ path: "userId", select: "name email phone" })
-      .populate({ path: "shippingAddressId", select: "label userName addressLine country state city pincode landMark" })
+      .populate({
+        path: "shippingAddressId",
+        select:
+          "label userName addressLine country state city pincode landMark",
+      })
       .lean();
 
     if (!masterOrder) {
@@ -2759,38 +2772,45 @@ export const getOrderById = async (req, res, next) => {
 
     // Merge statusProgress from Sub Orders into Master Order Items
     masterOrder.items.forEach((masterItem) => {
-      const productId = masterItem.productId?._id?.toString() || masterItem.productId?.toString();
+      const productId =
+        masterItem.productId?._id?.toString() ||
+        masterItem.productId?.toString();
 
       // Find matching item in any subOrder
       for (const sub of subOrders) {
         const matchingItem = sub.items.find(
-          (subItem) => subItem.productId?.toString() === productId
+          (subItem) => subItem.productId?.toString() === productId,
         );
 
         if (matchingItem && matchingItem.statusProgress) {
-          masterItem.status = matchingItem.status;                    // Latest status
-          masterItem.statusProgress = matchingItem.statusProgress;    // 🔥 Important
+          masterItem.status = matchingItem.status; // Latest status
+          masterItem.statusProgress = matchingItem.statusProgress; // 🔥 Important
           break;
         }
       }
     });
 
     // Vendor Company Details
-    const vendorIds = masterOrder.items.map(item => 
-      item.vendorId?._id?.toString() || item.vendorId?.toString()
-    ).filter(Boolean);
+    const vendorIds = masterOrder.items
+      .map(
+        (item) => item.vendorId?._id?.toString() || item.vendorId?.toString(),
+      )
+      .filter(Boolean);
 
     const vendorCompanies = await VendorCompany.find({
       vendorId: { $in: vendorIds },
-    }).select("companyName companyType businessAddress contactNumber companyRegistrationNumber gstNumber vendorId")
+    })
+      .select(
+        "companyName companyType businessAddress contactNumber companyRegistrationNumber gstNumber vendorId",
+      )
       .lean();
 
     const companyMap = {};
-    vendorCompanies.forEach(company => {
+    vendorCompanies.forEach((company) => {
       companyMap[company.vendorId.toString()] = company;
     });
 
-    masterOrder.items.forEach(item => {
+    masterOrder.items.forEach((item) => {
       const vId = item.vendorId?._id?.toString() || item.vendorId?.toString();
       item.vendorCompany = companyMap[vId] || null;
     });
@@ -2927,8 +2947,8 @@ export const getOrderById = async (req, res, next) => {
 //     })
 //       .select(
 //         `
-//         invoice userId orderType parentId items shippingAddressId 
-//         subTotal totalDeliveryFee netAmount status paymentStatus 
+//         invoice userId orderType parentId items shippingAddressId
+//         subTotal totalDeliveryFee netAmount status paymentStatus
 //         paymentMethod transactionRef transactionId createdAt updatedAt
 //       `,
 //       )
@@ -2970,7 +2990,7 @@ export const getOrderById = async (req, res, next) => {
 //     if (!masterOrder) {
 //       throw new APIError(404, "Order not found");
 //     }
-  
+
 //     // // Master Order Level - Overall Progress
 //    // Master Order Level
 //     // masterOrder.statusProgress = getStatusProgress(masterOrder.status, masterOrder.updatedAt);
@@ -3015,7 +3035,6 @@ export const getOrderById = async (req, res, next) => {
 //   }
 // };
 
-
 // export const getOrderById = async (req, res, next) => {
 //   try {
 //     const userId = req.user.id;
@@ -3027,21 +3046,21 @@ export const getOrderById = async (req, res, next) => {
 //       orderType: "MASTER",
 //     })
 //       .select(`
-//         invoice 
-//         userId 
-//         orderType 
-//         parentId 
-//         items 
-//         shippingAddressId 
-//         subTotal 
-//         totalDeliveryFee 
-//         netAmount 
-//         status 
-//         paymentStatus 
-//         paymentMethod 
-//         transactionRef 
-//         transactionId 
-//         createdAt 
+//         invoice
+//         userId
+//         orderType
+//         parentId
+//         items
+//         shippingAddressId
+//         subTotal
+//         totalDeliveryFee
+//         netAmount
+//         status
+//         paymentStatus
+//         paymentMethod
+//         transactionRef
+//         transactionId
+//         createdAt
 //         updatedAt
 //       `)
 //       .populate({
@@ -3099,7 +3118,13 @@ export const getOrderById = async (req, res, next) => {
 // };
 // Helper Function
 const calculateProgress = (status) => {
-  const orderList = ["PENDING", "CONFIRMED", "PROCESSING", "OUT_FOR_DELIVERY", "DELIVERED"];
+  const orderList = [
+    "PENDING",
+    "CONFIRMED",
+    "PROCESSING",
+    "OUT_FOR_DELIVERY",
+    "DELIVERED",
+  ];
   const index = orderList.indexOf(status || "PENDING");
   return Math.round(((index + 1) / 5) * 100);
 };
@@ -3453,7 +3478,7 @@ export const adminGetOrderDetails = async (req, res, next) => {
   }
 };
 
-
+// ------------no need this these all method ---------
 
 const ITEM_VALID_STATUSES = [
   "PENDING",
