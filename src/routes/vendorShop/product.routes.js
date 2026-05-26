@@ -85,11 +85,14 @@ router.put(
 );
 
 router.get("/product/:id", requireAuth, ProductController.getProductById);
+router.get("/product/suggestions/:slug", ProductController.getProductsBySlug);
+
 router.get(
   "/product/:productId/variants",
   requireAuth,
   ProductController.getProductVariants,
 );
+
 router.get(
   "/products/category/:categoryId",
   ProductController.getProductByCategory,
@@ -108,7 +111,6 @@ router.patch(
   adminMiddleware,
   ProductController.verifyProduct,
 );
-
 
 //get vendor products
 router.get(

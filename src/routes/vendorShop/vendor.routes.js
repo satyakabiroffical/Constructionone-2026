@@ -103,7 +103,9 @@ router.post(
   upsertVendorCompanyInfo,
 );
 
+// for user app 
 router.get("/vendorshops", authMiddleware, getAllVendorCompany);
+
 //updates in shop
 router.put(
   "/addshop/:vendorId",

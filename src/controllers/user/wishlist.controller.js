@@ -6,9 +6,15 @@ export const addToWishlist = async (req, res, next) => {
     const userId = req.user.id;
     const { productId } = req.body;
 
+    // Add validation
+    if (!productId) {
+      return res.status(400).json({
+        message: "Product ID is required",
+      });
+    }
+
     let wishlist = await Wishlist.findOne({ userId });
 
-    // Agar wishlist exist nahi karti
     if (!wishlist) {
       wishlist = new Wishlist({
         userId,
@@ -24,8 +30,10 @@ export const addToWishlist = async (req, res, next) => {
       });
     }
 
-    // Already exist check
-    const exists = wishlist.products.some((id) => id.toString() === productId);
+    // Safer existence check
+    const exists = wishlist.products.some(
+      (id) => id && id.toString() === productId,
+    );
 
     if (exists) {
       return res.status(400).json({
@@ -33,11 +41,8 @@ export const addToWishlist = async (req, res, next) => {
       });
     }
 
-    // Add product
     wishlist.products.push(productId);
     await wishlist.save();
-
-    // Clear cache
     await RedisCache.delete(`wishlist:${userId}`);
 
     res.status(200).json({
@@ -48,6 +53,7 @@ export const addToWishlist = async (req, res, next) => {
     next(error);
   }
 };
+
 // export const toggleWishlist = async (req, res, next) => {
 //   try {
 //     const userId = req.user.id;
@@ -85,10 +91,18 @@ export const addToWishlist = async (req, res, next) => {
 //     next(error);
 //   }
 // };
+
 export const toggleWishlist = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { productId } = req.body;
+
+    // ✅ Product ID validation
+    if (!productId) {
+      return res.status(400).json({
+        message: "Product ID is required",
+      });
+    }
 
     let wishlist = await Wishlist.findOne({ userId });
 
@@ -99,8 +113,12 @@ export const toggleWishlist = async (req, res, next) => {
       });
     }
 
+    // ✅ Clean null values from array (ek baar fix kar do)
+    wishlist.products = wishlist.products.filter((id) => id !== null);
+
+    // ✅ Safe findIndex with null check
     const index = wishlist.products.findIndex(
-      (id) => id.toString() === productId,
+      (id) => id && id.toString() === productId, // ✅ pehle check karo id exist karti hai
     );
 
     let message = "";
@@ -115,7 +133,7 @@ export const toggleWishlist = async (req, res, next) => {
 
     await wishlist.save();
 
-    //populate after save
+    // Populate after save
     wishlist = await wishlist.populate({
       path: "products",
       select:
@@ -126,29 +144,29 @@ export const toggleWishlist = async (req, res, next) => {
 
     res.json({
       message,
-      data: wishlist.products, // IMPORTANT
+      data: wishlist.products,
     });
   } catch (error) {
     next(error);
   }
 };
+
 export const getWishlist = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const cached = await RedisCache.get(`wishlist:${userId}`);
-
     if (cached) {
       return res.status(200).json({ data: JSON.parse(cached) });
     }
-
     const wishlist = await Wishlist.findOne({ userId })
       .populate({
         path: "products",
+        match: { disable: false },
         select:
-          "name avgRating reviewCount status vendorId createdAt disable defaultVariantId images thumbnail",
+          "name avgRating reviewCount status vendorId createdAt disable defaultVariantId images",
         populate: {
           path: "defaultVariantId",
-          select: "price mrp discount type moq",
+          select: "price mrp discount Type moq discount size stock",
         },
       })
       .lean();

@@ -5,6 +5,7 @@ import { sectionResolvers } from "../resolvers/sectionResolvers.js";
 import { APIError } from "../middlewares/errorHandler.js";
 import RedisCache from "../utils/redisCache.js";
 import Product from "../models/vendorShop/product.model.js";
+import variantModel from "../models/vendorShop/variant.model.js";
 
 export const trendingCacheKey = (slug, searchKeyword = "") =>
   `trending:${slug}:${searchKeyword || "all"}`;
@@ -128,48 +129,144 @@ export const buildTrending = async (identifier, searchKeyword = "") => {
           // =========================
           // MANUAL PRODUCTS
           // =========================
+          // if (section.selectedProducts?.length > 0) {
+          //   const products = await Product.find({
+          //     _id: { $in: section.selectedProducts },
+          //     disable: false,
+          //     varified: true,
+          //     status: "ACTIVE",
+          //   })
+          //     .select("name slug images avgRating reviewCount defaultVariantId")
+          //     .populate({
+          //       path: "defaultVariantId",
+          //       select: "price mrp discount moq packageWeight Type",
+          //     })
+          //     .lean();
+
+          //   data = section.selectedProducts
+          //     .map((id) => {
+          //       const p = products.find(
+          //         (x) => x._id.toString() === id.toString(),
+          //       );
+
+          //       if (!p) return null;
+
+          //       return {
+          //         _id: p._id,
+          //         name: p.name,
+          //         slug: p.slug,
+          //         images: p.images,
+
+          //         defaultVariantId: p.defaultVariantId?._id || null,
+
+          //         price: p.defaultVariantId?.price || 0,
+          //         mrp: p.defaultVariantId?.mrp || 0,
+          //         moq: p.defaultVariantId?.moq || 1,
+          //         discount: p.defaultVariantId?.discount || 0,
+
+          //         avgRating: p.avgRating || 0,
+          //         reviewCount: p.reviewCount || 0,
+          //       };
+          //     })
+          //     .filter(Boolean)
+          //     .slice(0, section.limit);
+          // }
+
+          //new 
+
           if (section.selectedProducts?.length > 0) {
-            const products = await Product.find({
-              _id: { $in: section.selectedProducts },
-              disable: false,
-              varified: true,
-              status: "ACTIVE",
-            })
-              .select("name slug images avgRating reviewCount defaultVariantId")
-              .populate({
-                path: "defaultVariantId",
-                select: "price mrp discount moq packageWeight Type",
-              })
-              .lean();
+  const products = await Product.find({
+    _id: { $in: section.selectedProducts },
+    disable: false,
+    varified: true,
+    status: "ACTIVE",
+  })
+    .select(
+      "name slug images avgRating reviewCount defaultVariantId",
+    )
+    .lean();
 
-            data = section.selectedProducts
-              .map((id) => {
-                const p = products.find(
-                  (x) => x._id.toString() === id.toString(),
-                );
+  // =========================
+  // GET ALL VARIANTS
+  // =========================
 
-                if (!p) return null;
+  const productIds = products.map((p) => p._id);
 
-                return {
-                  _id: p._id,
-                  name: p.name,
-                  slug: p.slug,
-                  images: p.images,
+  const allVariants = await variantModel.find({
+    productId: { $in: productIds },
+  }).lean();
 
-                  defaultVariantId: p.defaultVariantId?._id || null,
+  // =========================
+  // GROUP VARIANTS
+  // =========================
 
-                  price: p.defaultVariantId?.price || 0,
-                  mrp: p.defaultVariantId?.mrp || 0,
-                  moq: p.defaultVariantId?.moq || 1,
-                  discount: p.defaultVariantId?.discount || 0,
+  const variantMap = {};
 
-                  avgRating: p.avgRating || 0,
-                  reviewCount: p.reviewCount || 0,
-                };
-              })
-              .filter(Boolean)
-              .slice(0, section.limit);
-          }
+  allVariants.forEach((variant) => {
+    const productId = variant.productId.toString();
+
+    if (!variantMap[productId]) {
+      variantMap[productId] = [];
+    }
+
+    const product = products.find(
+      (p) => p._id.toString() === productId,
+    );
+
+    variantMap[productId].push({
+      _id: variant._id,
+
+      price: variant.price || 0,
+
+      mrp: variant.mrp || 0,
+
+      moq: variant.moq || 1,
+
+      discount: variant.discount || 0,
+
+      packageWeight: variant.packageWeight || "",
+
+      Type: variant.Type || "",
+
+      stock: variant.stock || 0,
+
+      sold: variant.sold || 0,
+
+      isDefault:
+        variant._id.toString() ===
+        product?.defaultVariantId?.toString(),
+    });
+  });
+
+  data = section.selectedProducts
+    .map((id) => {
+      const p = products.find(
+        (x) => x._id.toString() === id.toString(),
+      );
+
+      if (!p) return null;
+
+      return {
+        _id: p._id,
+
+        name: p.name,
+
+        slug: p.slug,
+
+        images: p.images,
+
+        avgRating: p.avgRating || 0,
+
+        reviewCount: p.reviewCount || 0,
+
+        defaultVariantId: p.defaultVariantId || null,
+
+        variants: variantMap[p._id.toString()] || [],
+      };
+    })
+    .filter(Boolean)
+    .slice(0, section.limit);
+}
 
           // =========================
           // AUTO FALLBACK

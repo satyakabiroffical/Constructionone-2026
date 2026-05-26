@@ -8,7 +8,13 @@ import vendorWithdrawal from "./vendorWithdrawalBalance.routes.js";
 import vendorBankAccount from "./vendorBankAccount.routes.js";
 import vendorDashboard from "./vendorDashboard.routes.js";
 import vendorInventory from "./inventory.routes.js";
+import vendorAbout from "./vendorAbout.routes.js";
+import vendorOffer from "./vendorOffer.routes.js";
+
 router.use("/vendors", vendorInventory);
+router.use("/vendor/about", vendorAbout);
+router.use("/vendor/offer", vendorOffer);
+
 router.use("/vendor", vendorReview);
 router.use("/vendor", shoptiming);
 router.use("/vendor", vendorWallet);
@@ -16,6 +22,8 @@ router.use("/vendor", vendorWithdrawal);
 router.use("/vendor", vendorBankAccount);
 router.use("/vendor", vendorDashboard);
 router.use("/vendor", vendorAuth);
+
+
 
 export default router;
 //asgr

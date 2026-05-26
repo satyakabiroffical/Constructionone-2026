@@ -63,6 +63,7 @@ class CityController {
       const query = {};
       if (req.query.stateId) query.stateId = req.query.stateId;
       if (req.query.countryId) query.countryId = req.query.countryId;
+      if (req.query.status) query.status = req.query.status;
 
       const cities = await City.find(query).sort("name");
 

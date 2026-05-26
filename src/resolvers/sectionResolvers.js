@@ -49,31 +49,89 @@ const resolveBANNER = async (section) => {
 import Variant from "../models/vendorShop/variant.model.js";
 
 // const resolvePRODUCT_LIST = async (section) => {
-//   const filter = applySourceFilter(
-//     { moduleId: section.moduleId, disable: false, varified: true },
-//     section,
-//   );
+//   let products = [];
 
-//   if (section.searchKeyword) {
-//     filter.name = { $regex: section.searchKeyword, $options: "i" };
+//   // =====================================
+//   // ADMIN SELECTED PRODUCTS
+//   // =====================================
+//   if (section.selectedProducts?.length > 0) {
+//     const filter = applySourceFilter(
+//       {
+//         _id: { $in: section.selectedProducts },
+//         disable: false,
+//         varified: true,
+//       },
+//       section,
+//     );
+
+//     if (section.searchKeyword) {
+//       filter.name = {
+//         $regex: section.searchKeyword,
+//         $options: "i",
+//       };
+//     }
+
+//     products = await Product.find(filter)
+//       .select(
+//         "_id varified name thumbnail images slug brandId discount sold avgRating defaultVariantId measurementUnit",
+//       )
+//       .lean();
+
+//     // Maintain admin selected order
+//     products.sort((a, b) => {
+//       return (
+//         section.selectedProducts.findIndex(
+//           (id) => id.toString() === a._id.toString(),
+//         ) -
+//         section.selectedProducts.findIndex(
+//           (id) => id.toString() === b._id.toString(),
+//         )
+//       );
+//     });
 //   }
 
-//   const products = await Product.find(filter)
-//     .sort({ createdAt: -1 })
-//     .limit(section.limit)
-//     .select(
-//       "_id varified name thumbnail images slug brandId discount sold avgRating defaultVariantId measurementUnit",
-//     )
-//     .lean();
+//   // =====================================
+//   // DEFAULT LATEST PRODUCTS
+//   // =====================================
+//   else {
+//     const filter = applySourceFilter(
+//       {
+//         moduleId: section.moduleId,
+//         disable: false,
+//         varified: true,
+//       },
+//       section,
+//     );
 
-//   // Fetch variants for all products
+//     if (section.searchKeyword) {
+//       filter.name = {
+//         $regex: section.searchKeyword,
+//         $options: "i",
+//       };
+//     }
+
+//     products = await Product.find(filter)
+//       .sort({ createdAt: -1 }) // latest products
+//       .limit(section.limit)
+//       .select(
+//         "_id varified name thumbnail images slug brandId discount sold avgRating defaultVariantId measurementUnit",
+//       )
+//       .lean();
+//   }
+
+//   // =====================================
+//   // VARIANTS
+//   // =====================================
+
 //   const variantIds = products.map((p) => p.defaultVariantId).filter(Boolean);
-//   // If any product doesn't have defaultVariantId, fetch first variant for that product
+
 //   const missingVariantProducts = products.filter((p) => !p.defaultVariantId);
+
 //   let missingVariants = [];
+
 //   if (missingVariantProducts.length > 0) {
 //     const ids = missingVariantProducts.map((p) => p._id);
-//     // Get first variant for each product without defaultVariantId
+
 //     missingVariants = await Variant.aggregate([
 //       { $match: { productId: { $in: ids } } },
 //       { $sort: { createdAt: 1 } },
@@ -87,36 +145,49 @@ import Variant from "../models/vendorShop/variant.model.js";
 //   }
 
 //   let variants = [];
+
 //   if (variantIds.length > 0) {
-//     variants = await Variant.find({ _id: { $in: variantIds } }).lean();
+//     variants = await Variant.find({
+//       _id: { $in: variantIds },
+//     }).lean();
 //   }
 
-//   // Map for quick lookup
 //   const variantMap = {};
+
 //   variants.forEach((v) => {
-//     if (v) variantMap[v._id?.toString()] = v;
-//   });
-//   missingVariants.forEach((vg) => {
-//     if (vg.variant) variantMap[vg.variant._id?.toString()] = vg.variant;
+//     if (v) {
+//       variantMap[v._id?.toString()] = v;
+//     }
 //   });
 
-//   // Attach variantId field
+//   missingVariants.forEach((vg) => {
+//     if (vg.variant) {
+//       variantMap[vg.variant._id?.toString()] = vg.variant;
+//     }
+//   });
+
+//   // =====================================
+//   // FINAL RESPONSE
+//   // =====================================
+
 //   const result = products.map((product) => {
 //     let variant = null;
+
 //     if (
 //       product.defaultVariantId &&
 //       variantMap[product.defaultVariantId.toString()]
 //     ) {
 //       variant = variantMap[product.defaultVariantId.toString()];
 //     } else {
-//       // Find by productId
 //       const found = Object.values(variantMap).find(
 //         (v) => v.productId?.toString() === product._id.toString(),
 //       );
+
 //       if (found) variant = found;
 //     }
-//     // Only pick required fields for variantId
+
 //     let variantId = null;
+
 //     if (variant) {
 //       variantId = {
 //         _id: variant._id,
@@ -129,6 +200,7 @@ import Variant from "../models/vendorShop/variant.model.js";
 //         packageDimensions: variant.packageDimensions,
 //       };
 //     }
+
 //     return {
 //       ...product,
 //       variantId,
@@ -201,7 +273,7 @@ const resolvePRODUCT_LIST = async (section) => {
     }
 
     products = await Product.find(filter)
-      .sort({ createdAt: -1 }) // latest products
+      .sort({ createdAt: -1 })
       .limit(section.limit)
       .select(
         "_id varified name thumbnail images slug brandId discount sold avgRating defaultVariantId measurementUnit",
@@ -210,55 +282,46 @@ const resolvePRODUCT_LIST = async (section) => {
   }
 
   // =====================================
-  // VARIANTS
+  // GET ALL VARIANTS
   // =====================================
 
-  const variantIds = products
-    .map((p) => p.defaultVariantId)
-    .filter(Boolean);
+  const productIds = products.map((p) => p._id);
 
-  const missingVariantProducts = products.filter(
-    (p) => !p.defaultVariantId,
-  );
+  const variants = await Variant.find({
+    productId: { $in: productIds },
+  }).lean();
 
-  let missingVariants = [];
-
-  if (missingVariantProducts.length > 0) {
-    const ids = missingVariantProducts.map((p) => p._id);
-
-    missingVariants = await Variant.aggregate([
-      { $match: { productId: { $in: ids } } },
-      { $sort: { createdAt: 1 } },
-      {
-        $group: {
-          _id: "$productId",
-          variant: { $first: "$$ROOT" },
-        },
-      },
-    ]);
-  }
-
-  let variants = [];
-
-  if (variantIds.length > 0) {
-    variants = await Variant.find({
-      _id: { $in: variantIds },
-    }).lean();
-  }
+  // =====================================
+  // GROUP VARIANTS BY PRODUCT
+  // =====================================
 
   const variantMap = {};
 
-  variants.forEach((v) => {
-    if (v) {
-      variantMap[v._id?.toString()] = v;
-    }
-  });
+  variants.forEach((variant) => {
+    const productId = variant.productId.toString();
 
-  missingVariants.forEach((vg) => {
-    if (vg.variant) {
-      variantMap[vg.variant._id?.toString()] =
-        vg.variant;
+    if (!variantMap[productId]) {
+      variantMap[productId] = [];
     }
+
+    variantMap[productId].push({
+      _id: variant._id,
+      price: variant.price,
+      mrp: variant.mrp,
+      stock: variant.stock,
+      Type: variant.Type,
+      moq: variant.moq,
+      discount: variant.discount,
+      discountAmount: variant.discountAmount,
+      color: variant.color || "",
+      packageWeight: variant.packageWeight,
+      packageDimensions: variant.packageDimensions,
+      isDefault:
+        variant._id.toString() ===
+        products
+          .find((p) => p._id.toString() === productId)
+          ?.defaultVariantId?.toString(),
+    });
   });
 
   // =====================================
@@ -266,49 +329,14 @@ const resolvePRODUCT_LIST = async (section) => {
   // =====================================
 
   const result = products.map((product) => {
-    let variant = null;
-
-    if (
-      product.defaultVariantId &&
-      variantMap[product.defaultVariantId.toString()]
-    ) {
-      variant =
-        variantMap[product.defaultVariantId.toString()];
-    } else {
-      const found = Object.values(variantMap).find(
-        (v) =>
-          v.productId?.toString() ===
-          product._id.toString(),
-      );
-
-      if (found) variant = found;
-    }
-
-    let variantId = null;
-
-    if (variant) {
-      variantId = {
-        _id: variant._id,
-        price: variant.price,
-        mrp: variant.mrp,
-        stock: variant.stock,
-        Type: variant.Type,
-        moq: variant.moq,
-        packageWeight: variant.packageWeight,
-        packageDimensions:
-          variant.packageDimensions,
-      };
-    }
-
     return {
       ...product,
-      variantId,
+      variants: variantMap[product._id.toString()] || [],
     };
   });
 
   return result;
 };
-
 const resolveCATEGORY_LIST = async (section) => {
   return Pcategory.find(
     applySourceFilter({ moduleId: section.moduleId, isActive: true }, section),
@@ -386,13 +414,12 @@ const resolveBRAND_LIST = async (section) => {
   )
     .sort({ order: 1 })
     .limit(section.limit)
-    .select("name logo slug")
+    .select("name logo slug bgColor")
     .lean();
 };
 
 // const resolveFLASH_SALE = async (section) => {
 //   const now = new Date();
-
 //   const activeSale = await FlashSale.findOne({
 //     moduleId: section.moduleId,
 //     isCancelled: false,

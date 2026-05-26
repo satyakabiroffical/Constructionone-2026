@@ -877,7 +877,6 @@ export const updateUpsertVendorCompanyInfo = async (req, res) => {
 };
 
 //admin access functions
-
 export const getAllVendors = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -1145,22 +1144,411 @@ export const getAllVendors = async (req, res) => {
 };
 
 //users get all vendor company vadetails with filter and pagination for admin panel
+// export const getAllVendorCompany = async (req, res) => {
+//   try {
+//     const page = Math.max(parseInt(req.query.page) || 1, 1);
+//     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+//     const skip = (page - 1) * limit;
+
+//     const { search, sort } = req.query;
+
+//     const cacheKey = `vendorCompany:all:v2:${JSON.stringify({
+//       page,
+//       limit,
+//       search,
+//       sort,
+//     })}`;
+
+//     const cached = await RedisCache.get(cacheKey);
+//     if (cached) {
+//       return res.status(200).json(cached);
+//     }
+
+//     const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+//     const safeSearch = search ? escapeRegex(search) : null;
+
+//     // ------------------------------------------------
+//     // Step 1: Only verified + enabled vendors allowed
+//     // ------------------------------------------------
+//     const allowedVendors = await VendorProfile.find({
+//       isAdminVerified: true,
+//       disable: false,
+//     }).select("_id");
+
+//     const vendorIds = allowedVendors.map((v) => v._id);
+
+//     if (!vendorIds.length) {
+//       return res.status(200).json({
+//         success: true,
+//         pagination: {
+//           total: 0,
+//           page,
+//           limit,
+//           totalPages: 0,
+//         },
+//         data: [],
+//       });
+//     }
+
+//     // ------------------------------------------------
+//     // Step 2: VendorCompany Query
+//     // ------------------------------------------------
+//     const query = {
+//       vendorId: { $in: vendorIds },
+//     };
+
+//     if (safeSearch) {
+//       query.$or = [
+//         { companyName: { $regex: safeSearch, $options: "i" } },
+//         { companyType: { $regex: safeSearch, $options: "i" } },
+//         { businessCategory: { $regex: safeSearch, $options: "i" } },
+//         {
+//           "businessAddress.address": {
+//             $regex: safeSearch,
+//             $options: "i",
+//           },
+//         },
+//       ];
+//     }
+
+//     // ------------------------------------------------
+//     // Step 3: Sorting
+//     // ------------------------------------------------
+//     let sortQuery = { createdAt: -1 };
+
+//     if (sort === "oldest") {
+//       sortQuery = { createdAt: 1 };
+//     }
+
+//     // ------------------------------------------------
+//     // Step 4: Fetch Data
+//     // ------------------------------------------------
+//     const [vendorCompanies, total] = await Promise.all([
+//       VendorCompany.find(query)
+//         .populate({
+//           path: "vendorId",
+//           select:
+//             "firstName lastName email phoneNumber isAdminVerified disable totalReviews",
+//         })
+//         .sort(sortQuery)
+//         .skip(skip)
+//         .limit(limit),
+
+//       VendorCompany.countDocuments(query),
+//     ]);
+
+//     // ------------------------------------------------
+//     // Step 5: Response
+//     // ------------------------------------------------
+//     const response = {
+//       success: true,
+//       pagination: {
+//         total,
+//         page,
+//         limit,
+//         totalPages: Math.ceil(total / limit),
+//       },
+//       data: vendorCompanies.map((v) => ({
+//         _id: v._id,
+
+//         shopName: v.companyName,
+//         companyType: v.companyType,
+//         businessCategory: v.businessCategory,
+//         badges: v.badges || [],
+//         shopImages: v.shopImages || [],
+//         certificates: v.certificates || [],
+//         totalReviews: v.vendorId?.totalReviews || 0,
+
+//         vendor: {
+//           _id: v.vendorId?._id,
+//           name: `${v.vendorId?.firstName || ""} ${
+//             v.vendorId?.lastName || ""
+//           }`.trim(),
+//           email: v.vendorId?.email,
+//           phoneNumber: v.vendorId?.phoneNumber,
+
+//           // always true/false based on allowed filter
+//           isAdminVerified: v.vendorId?.isAdminVerified,
+//           isDisabled: v.vendorId?.disable,
+//         },
+
+//         location: {
+//           address: v.businessAddress?.address || "",
+//         },
+
+//         createdAt: v.createdAt,
+//         updatedAt: v.updatedAt,
+//       })),
+//     };
+
+//     await RedisCache.set(cacheKey, response);
+
+//     return res.status(200).json(response);
+//   } catch (error) {
+//     console.error("Get All VendorCompany Error:", error);
+
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+
+// export const getAllVendorCompany = async (req, res) => {
+//   try {
+//     const page = Math.max(parseInt(req.query.page) || 1, 1);
+//     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+//     const skip = (page - 1) * limit;
+
+//     const { search, sort, pCategoryId } = req.query;
+
+//     const cacheKey = `vendorCompany:all:v3:${JSON.stringify({
+//       page,
+//       limit,
+//       search,
+//       sort,
+//       pCategoryId,
+//     })}`;
+
+//     const cached = await RedisCache.get(cacheKey);
+
+//     if (cached) {
+//       return res.status(200).json(cached);
+//     }
+
+//     const escapeRegex = (text) =>
+//       text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+//     const safeSearch = search ? escapeRegex(search) : null;
+
+//     // ------------------------------------------------
+//     // Step 1: Verified + Enabled Vendors
+//     // ------------------------------------------------
+//     const allowedVendors = await VendorProfile.find({
+//       isAdminVerified: true,
+//       disable: false,
+//     }).select("_id");
+
+//     const vendorIds = allowedVendors.map((v) => v._id);
+
+//     if (!vendorIds.length) {
+//       return res.status(200).json({
+//         success: true,
+//         pagination: {
+//           total: 0,
+//           page,
+//           limit,
+//           totalPages: 0,
+//         },
+//         filters: {
+//           pCategories: [],
+//         },
+//         data: [],
+//       });
+//     }
+
+//     // ------------------------------------------------
+//     // Step 2: Get All PCategory Counts
+//     // ------------------------------------------------
+//     const allPCategories = await pcategoryModel.find({isActive: true})
+//       .select("_id name slug image")
+//       .lean();
+
+//     // Product based vendor-category aggregation
+//     const vendorCategoryCounts = await Product.aggregate([
+//       {
+//         $match: {
+//           vendorId: { $in: vendorIds },
+//           pcategoryId: { $exists: true, $ne: null },
+//         },
+//       },
+
+//       // unique vendor per category
+//       {
+//         $group: {
+//           _id: {
+//             pCategoryId: "$pcategoryId",
+//             vendorId: "$vendorId",
+//           },
+//         },
+//       },
+
+//       // count vendors per category
+//       {
+//         $group: {
+//           _id: "$_id.pCategoryId",
+//           vendorCount: { $sum: 1 },
+//         },
+//       },
+//     ]);
+
+//     // Map for fast lookup
+//     const vendorCountMap = {};
+
+//     vendorCategoryCounts.forEach((item) => {
+//       vendorCountMap[item._id.toString()] = item.vendorCount;
+//     });
+
+//     // ------------------------------------------------
+//     // Step 3: Category Filter Vendor IDs
+//     // ------------------------------------------------
+//     let filteredVendorIds = vendorIds;
+
+//     if (pCategoryId) {
+//       const categoryVendorProducts = await Product.find({
+//         vendorId: { $in: vendorIds },
+//         pcategoryId: pCategoryId,
+//       }).select("vendorId");
+
+//       filteredVendorIds = [
+//         ...new Set(
+//           categoryVendorProducts.map((p) => p.vendorId.toString())
+//         ),
+//       ];
+//     }
+
+//     // ------------------------------------------------
+//     // Step 4: VendorCompany Query
+//     // ------------------------------------------------
+//     const query = {
+//       vendorId: { $in: filteredVendorIds },
+//     };
+
+//     if (safeSearch) {
+//       query.$or = [
+//         { companyName: { $regex: safeSearch, $options: "i" } },
+//         { companyType: { $regex: safeSearch, $options: "i" } },
+//         { businessCategory: { $regex: safeSearch, $options: "i" } },
+//         {
+//           "businessAddress.address": {
+//             $regex: safeSearch,
+//             $options: "i",
+//           },
+//         },
+//       ];
+//     }
+
+//     // ------------------------------------------------
+//     // Step 5: Sorting
+//     // ------------------------------------------------
+//     let sortQuery = { createdAt: -1 };
+
+//     if (sort === "oldest") {
+//       sortQuery = { createdAt: 1 };
+//     }
+
+//     // ------------------------------------------------
+//     // Step 6: Fetch Vendor Companies
+//     // ------------------------------------------------
+//     const [vendorCompanies, total] = await Promise.all([
+//       VendorCompany.find(query)
+//         .populate({
+//           path: "vendorId",
+//           select:
+//             "firstName lastName email phoneNumber isAdminVerified disable totalReviews location",
+//         })
+//         .sort(sortQuery)
+//         .skip(skip)
+//         .limit(limit),
+
+//       VendorCompany.countDocuments(query),
+//     ]);
+
+//     // ------------------------------------------------
+//     // Step 7: Response
+//     // ------------------------------------------------
+//     const response = {
+//       success: true,
+
+//       pagination: {
+//         total,
+//         page,
+//         limit,
+//         totalPages: Math.ceil(total / limit),
+//       },
+
+//       // FILTER DATA
+//       filters: {
+//         pCategories: allPCategories.map((cat) => ({
+//           _id: cat._id,
+//           name: cat.name,
+//           slug: cat.slug,
+//           image: cat.image || "",
+//           vendorCount: vendorCountMap[cat._id.toString()] || 0,
+//         })),
+//       },
+
+//       data: vendorCompanies.map((v) => ({
+//         _id: v._id,
+
+//         shopName: v.companyName,
+//         companyType: v.companyType,
+//         businessCategory: v.businessCategory,
+
+//         badges: v.badges || [],
+//         shopImages: v.shopImages || [],
+//         certificates: v.certificates || [],
+//         totalReviews: v.vendorId?.totalReviews || 0,
+
+//         vendor: {
+//           _id: v.vendorId?._id,
+//           name: `${v.vendorId?.firstName || ""} ${
+//             v.vendorId?.lastName || ""
+//           }`.trim(),
+
+//           email: v.vendorId?.email,
+//           phoneNumber: v.vendorId?.phoneNumber,
+//           isAdminVerified: v.vendorId?.isAdminVerified,
+//           isDisabled: v.vendorId?.disable,
+//         },
+
+//         location: {
+//           address: v.businessAddress?.address || "",
+//           city: v.businessAddress?.city || "",
+//           latitude: v.businessAddress?.latitude || "",
+//           longitude: v.businessAddress?.longitude || "",
+//         },
+
+//         createdAt: v.createdAt,
+//         updatedAt: v.updatedAt,
+//       })),
+//     };
+
+//     await RedisCache.set(cacheKey, response);
+
+//     return res.status(200).json(response);
+//   } catch (error) {
+//     console.error("Get All VendorCompany Error:", error);
+
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+
 export const getAllVendorCompany = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
     const skip = (page - 1) * limit;
 
-    const { search, sort } = req.query;
+    const { search, sort, pCategoryId, city, userLat, userLng } = req.query;
 
-    const cacheKey = `vendorCompany:all:v2:${JSON.stringify({
+    const cacheKey = `vendorCompany:all:v4:${JSON.stringify({
       page,
       limit,
       search,
       sort,
+      pCategoryId,
+      city,
+      userLat,
+      userLng,
     })}`;
 
     const cached = await RedisCache.get(cacheKey);
+
     if (cached) {
       return res.status(200).json(cached);
     }
@@ -1168,9 +1556,10 @@ export const getAllVendorCompany = async (req, res) => {
     const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     const safeSearch = search ? escapeRegex(search) : null;
+    const safeCity = city ? escapeRegex(city) : null;
 
     // ------------------------------------------------
-    // Step 1: Only verified + enabled vendors allowed
+    // Step 1: Verified + Enabled Vendors
     // ------------------------------------------------
     const allowedVendors = await VendorProfile.find({
       isAdminVerified: true,
@@ -1188,24 +1577,107 @@ export const getAllVendorCompany = async (req, res) => {
           limit,
           totalPages: 0,
         },
+        filters: {
+          pCategories: [],
+          cities: [],
+        },
         data: [],
       });
     }
 
     // ------------------------------------------------
-    // Step 2: VendorCompany Query
+    // Step 2: Get All PCategory Counts
+    // ------------------------------------------------
+    const allPCategories = await pcategoryModel
+      .find({
+        isActive: true,
+      })
+      .select("_id name slug image")
+      .lean();
+
+    const vendorCategoryCounts = await Product.aggregate([
+      {
+        $match: {
+          vendorId: { $in: vendorIds },
+          pcategoryId: { $exists: true, $ne: null },
+        },
+      },
+
+      {
+        $group: {
+          _id: {
+            pCategoryId: "$pcategoryId",
+            vendorId: "$vendorId",
+          },
+        },
+      },
+
+      {
+        $group: {
+          _id: "$_id.pCategoryId",
+          vendorCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const vendorCountMap = {};
+
+    vendorCategoryCounts.forEach((item) => {
+      vendorCountMap[String(item._id)] = item.vendorCount;
+    });
+
+    // ------------------------------------------------
+    // Step 3: Category Filter Vendor IDs
+    // ------------------------------------------------
+    let filteredVendorIds = vendorIds;
+
+    if (pCategoryId) {
+      const categoryVendorProducts = await Product.find({
+        vendorId: { $in: vendorIds },
+        pcategoryId: pCategoryId,
+      }).select("vendorId");
+
+      filteredVendorIds = [
+        ...new Set(categoryVendorProducts.map((p) => p.vendorId.toString())),
+      ];
+    }
+
+    // ------------------------------------------------
+    // Step 4: VendorCompany Query
     // ------------------------------------------------
     const query = {
-      vendorId: { $in: vendorIds },
+      vendorId: { $in: filteredVendorIds },
     };
 
+    // Search filter
     if (safeSearch) {
       query.$or = [
-        { companyName: { $regex: safeSearch, $options: "i" } },
-        { companyType: { $regex: safeSearch, $options: "i" } },
-        { businessCategory: { $regex: safeSearch, $options: "i" } },
+        {
+          companyName: {
+            $regex: safeSearch,
+            $options: "i",
+          },
+        },
+        {
+          companyType: {
+            $regex: safeSearch,
+            $options: "i",
+          },
+        },
+        {
+          businessCategory: {
+            $regex: safeSearch,
+            $options: "i",
+          },
+        },
         {
           "businessAddress.address": {
+            $regex: safeSearch,
+            $options: "i",
+          },
+        },
+        {
+          "businessAddress.city": {
             $regex: safeSearch,
             $options: "i",
           },
@@ -1213,8 +1685,16 @@ export const getAllVendorCompany = async (req, res) => {
       ];
     }
 
+    // City filter
+    if (safeCity) {
+      query["businessAddress.city"] = {
+        $regex: `^${safeCity}$`,
+        $options: "i",
+      };
+    }
+
     // ------------------------------------------------
-    // Step 3: Sorting
+    // Step 5: Sorting
     // ------------------------------------------------
     let sortQuery = { createdAt: -1 };
 
@@ -1223,9 +1703,9 @@ export const getAllVendorCompany = async (req, res) => {
     }
 
     // ------------------------------------------------
-    // Step 4: Fetch Data
+    // Step 6: Fetch Vendor Companies
     // ------------------------------------------------
-    const [vendorCompanies, total] = await Promise.all([
+    const [vendorCompanies, total, cityFilters] = await Promise.all([
       VendorCompany.find(query)
         .populate({
           path: "vendorId",
@@ -1237,50 +1717,109 @@ export const getAllVendorCompany = async (req, res) => {
         .limit(limit),
 
       VendorCompany.countDocuments(query),
+
+      VendorCompany.distinct("businessAddress.city", {
+        vendorId: { $in: vendorIds },
+        "businessAddress.city": {
+          $exists: true,
+          $ne: "",
+        },
+      }),
     ]);
 
     // ------------------------------------------------
-    // Step 5: Response
+    // Step 7: Response
     // ------------------------------------------------
     const response = {
       success: true,
+
       pagination: {
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
       },
-      data: vendorCompanies.map((v) => ({
-        _id: v._id,
 
-        shopName: v.companyName,
-        companyType: v.companyType,
-        businessCategory: v.businessCategory,
-        badges: v.badges || [],
-        shopImages: v.shopImages || [],
-        certificates: v.certificates || [],
-        totalReviews: v.vendorId?.totalReviews || 0,
+      filters: {
+        pCategories: allPCategories.map((cat) => ({
+          _id: cat._id,
+          name: cat.name,
+          slug: cat.slug,
+          image: cat.image || "",
+          vendorCount: vendorCountMap[String(cat._id)] || 0,
+        })),
 
-        vendor: {
-          _id: v.vendorId?._id,
-          name: `${v.vendorId?.firstName || ""} ${
-            v.vendorId?.lastName || ""
-          }`.trim(),
-          email: v.vendorId?.email,
-          phoneNumber: v.vendorId?.phoneNumber,
+        cities: cityFilters,
+      },
 
-          // always true/false based on allowed filter
-          isAdminVerified: v.vendorId?.isAdminVerified,
-          isDisabled: v.vendorId?.disable,
-        },
+      data: vendorCompanies.map((v) => {
+        let distanceData = null;
 
-        location: {
-          address: v.businessAddress?.address || "",
-        },
+        // Distance Calculation
+        if (
+          userLat &&
+          userLng &&
+          v.businessAddress?.latitude &&
+          v.businessAddress?.longitude
+        ) {
+          distanceData = calculateDistanceAndDuration(
+            Number(userLat),
+            Number(userLng),
+            Number(v.businessAddress.latitude),
+            Number(v.businessAddress.longitude),
+          );
+        }
 
-        createdAt: v.createdAt,
-        updatedAt: v.updatedAt,
-      })),
+        return {
+          _id: v._id,
+
+          shopName: v.companyName,
+          companyType: v.companyType,
+          businessCategory: v.businessCategory,
+
+          badges: v.badges || [],
+          shopImages: v.shopImages || [],
+          certificates: v.certificates || [],
+
+          totalReviews: v.vendorId?.totalReviews || 0,
+
+          vendor: {
+            _id: v.vendorId?._id,
+
+            name: `${v.vendorId?.firstName || ""} ${
+              v.vendorId?.lastName || ""
+            }`.trim(),
+
+            email: v.vendorId?.email,
+            phoneNumber: v.vendorId?.phoneNumber,
+
+            isAdminVerified: v.vendorId?.isAdminVerified,
+
+            isDisabled: v.vendorId?.disable,
+          },
+
+          location: {
+            address: v.businessAddress?.address || "",
+
+            city: v.businessAddress?.city || "",
+
+            latitude: v.businessAddress?.latitude || "",
+
+            longitude: v.businessAddress?.longitude || "",
+          },
+
+          distance: distanceData
+            ? {
+                distanceInKm: distanceData.distanceInKm,
+
+                durationInMinutes: distanceData.durationInMinutes,
+              }
+            : null,
+
+          createdAt: v.createdAt,
+          updatedAt: v.updatedAt,
+        };
+      }),
     };
 
     await RedisCache.set(cacheKey, response);
@@ -2424,6 +2963,8 @@ import Order from "../../models/marketPlace/order.model.js";
 import VendorWallet from "../../models/vendorShop/vendorWallet.model.js";
 import adminNotificationModel from "../../models/admin/adminNotification.model.js";
 import { sendAdminNotification } from "../../services/adminNotification.service.js";
+import pcategoryModel from "../../models/category/pcategory.model.js";
+import { calculateDistanceAndDuration } from "../../utils/getDistanceInKm.js";
 
 //without top product array
 // export const getVendorById = async (req, res) => {

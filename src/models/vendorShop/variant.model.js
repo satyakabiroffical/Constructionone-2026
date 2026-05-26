@@ -69,6 +69,11 @@ const variantSchema = new mongoose.Schema(
     packageDimensions: {
       type: String,
     },
+    color: {
+      //color code
+      type: String,
+      
+    },
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
