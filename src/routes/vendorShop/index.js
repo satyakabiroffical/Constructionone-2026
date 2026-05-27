@@ -10,10 +10,10 @@ import vendorDashboard from "./vendorDashboard.routes.js";
 import vendorInventory from "./inventory.routes.js";
 import vendorAbout from "./vendorAbout.routes.js";
 import vendorOffer from "./vendorOffer.routes.js";
-
-router.use("/vendors", vendorInventory);
 router.use("/vendor/about", vendorAbout);
 router.use("/vendor/offer", vendorOffer);
+router.use("/vendors", vendorInventory);
+
 
 router.use("/vendor", vendorReview);
 router.use("/vendor", shoptiming);

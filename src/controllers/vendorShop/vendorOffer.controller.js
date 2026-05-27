@@ -10,8 +10,32 @@ export const createOffer = async (req, res) => {
         message: "Question and answer are required",
       });
     }
+
     const vendorId = req.user.id;
-    const offer = await VendorOffer.create({ ...req.body, vendrId: vendorId });
+
+    if (!vendorId) {
+      return res.status(400).json({
+        success: false,
+        message: "Vendor ID is required",
+      });
+    }
+
+    let existingOffer = await VendorOffer.findOne({
+      vendrId: vendorId,
+      question,
+    });
+
+    if (existingOffer) {
+      return res.status(400).json({
+        success: false,
+        message: "Offer already exists",
+      });
+    }
+    const offer = await VendorOffer.create({
+      question,
+      answer,
+      vendrId: vendorId,
+    });
 
     return res.status(201).json({
       success: true,
@@ -26,10 +50,34 @@ export const createOffer = async (req, res) => {
   }
 };
 
-// GET ALL
+// GET ALL - user app view
 export const getAllOffers = async (req, res) => {
   try {
-    const vendorId = req.params.vendorId || req.user.id;
+    const vendorId = req.params.vendorId;
+
+    const offers = await VendorOffer.find({
+      vendrId: vendorId,
+      isActive: true,
+    }).sort({
+      createdAt: -1,
+    });
+    return res.status(200).json({
+      success: true,
+      count: offers.length,
+      data: offers,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+//vendorProfile view
+export const getAllOffersForVendor = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
 
     const offers = await VendorOffer.find({ vendrId: vendorId }).sort({
       createdAt: -1,

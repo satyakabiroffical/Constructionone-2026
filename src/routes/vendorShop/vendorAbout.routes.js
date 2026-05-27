@@ -6,15 +6,15 @@ import {
   getAboutById,
   updateAbout,
   deleteAbout,
+  getAllAboutsVendorView,
 } from "../../controllers/vendorShop/vendorAbout.controller.js";
 
-import {vendorMiddleware ,authMiddleware} from "../../middlewares/auth.js";
+import { vendorMiddleware, authMiddleware } from "../../middlewares/auth.js";
 
 const router = express.Router();
 router.post("/", vendorMiddleware, createAbout);
-
-router.get("/", vendorMiddleware, getAllAbouts);
-
+router.get("/", vendorMiddleware, getAllAboutsVendorView);
+router.get("/:vendorId", vendorMiddleware, getAllAbouts);
 router.get("/:id", getAboutById);
 
 router.put("/:id", vendorMiddleware, updateAbout);

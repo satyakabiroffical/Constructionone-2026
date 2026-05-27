@@ -1576,11 +1576,12 @@ class ProductController {
 
         serviceableDeliveryPincode: product.serviceableDeliveryPincode,
 
-        shippingCharges: {
-          fixed: product.shippingCharges?.fixed,
-          distancePerKm: product.shippingCharges?.distancePerKm,
-          weightPerKg: product.shippingCharges?.weightPerKg,
-        },
+        // shippingCharges: {
+        //   fixed: product.shippingCharges?.fixed,
+        //   distancePerKm: product.shippingCharges?.distancePerKm,
+        //   weightPerKg: product.shippingCharges?.weightPerKg,
+        // },
+        shippingCharges: product.shippingCharges || {},
 
         rating: {
           average: product.avgRating,

@@ -2,13 +2,44 @@ import VendorAbout from "../../models/vendorShop/vendorAbout.model.js";
 
 export const createAbout = async (req, res) => {
   try {
+    const { question, answer } = req.body;
+    if (!question || !answer) {
+      return res.status(400).json({
+        success: false,
+        message: "Question and answer are required",
+      });
+    }
+
     const vendorId = req.user.id;
-    const about = await VendorAbout.create({ ...req.body, vendrId: vendorId });
+
+    if (!vendorId) {
+      return res.status(400).json({
+        success: false,
+        message: "Vendor ID is required",
+      });
+    }
+
+    let existingOffer = await VendorAbout.findOne({
+      vendrId: vendorId,
+      question,
+    });
+
+    if (existingOffer) {
+      return res.status(400).json({
+        success: false,
+        message: "Offer already exists",
+      });
+    }
+    const offer = await VendorAbout.create({
+      question,
+      answer,
+      vendrId: vendorId,
+    });
 
     return res.status(201).json({
       success: true,
-      message: "About created successfully",
-      data: about,
+      message: "Offer created successfully",
+      data: offer,
     });
   } catch (error) {
     return res.status(500).json({
@@ -18,10 +49,33 @@ export const createAbout = async (req, res) => {
   }
 };
 
-// GET ALL
+// GET ALL - user app view
 export const getAllAbouts = async (req, res) => {
   try {
     const { vendorId } = req.params;
+    const abouts = await VendorAbout.find({
+      vendrId: vendorId,
+      isActive: true,
+    }).sort({
+      createdAt: -1,
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: abouts.length,
+      data: abouts,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getAllAboutsVendorView = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
     const abouts = await VendorAbout.find({ vendrId: vendorId }).sort({
       createdAt: -1,
     });
@@ -37,7 +91,6 @@ export const getAllAbouts = async (req, res) => {
       message: error.message,
     });
   }
-
 };
 
 // GET SINGLE

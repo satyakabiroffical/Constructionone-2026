@@ -9,9 +9,11 @@ import {
   getOfferById,
   updateOffer,
   deleteOffer,
+  getAllOffersForVendor,
 } from "../../controllers/vendorShop/vendorOffer.controller.js";
 
 router.post("/", vendorMiddleware, createOffer);
+router.get("/", vendorMiddleware, getAllOffersForVendor);
 
 router.get("/:vendorId", getAllOffers);
 
