@@ -302,6 +302,15 @@ const productSchema = new mongoose.Schema(
       enum: ["DRAFT", "ACTIVE", "OUT_OF_STOCK"],
       default: "ACTIVE",
     },
+
+    protips: {
+      type: [String],
+      default: [],
+    },
+    technicalDocuments: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true },
 );

@@ -8,6 +8,11 @@ import {
   getProductById,
   updateProduct,
   profileWallet,
+  getPaymentSummary,
+  getTopSellingProducts,
+  getRFQOverview,
+  getOrderDeliveryOverview,
+  getVendorOverviews,
 } from "../../controllers/vendorShop/vendorDashboard.js";
 import {
   authMiddleware,
@@ -18,7 +23,16 @@ import { s3Uploader } from "../../middlewares/uploads.js";
 
 const router = express.Router();
 
-router.get("/dashboard/overview", vendorMiddleware, getVendorOverview);
+router.get("/dashboard/overviews", vendorMiddleware, getVendorOverviews); //latest
+router.get("/dashboard/overview", vendorMiddleware, getVendorOverview); //olds
+router.get("/dashboard/rfq/overview", vendorMiddleware, getRFQOverview);
+router.get(
+  "/dashboard/order-overview",
+  vendorMiddleware,
+  getOrderDeliveryOverview,
+);
+router.get("/dashboard/payment-summary", vendorMiddleware, getPaymentSummary);
+router.get("/dashboard/top-selling", vendorMiddleware, getTopSellingProducts);
 router.get("/dashboard/orders", vendorMiddleware, getAllOrdersForVendor);
 router.get(
   "/dashboard/orders/:orderId",

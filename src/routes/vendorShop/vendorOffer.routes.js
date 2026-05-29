@@ -1,5 +1,5 @@
 import express from "express";
-import { vendorMiddleware } from "../../middlewares/auth.js";
+import { authMiddleware, vendorMiddleware } from "../../middlewares/auth.js";
 
 const router = express.Router();
 
@@ -15,7 +15,7 @@ import {
 router.post("/", vendorMiddleware, createOffer);
 router.get("/", vendorMiddleware, getAllOffersForVendor);
 
-router.get("/:vendorId", getAllOffers);
+router.get("/:vendorId", authMiddleware, getAllOffers);
 
 router.get("/:id", getOfferById);
 

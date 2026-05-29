@@ -17,6 +17,9 @@ import { addSettlement } from "../vendorShop/vendorWallet.controller.js";
 import vendorTransactionModel from "../../models/vendorShop/vendorTransaction.model.js";
 import companyModel from "../../models/admin/company.model.js";
 import redisCache from "../../utils/redisCache.js";
+import rfqModel from "../../models/vendorShop/rfq.model.js";
+import vendorWalletModel from "../../models/vendorShop/vendorWallet.model.js";
+import RedisCache from "../../utils/redisCache.js";
 
 const getItemStatusProgress = (itemStatus, updatedAt) => {
   const statusMapping = {
@@ -187,154 +190,12 @@ export const getOrderByIdForVendor = async (req, res, next) => {
   }
 };
 
-//get all orders for vendor screen
-// export const getAllOrdersForVendor = async (req, res, next) => {
-//   try {
-//     const vendorId = req.user.id;
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 10;
-//     const skip = (page - 1) * limit;
-//     const search = req.query.search?.trim() || "";
-
-//     const version = (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
-
-//     const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
-//       req.query,
-//     )}`;
-
-//     // const cached = await redis.get(cacheKey);
-//     // if (cached) {
-//     //   return res.status(200).json(JSON.parse(cached));
-//     // }
-
-//     // base filter
-//     const filter = {
-//       "items.vendorId": vendorId,
-//       orderType: "SUB",
-//     };
-
-//     if (req.query.status) {
-//       filter.status = req.query.status;
-//     }
-
-//     if (req.query.paymentStatus) {
-//       filter.paymentStatus = req.query.paymentStatus;
-//     }
-
-//     // search filter
-//     if (search) {
-//       filter.$or = [
-//         {
-//           orderId: {
-//             $regex: search,
-//             $options: "i",
-//           },
-//         },
-//         {
-//           "items.productName": {
-//             $regex: search,
-//             $options: "i",
-//           },
-//         },
-//         {
-//           status: {
-//             $regex: search,
-//             $options: "i",
-//           },
-//         },
-//       ];
-//     }
-
-//     const allStatusesFromModel = Order.schema.path("status").enumValues || [];
-//     const allStatuses = ["ALL", ...allStatusesFromModel];
-
-//     const [orders, total] = await Promise.all([
-//       Order.find(filter)
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(limit)
-//         .select(
-//           `
-//             orderId
-//             status
-//             paymentStatus
-//             netAmount
-//             createdAt
-//             items
-//             userId
-//           `,
-//         )
-//         .populate({
-//           path: "items.productId",
-//           select: "name images",
-//         })
-//         .populate({
-//           path: "userId",
-//           select: "name phone",
-//         })
-//         .lean(),
-//     ]);
-
-//     const formattedOrders = orders.map((order) => ({
-//       _id: order._id,
-//       orderId: order.orderId,
-//       status: order.status,
-//       paymentStatus: order.paymentStatus,
-//       totalAmount: order.netAmount,
-//       createdAt: order.createdAt,
-//       deliveryType: order.items?.[0]?.deliveryType || "",
-
-//       customer: {
-//         name: order.userId?.name || "",
-//         phone: order.userId?.phone || "",
-//       },
-
-//       totalItems: order.items?.length || 0,
-
-//       products:
-//         order.items?.slice(0, 2).map((item) => ({
-//           productName: item.productId?.name || item.productName,
-//           image: item.productId?.images?.[0] || "",
-//           quantity: item.quantity,
-//           deliveryType: item.deliveryType || "",
-//         })) || [],
-//     }));
-
-//     const response = {
-//       success: true,
-//       message: "Vendor orders fetched successfully",
-
-//       filters: {
-//         statuses: allStatuses || [],
-//       },
-
-//       data: {
-//         orders: formattedOrders,
-//         pagination: {
-//           total,
-//           page,
-//           limit,
-//           totalPages: Math.ceil(total / limit),
-//         },
-//       },
-//     };
-
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
-
-//     return res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
 // export const getAllOrdersForVendor = async (req, res, next) => {
 //   try {
 //     const vendorId = req.user.id;
 
 //     const page = parseInt(req.query.page) || 1;
-
 //     const limit = parseInt(req.query.limit) || 10;
-
 //     const skip = (page - 1) * limit;
 
 //     const search = req.query.search?.trim() || "";
@@ -343,11 +204,12 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 //     // CACHE
 //     // ======================================================
 
-//     const version = (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
+//     // const version =
+//     //   (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
 
-//     const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
-//       req.query,
-//     )}`;
+//     // const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
+//     //   req.query,
+//     // )}`;
 
 //     // const cached = await redis.get(cacheKey);
 
@@ -356,18 +218,33 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 //     // }
 
 //     // ======================================================
+//     // STATUS ENUMS
+//     // ======================================================
+
+//     const allStatusesFromModel = Order.schema.path("status").enumValues || [];
+
+//     const allStatuses = ["ALL", ...allStatusesFromModel];
+
+//     // ======================================================
 //     // FILTER
 //     // ======================================================
 
 //     const filter = {
 //       "items.vendorId": vendorId,
 //       orderType: "SUB",
+//       paymentStatus: "PAID",
 //     };
 
-//     if (req.query.status) {
+//     // status filter
+//     if (
+//       req.query.status &&
+//       req.query.status !== "ALL" &&
+//       allStatusesFromModel.includes(req.query.status)
+//     ) {
 //       filter.status = req.query.status;
 //     }
 
+//     // payment status filter
 //     if (req.query.paymentStatus) {
 //       filter.paymentStatus = req.query.paymentStatus;
 //     }
@@ -385,13 +262,7 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 //           },
 //         },
 //         {
-//           "items.productName": {
-//             $regex: search,
-//             $options: "i",
-//           },
-//         },
-//         {
-//           status: {
+//           "userId.name": {
 //             $regex: search,
 //             $options: "i",
 //           },
@@ -400,19 +271,12 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 //     }
 
 //     // ======================================================
-//     // STATUS FILTERS
-//     // ======================================================
-
-//     const allStatusesFromModel = Order.schema.path("status").enumValues || [];
-
-//     const allStatuses = ["ALL", ...allStatusesFromModel];
-
-//     // ======================================================
 //     // FETCH ORDERS
 //     // ======================================================
 
 //     const [orders, total] = await Promise.all([
 //       Order.find(filter)
+//         // recent orders top pe
 //         .sort({ createdAt: -1 })
 //         .skip(skip)
 //         .limit(limit)
@@ -447,6 +311,14 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 //         .populate({
 //           path: "userId",
 //           select: "name phone",
+//           match: search
+//             ? {
+//                 name: {
+//                   $regex: search,
+//                   $options: "i",
+//                 },
+//               }
+//             : {},
 //         })
 //         .lean(),
 
@@ -454,10 +326,22 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 //     ]);
 
 //     // ======================================================
+//     // REMOVE NULL USERS AFTER SEARCH
+//     // ======================================================
+
+//     const filteredOrders = search
+//       ? orders.filter(
+//           (order) =>
+//             order.orderId?.toLowerCase().includes(search.toLowerCase()) ||
+//             order.userId,
+//         )
+//       : orders;
+
+//     // ======================================================
 //     // FORMAT ORDERS
 //     // ======================================================
 
-//     const formattedOrders = orders.map((order) => {
+//     const formattedOrders = filteredOrders.map((order) => {
 //       // ==================================================
 //       // FILTER VENDOR ITEMS
 //       // ==================================================
@@ -547,9 +431,15 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 
 //           status: item.status || "",
 
-//           total:
-//             (item.finalPrice || item.price || 0) * (item.quantity || 0) +
-//               item.gstAmount || 0,
+//           // total:
+//           //   (item.finalPrice || item.price || 0) * (item.quantity || 0) +
+//           //   (item.gstAmount || 0),
+//           total: Number(
+//             (
+//               (item.finalPrice || item.price || 0) * (item.quantity || 0) +
+//               (item.gstAmount || 0)
+//             ).toFixed(2),
+//           ),
 //         })),
 
 //         // ================================================
@@ -567,11 +457,14 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 
 //           vendorAmount: totalVendorAmount,
 
-//           totalAmount:
-//             totalBill +
-//             totalDeliveryCharge +
-//             totalGST +
-//             (order.handlingCharge || 0),
+//           totalAmount: Number(
+//             (
+//               totalBill +
+//               totalDeliveryCharge +
+//               totalGST +
+//               (order.handlingCharge || 0)
+//             ).toFixed(2),
+//           ),
 //         },
 //       };
 //     });
@@ -586,20 +479,22 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 //       message: "Vendor orders fetched successfully",
 
 //       filters: {
-//         statuses: allStatuses || [],
+//         statuses: allStatuses,
 //       },
 
 //       data: {
 //         orders: formattedOrders,
 
 //         pagination: {
-//           total,
+//           total: search ? filteredOrders.length : total,
 
 //           page,
 
 //           limit,
 
-//           totalPages: Math.ceil(total / limit),
+//           totalPages: Math.ceil(
+//             (search ? filteredOrders.length : total) / limit,
+//           ),
 //         },
 //       },
 //     };
@@ -608,205 +503,854 @@ export const getOrderByIdForVendor = async (req, res, next) => {
 //     // CACHE SAVE
 //     // ======================================================
 
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
+//     // await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
 
 //     return res.status(200).json(response);
 //   } catch (error) {
 //     next(error);
 //   }
 // };
+//dashboard-overview
 
 export const getAllOrdersForVendor = async (req, res, next) => {
   try {
-    const vendorId = req.user.id;
+    const vendorId = new mongoose.Types.ObjectId(req.user.id);
 
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      status,
+      orderType,
+      paymentStatus,
+      startDate,
+      endDate,
+    } = req.query;
 
-    const search = req.query.search?.trim() || "";
-
-    // ======================================================
-    // CACHE
-    // ======================================================
-
-    // const version =
-    //   (await redis.get(`vendor:orders:version:${vendorId}`)) || 1;
-
-    // const cacheKey = `orders:vendor:${vendorId}:v${version}:${JSON.stringify(
-    //   req.query,
-    // )}`;
-
-    // const cached = await redis.get(cacheKey);
-
-    // if (cached) {
-    //   return res.status(200).json(JSON.parse(cached));
-    // }
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+    const skip = (pageNumber - 1) * limitNumber;
 
     // ======================================================
-    // STATUS ENUMS
+    // BASE MATCH
     // ======================================================
 
-    const allStatusesFromModel = Order.schema.path("status").enumValues || [];
-
-    const allStatuses = ["ALL", ...allStatusesFromModel];
-
-    // ======================================================
-    // FILTER
-    // ======================================================
-
-    const filter = {
+    const match = {
       "items.vendorId": vendorId,
-      orderType: "SUB",
-      paymentStatus: "PAID",
     };
 
-    // status filter
-    if (
-      req.query.status &&
-      req.query.status !== "ALL" &&
-      allStatusesFromModel.includes(req.query.status)
-    ) {
-      filter.status = req.query.status;
+    // item level status filter
+    if (status && status !== "ALL") {
+      match["items.status"] = status;
     }
 
-    // payment status filter
-    if (req.query.paymentStatus) {
-      filter.paymentStatus = req.query.paymentStatus;
+    // payment status
+    if (paymentStatus) {
+      match.paymentStatus = paymentStatus;
+    }
+
+    // order type
+    if (orderType) {
+      match.orderType = orderType;
+    }
+
+    // date range
+    if (startDate || endDate) {
+      match.createdAt = {};
+
+      if (startDate) {
+        match.createdAt.$gte = new Date(startDate);
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+
+        match.createdAt.$lte = end;
+      }
     }
 
     // ======================================================
-    // SEARCH
+    // PIPELINE
     // ======================================================
 
-    if (search) {
-      filter.$or = [
-        {
-          orderId: {
-            $regex: search,
-            $options: "i",
-          },
+    const pipeline = [
+      {
+        $match: match,
+      },
+
+      // ======================================================
+      // USER LOOKUP
+      // ======================================================
+
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user",
         },
-        {
-          "userId.name": {
-            $regex: search,
-            $options: "i",
-          },
+      },
+
+      {
+        $unwind: {
+          path: "$user",
+          preserveNullAndEmptyArrays: true,
         },
-      ];
-    }
+      },
 
-    // ======================================================
-    // FETCH ORDERS
-    // ======================================================
+      // ======================================================
+      // SEARCH
+      // ======================================================
 
-    const [orders, total] = await Promise.all([
-      Order.find(filter)
-        // recent orders top pe
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .select(
-          `
-          orderId
-          status
-          paymentStatus
-          netAmount
-          subTotal
-          totalDeliveryFee
-          handlingCharge
-          createdAt
-          items
-          userId
-        `,
-        )
-        .populate({
-          path: "items.productId",
-          select: `
-            name
-            images
-            measurementUnit
-          `,
-        })
-        .populate({
-          path: "items.variantId",
-          select: `
-            size
-          `,
-        })
-        .populate({
-          path: "userId",
-          select: "name phone",
-          match: search
-            ? {
-                name: {
-                  $regex: search,
-                  $options: "i",
+      ...(search
+        ? [
+            {
+              $match: {
+                $or: [
+                  {
+                    orderId: {
+                      $regex: search,
+                      $options: "i",
+                    },
+                  },
+                  {
+                    "user.name": {
+                      $regex: search,
+                      $options: "i",
+                    },
+                  },
+                  {
+                    "user.phone": {
+                      $regex: search,
+                      $options: "i",
+                    },
+                  },
+                ],
+              },
+            },
+          ]
+        : []),
+
+      // ======================================================
+      // FACET
+      // ======================================================
+
+      {
+        $facet: {
+          // ======================================================
+          // ORDERS
+          // ======================================================
+
+          orders: [
+            {
+              $sort: {
+                createdAt: -1,
+              },
+            },
+
+            {
+              $skip: skip,
+            },
+
+            {
+              $limit: limitNumber,
+            },
+
+            {
+              $lookup: {
+                from: "products",
+                localField: "items.productId",
+                foreignField: "_id",
+                as: "products",
+              },
+            },
+
+            {
+              $lookup: {
+                from: "variants",
+                localField: "items.variantId",
+                foreignField: "_id",
+                as: "variants",
+              },
+            },
+
+            {
+              $project: {
+                orderId: 1,
+                orderType: 1,
+                status: 1,
+                paymentStatus: 1,
+                handlingCharge: 1,
+                createdAt: 1,
+
+                customer: {
+                  name: "$user.name",
+                  phone: "$user.phone",
                 },
-              }
-            : {},
-        })
-        .lean(),
 
-      Order.countDocuments(filter),
-    ]);
+                items: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$items",
+                        as: "item",
+                        cond: {
+                          $eq: ["$$item.vendorId", vendorId],
+                        },
+                      },
+                    },
 
-    // ======================================================
-    // REMOVE NULL USERS AFTER SEARCH
-    // ======================================================
+                    as: "item",
 
-    const filteredOrders = search
-      ? orders.filter(
-          (order) =>
-            order.orderId?.toLowerCase().includes(search.toLowerCase()) ||
-            order.userId,
-        )
-      : orders;
+                    in: {
+                      productId: "$$item.productId",
+
+                      variantId: "$$item.variantId",
+
+                      vendorId: "$$item.vendorId",
+
+                      quantity: "$$item.quantity",
+
+                      price: {
+                        $round: [
+                          {
+                            $ifNull: ["$$item.price", 0],
+                          },
+                          2,
+                        ],
+                      },
+
+                      finalPrice: {
+                        $round: [
+                          {
+                            $ifNull: ["$$item.finalPrice", 0],
+                          },
+                          2,
+                        ],
+                      },
+
+                      gstAmount: {
+                        $round: [
+                          {
+                            $ifNull: ["$$item.gstAmount", 0],
+                          },
+                          2,
+                        ],
+                      },
+
+                      deliveryFee: {
+                        $round: [
+                          {
+                            $ifNull: ["$$item.deliveryFee", 0],
+                          },
+                          2,
+                        ],
+                      },
+
+                      vendorAmount: {
+                        $round: [
+                          {
+                            $ifNull: ["$$item.vendorAmount", 0],
+                          },
+                          2,
+                        ],
+                      },
+
+                      packageWeight: "$$item.packageWeight",
+
+                      deliveryType: "$$item.deliveryType",
+
+                      status: "$$item.status",
+
+                      durationTime: "$$item.durationTime",
+
+                      distance: "$$item.distance",
+
+                      statusProgress: "$$item.statusProgress",
+
+                      product: {
+                        $let: {
+                          vars: {
+                            product: {
+                              $arrayElemAt: [
+                                {
+                                  $filter: {
+                                    input: "$products",
+                                    as: "p",
+                                    cond: {
+                                      $eq: [
+                                        "$$p._id",
+                                        "$$item.productId",
+                                      ],
+                                    },
+                                  },
+                                },
+                                0,
+                              ],
+                            },
+                          },
+
+                          in: {
+                            _id: "$$product._id",
+                            name: "$$product.name",
+                            images: "$$product.images",
+                            measurementUnit:
+                              "$$product.measurementUnit",
+                          },
+                        },
+                      },
+
+                      variant: {
+                        $let: {
+                          vars: {
+                            variant: {
+                              $arrayElemAt: [
+                                {
+                                  $filter: {
+                                    input: "$variants",
+                                    as: "v",
+                                    cond: {
+                                      $eq: [
+                                        "$$v._id",
+                                        "$$item.variantId",
+                                      ],
+                                    },
+                                  },
+                                },
+                                0,
+                              ],
+                            },
+                          },
+
+                          in: {
+                            _id: "$$variant._id",
+                            size: "$$variant.size",
+                          },
+                        },
+                      },
+
+                      total: {
+                        $round: [
+                          {
+                            $add: [
+                              {
+                                $multiply: [
+                                  {
+                                    $ifNull: [
+                                      "$$item.finalPrice",
+                                      0,
+                                    ],
+                                  },
+                                  {
+                                    $ifNull: [
+                                      "$$item.quantity",
+                                      0,
+                                    ],
+                                  },
+                                ],
+                              },
+                              {
+                                $ifNull: [
+                                  "$$item.gstAmount",
+                                  0,
+                                ],
+                              },
+                              {
+                                $ifNull: [
+                                  "$$item.deliveryFee",
+                                  0,
+                                ],
+                              },
+                            ],
+                          },
+                          2,
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+
+          // ======================================================
+          // STATS
+          // ======================================================
+
+          stats: [
+            {
+              $unwind: "$items",
+            },
+
+            {
+              $match: {
+                "items.vendorId": vendorId,
+              },
+            },
+
+            // ======================================================
+            // ITEM TOTAL + DELAYED
+            // ======================================================
+
+            {
+              $addFields: {
+                itemTotal: {
+                  $round: [
+                    {
+                      $add: [
+                        {
+                          $multiply: [
+                            {
+                              $ifNull: [
+                                "$items.finalPrice",
+                                0,
+                              ],
+                            },
+                            {
+                              $ifNull: [
+                                "$items.quantity",
+                                0,
+                              ],
+                            },
+                          ],
+                        },
+                        {
+                          $ifNull: [
+                            "$items.gstAmount",
+                            0,
+                          ],
+                        },
+                        {
+                          $ifNull: [
+                            "$items.deliveryFee",
+                            0,
+                          ],
+                        },
+                      ],
+                    },
+                    2,
+                  ],
+                },
+
+                // isDelayed: {
+                //   $cond: [
+                //     {
+                //       $and: [
+                //         {
+                //           $lt: [
+                //             "$createdAt",
+                //             new Date(
+                //               Date.now() -
+                //                 3 * 24 * 60 * 60 * 1000,
+                //             ),
+                //           ],
+                //         },
+
+                //         {
+                //           $not: {
+                //             $in: [
+                //               "$items.status",
+                //               [
+                //                 "DELIVERED",
+                //                 "CANCELLED",
+                //               ],
+                //             ],
+                //           },
+                //         },
+                //       ],
+                //     },
+                //     true,
+                //     false,
+                //   ],
+                // },
+
+                isDelayed: {
+  $switch: {
+    branches: [
+      {
+        case: {
+          $and: [
+            {
+              $eq: ["$items.status", "PENDING"],
+            },
+            {
+              $lt: [
+                "$createdAt",
+                new Date(
+                  Date.now() -
+                    1 * 24 * 60 * 60 * 1000,
+                ),
+              ],
+            },
+          ],
+        },
+        then: true,
+      },
+
+      {
+        case: {
+          $and: [
+            {
+              $eq: [
+                "$items.status",
+                "CONFIRMED",
+              ],
+            },
+            {
+              $lt: [
+                "$createdAt",
+                new Date(
+                  Date.now() -
+                    2 * 24 * 60 * 60 * 1000,
+                ),
+              ],
+            },
+          ],
+        },
+        then: true,
+      },
+
+      {
+        case: {
+          $and: [
+            {
+              $eq: [
+                "$items.status",
+                "PROCESSING",
+              ],
+            },
+            {
+              $lt: [
+                "$createdAt",
+                new Date(
+                  Date.now() -
+                    3 * 24 * 60 * 60 * 1000,
+                ),
+              ],
+            },
+          ],
+        },
+        then: true,
+      },
+
+      {
+        case: {
+          $and: [
+            {
+              $in: [
+                "$items.status",
+                [
+                  "SHIPPED",
+                  "OUT_FOR_DELIVERY",
+                ],
+              ],
+            },
+            {
+              $lt: [
+                "$createdAt",
+                new Date(
+                  Date.now() -
+                    5 * 24 * 60 * 60 * 1000,
+                ),
+              ],
+            },
+          ],
+        },
+        then: true,
+      },
+    ],
+
+    default: false,
+  },
+},
+
+              },
+            },
+
+            // ======================================================
+            // GROUP
+            // ======================================================
+
+            {
+              $group: {
+                _id: null,
+
+                total: {
+                  $sum: 1,
+                },
+
+                newOrders: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $eq: [
+                          "$items.status",
+                          "PENDING",
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+
+                confirmed: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $eq: [
+                          "$items.status",
+                          "CONFIRMED",
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+
+                processing: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $eq: [
+                          "$items.status",
+                          "PROCESSING",
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+
+                dispatched: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $in: [
+                          "$items.status",
+                          [
+                            "SHIPPED",
+                            "OUT_FOR_DELIVERY",
+                          ],
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+
+                delivered: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $eq: [
+                          "$items.status",
+                          "DELIVERED",
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+
+                cancelled: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $eq: [
+                          "$items.status",
+                          "CANCELLED",
+                        ],
+                      },
+                      1,
+                      0,
+                    ],
+                  },
+                },
+
+                delayed: {
+                  $sum: {
+                    $cond: ["$isDelayed", 1, 0],
+                  },
+                },
+
+                // ================================================
+                // AMOUNTS
+                // ================================================
+
+                newAmount: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $eq: [
+                          "$items.status",
+                          "PENDING",
+                        ],
+                      },
+                      "$itemTotal",
+                      0,
+                    ],
+                  },
+                },
+
+                pendingDispatchAmount: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $in: [
+                          "$items.status",
+                          [
+                            "PENDING",
+                            "CONFIRMED",
+                            "PROCESSING",
+                          ],
+                        ],
+                      },
+                      "$itemTotal",
+                      0,
+                    ],
+                  },
+                },
+
+                dispatchedAmount: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $in: [
+                          "$items.status",
+                          [
+                            "SHIPPED",
+                            "OUT_FOR_DELIVERY",
+                          ],
+                        ],
+                      },
+                      "$itemTotal",
+                      0,
+                    ],
+                  },
+                },
+
+                deliveredAmount: {
+                  $sum: {
+                    $cond: [
+                      {
+                        $eq: [
+                          "$items.status",
+                          "DELIVERED",
+                        ],
+                      },
+                      "$itemTotal",
+                      0,
+                    ],
+                  },
+                },
+
+                delayedAmount: {
+                  $sum: {
+                    $cond: [
+                      "$isDelayed",
+                      "$itemTotal",
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+
+            // ======================================================
+            // ROUND VALUES
+            // ======================================================
+
+            {
+              $project: {
+                _id: 0,
+
+                total: 1,
+                newOrders: 1,
+                confirmed: 1,
+                processing: 1,
+                dispatched: 1,
+                delivered: 1,
+                cancelled: 1,
+                delayed: 1,
+
+                newAmount: {
+                  $round: ["$newAmount", 2],
+                },
+
+                pendingDispatchAmount: {
+                  $round: [
+                    "$pendingDispatchAmount",
+                    2,
+                  ],
+                },
+
+                dispatchedAmount: {
+                  $round: [
+                    "$dispatchedAmount",
+                    2,
+                  ],
+                },
+
+                deliveredAmount: {
+                  $round: [
+                    "$deliveredAmount",
+                    2,
+                  ],
+                },
+
+                delayedAmount: {
+                  $round: [
+                    "$delayedAmount",
+                    2,
+                  ],
+                },
+              },
+            },
+          ],
+
+          // ======================================================
+          // PAGINATION
+          // ======================================================
+
+          totalCount: [
+            {
+              $count: "count",
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = await Order.aggregate(pipeline);
+
+    const orders = result?.[0]?.orders || [];
+
+    const stats = result?.[0]?.stats?.[0] || {};
+
+    const total =
+      result?.[0]?.totalCount?.[0]?.count || 0;
 
     // ======================================================
     // FORMAT ORDERS
     // ======================================================
 
-    const formattedOrders = filteredOrders.map((order) => {
-      // ==================================================
-      // FILTER VENDOR ITEMS
-      // ==================================================
-
-      const vendorItems =
-        order.items?.filter(
-          (item) => item.vendorId?.toString() === vendorId.toString(),
-        ) || [];
-
-      // ==================================================
-      // CALCULATIONS
-      // ==================================================
-
-      const totalBill = vendorItems.reduce((sum, item) => {
-        return (
-          sum + (item.finalPrice || item.price || 0) * (item.quantity || 0)
-        );
+    const formattedOrders = orders.map((order) => {
+      const totalAmount = order.items.reduce((sum, item) => {
+        return sum + (item.total || 0);
       }, 0);
-
-      const totalDeliveryCharge = vendorItems.reduce((sum, item) => {
-        return sum + (item.deliveryFee || 0);
-      }, 0);
-
-      const totalVendorAmount = vendorItems.reduce((sum, item) => {
-        return sum + (item.vendorAmount || 0);
-      }, 0);
-
-      const totalGST = vendorItems.reduce((sum, item) => {
-        return sum + (item.gstAmount || 0);
-      }, 0);
-
-      // ==================================================
-      // RESPONSE
-      // ==================================================
 
       return {
         _id: order._id,
 
         orderId: order.orderId,
+
+        orderType: order.orderType,
 
         status: order.status,
 
@@ -814,130 +1358,134 @@ export const getAllOrdersForVendor = async (req, res, next) => {
 
         createdAt: order.createdAt,
 
-        itemCount: vendorItems.length,
+        customer: order.customer,
 
-        customer: {
-          name: order.userId?.name || "",
+        itemCount: order.items.length,
 
-          phone: order.userId?.phone || "",
-        },
+        orderDetails: order.items.map((item) => ({
+          productId: item.product?._id || "",
 
-        // ================================================
-        // ORDER DETAILS
-        // ================================================
+          variantId: item.variant?._id || "",
 
-        orderDetails: vendorItems.map((item) => ({
-          productId: item.productId?._id || "",
+          productName: item.product?.name || "",
 
-          variantId: item.variantId?._id || "",
+          image: item.product?.images?.[0] || "",
 
-          productName: item.productId?.name || "",
+          quantity: item.quantity,
 
-          image: item.productId?.images?.[0] || "",
+          measurementUnit:
+            item.product?.measurementUnit || "",
 
-          quantity: item.quantity || 0,
+          size: item.variant?.size || "",
 
-          measurementUnit: item.productId?.measurementUnit || "",
+          price: item.price,
 
-          size: item.variantId?.size || "",
+          finalPrice: item.finalPrice,
 
-          price: item.price || 0,
+          gstAmount: item.gstAmount,
 
-          finalPrice: item.finalPrice || 0,
+          deliveryFee: item.deliveryFee,
 
-          gstAmount: item.gstAmount || 0,
+          vendorAmount: item.vendorAmount,
 
-          deliveryFee: item.deliveryFee || 0,
+          packageWeight: item.packageWeight,
 
-          vendorAmount: item.vendorAmount || 0,
+          deliveryType: item.deliveryType,
 
-          packageWeight: item.packageWeight || 0,
+          durationTime: item.durationTime,
 
-          deliveryType: item.deliveryType || "",
+          distance: item.distance,
 
-          status: item.status || "",
+          status: item.status,
 
-          // total:
-          //   (item.finalPrice || item.price || 0) * (item.quantity || 0) +
-          //   (item.gstAmount || 0),
-          total: Number(
-            (
-              (item.finalPrice || item.price || 0) * (item.quantity || 0) +
-              (item.gstAmount || 0)
-            ).toFixed(2),
-          ),
+          statusProgress: item.statusProgress,
+
+          total: item.total,
         })),
 
-        // ================================================
-        // BILL SUMMARY
-        // ================================================
-
         billSummary: {
-          totalBill,
-
-          totalDeliveryCharge,
-
-          gst: totalGST,
-
-          handlingCharge: order.handlingCharge || 0,
-
-          vendorAmount: totalVendorAmount,
-
-          totalAmount: Number(
-            (
-              totalBill +
-              totalDeliveryCharge +
-              totalGST +
-              (order.handlingCharge || 0)
-            ).toFixed(2),
-          ),
+          totalAmount: Number(totalAmount.toFixed(2)),
         },
       };
     });
 
     // ======================================================
-    // FINAL RESPONSE
+    // RESPONSE
     // ======================================================
 
-    const response = {
+    return res.status(200).json({
       success: true,
 
-      message: "Vendor orders fetched successfully",
-
-      filters: {
-        statuses: allStatuses,
-      },
+      message:
+        "Vendor analytics fetched successfully",
 
       data: {
+        stats: {
+          total: stats.total || 0,
+
+          newOrders: stats.newOrders || 0,
+
+          confirmed: stats.confirmed || 0,
+
+          processing: stats.processing || 0,
+
+          dispatched: stats.dispatched || 0,
+
+          delivered: stats.delivered || 0,
+
+          cancelled: stats.cancelled || 0,
+
+          delayed: stats.delayed || 0,
+
+          newAmount: Number(
+            (stats.newAmount || 0).toFixed(2),
+          ),
+
+          pendingDispatchAmount: Number(
+            (
+              stats.pendingDispatchAmount || 0
+            ).toFixed(2),
+          ),
+
+          dispatchedAmount: Number(
+            (
+              stats.dispatchedAmount || 0
+            ).toFixed(2),
+          ),
+
+          deliveredAmount: Number(
+            (
+              stats.deliveredAmount || 0
+            ).toFixed(2),
+          ),
+
+          delayedAmount: Number(
+            (
+              stats.delayedAmount || 0
+            ).toFixed(2),
+          ),
+        },
+
         orders: formattedOrders,
 
         pagination: {
-          total: search ? filteredOrders.length : total,
+          total,
 
-          page,
+          page: pageNumber,
 
-          limit,
+          limit: limitNumber,
 
           totalPages: Math.ceil(
-            (search ? filteredOrders.length : total) / limit,
+            total / limitNumber,
           ),
         },
       },
-    };
-
-    // ======================================================
-    // CACHE SAVE
-    // ======================================================
-
-    // await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
-
-    return res.status(200).json(response);
+    });
   } catch (error) {
     next(error);
   }
 };
 
-//dashboard-overview
 export const getVendorOverview = async (req, res, next) => {
   try {
     const vendorId = req.user.id;
@@ -1134,6 +1682,517 @@ export const getVendorOverview = async (req, res, next) => {
   } catch (error) {
     // console.error("Vendor Overview Error:", error);
     next(error);
+  }
+};
+export const getRFQOverview = async (req, res) => {
+  try {
+    const vendorId = new mongoose.Types.ObjectId(req.user.id);
+
+    const overview = await rfqModel.aggregate([
+      {
+        $match: {
+          vendorId,
+        },
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          // total rfq received
+          totalReceived: {
+            $sum: 1,
+          },
+
+          // pending rfq
+          totalPendingRFQ: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "pending"] }, 1, 0],
+            },
+          },
+
+          // quotations sent
+          totalSendQuotations: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "quoted"] }, 1, 0],
+            },
+          },
+
+          // won / completed
+          totalWonComplete: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "closed"] }, 1, 0],
+            },
+          },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          totalReceived: 1,
+          totalPendingRFQ: 1,
+          totalSendQuotations: 1,
+          totalWonComplete: 1,
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "RFQ overview fetched successfully",
+      data: overview[0] || {
+        totalReceived: 0,
+        totalPendingRFQ: 0,
+        totalSendQuotations: 0,
+        totalWonComplete: 0,
+      },
+    });
+  } catch (error) {
+    console.error("getRFQOverview Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const getOrderDeliveryOverview = async (req, res) => {
+  try {
+    const vendorId = new mongoose.Types.ObjectId(req.user.id);
+
+    // today start/end
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const result = await Order.aggregate([
+      {
+        $unwind: "$items",
+      },
+
+      {
+        $match: {
+          "items.vendorId": vendorId,
+        },
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          // DELIVERED TODAY
+          deliveredToday: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    {
+                      $eq: ["$items.status", "DELIVERED"],
+                    },
+                    {
+                      $gte: ["$updatedAt", startOfDay],
+                    },
+                    {
+                      $lte: ["$updatedAt", endOfDay],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // IN TRANSIT
+          inTransit: {
+            $sum: {
+              $cond: [
+                {
+                  $in: ["$items.status", ["SHIPPED", "PACKED"]],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // OUT FOR DELIVERY
+          outForDelivery: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: ["$status", "OUT_FOR_DELIVERY"],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // DELAYED
+          delayed: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    {
+                      $in: [
+                        "$items.status",
+                        ["CONFIRMED", "ACCEPTED", "PACKED", "SHIPPED"],
+                      ],
+                    },
+
+                    // older than 3 days
+                    {
+                      $lt: [
+                        "$createdAt",
+                        new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+                      ],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          // POD PENDING
+          podPending: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    {
+                      $eq: ["$items.status", "DELIVERED"],
+                    },
+                    {
+                      $eq: ["$paymentMethod", "COD"],
+                    },
+                    {
+                      $ne: ["$paymentStatus", "PAID"],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          deliveredToday: 1,
+          inTransit: 1,
+          outForDelivery: 1,
+          delayed: 1,
+          podPending: 1,
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Order delivery overview fetched successfully",
+
+      data: result[0] || {
+        deliveredToday: 0,
+        inTransit: 0,
+        outForDelivery: 0,
+        delayed: 0,
+        podPending: 0,
+      },
+    });
+  } catch (error) {
+    console.error("getOrderDeliveryOverview Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+// =====================================
+// PAYMENT SUMMARY
+// =====================================
+
+export const getPaymentSummary = async (req, res) => {
+  try {
+    const vendorId = new mongoose.Types.ObjectId(req.user.id);
+
+    // TODAY
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // THIS WEEK
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const result = await Order.aggregate([
+      {
+        $unwind: "$items",
+      },
+
+      {
+        $match: {
+          "items.vendorId": vendorId,
+        },
+      },
+
+      {
+        $group: {
+          _id: null,
+
+          // TODAY COLLECTIONS
+          todaysCollections: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    {
+                      $eq: ["$paymentStatus", "PAID"],
+                    },
+
+                    {
+                      $gte: ["$updatedAt", startOfDay],
+                    },
+
+                    {
+                      $lte: ["$updatedAt", endOfDay],
+                    },
+                  ],
+                },
+
+                {
+                  $ifNull: ["$items.vendorAmount", 0],
+                },
+
+                0,
+              ],
+            },
+          },
+
+          // PENDING SETTLEMENTS
+          totalPendingSettlements: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: ["$paymentStatus", "UNPAID"],
+                },
+
+                {
+                  $ifNull: ["$items.vendorAmount", 0],
+                },
+
+                0,
+              ],
+            },
+          },
+
+          // THIS WEEK REVENUE
+          thisWeekRevenue: {
+            $sum: {
+              $cond: [
+                {
+                  $gte: ["$createdAt", startOfWeek],
+                },
+
+                {
+                  $ifNull: ["$items.vendorAmount", 0],
+                },
+
+                0,
+              ],
+            },
+          },
+
+          // OUTSTANDING AMOUNT
+          outstandingAmount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    {
+                      $ne: ["$items.status", "DELIVERED"],
+                    },
+
+                    {
+                      $in: ["$paymentStatus", ["UNPAID", "FAILED"]],
+                    },
+                  ],
+                },
+
+                {
+                  $ifNull: ["$items.vendorAmount", 0],
+                },
+
+                0,
+              ],
+            },
+          },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          todaysCollections: {
+            $round: ["$todaysCollections", 2],
+          },
+          totalPendingSettlements: {
+            $round: ["$totalPendingSettlements", 2],
+          },
+          thisWeekRevenue: {
+            $round: ["$thisWeekRevenue", 2],
+          },
+          outstandingAmount: {
+            $round: ["$outstandingAmount", 2],
+          },
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment summary fetched successfully",
+
+      data: result[0] || {
+        todaysCollections: 0,
+        totalPendingSettlements: 0,
+        thisWeekRevenue: 0,
+        outstandingAmount: 0,
+      },
+    });
+  } catch (error) {
+    console.error("getPaymentSummary Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+// ==========================
+// GET ALL TOP SELLING PRODUCTS
+// pagination + limit + skip
+// ==========================
+export const getTopSellingProducts = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+
+    let { page = 1, limit = 10, skip } = req.query;
+
+    page = Number(page);
+    limit = Number(limit);
+
+    skip = skip !== undefined ? Number(skip) : (page - 1) * limit;
+
+    const matchQuery = {
+      vendorId: new mongoose.Types.ObjectId(vendorId),
+      disable: false,
+      varified: true,
+      sold: { $gt: 0 },
+    };
+
+    const [products, total] = await Promise.all([
+      Product.aggregate([
+        {
+          $match: matchQuery,
+        },
+
+        {
+          $lookup: {
+            from: "variants",
+            localField: "defaultVariantId",
+            foreignField: "_id",
+            as: "defaultVariant",
+          },
+        },
+
+        {
+          $unwind: {
+            path: "$defaultVariant",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+
+        {
+          $addFields: {
+            totalSaleAmount: {
+              $multiply: [
+                "$sold",
+                {
+                  $ifNull: ["$defaultVariant.price", 0],
+                },
+              ],
+            },
+          },
+        },
+
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            images: 1,
+            sold: 1,
+            totalSaleAmount: 1,
+          },
+        },
+
+        {
+          $sort: {
+            sold: -1,
+            createdAt: -1,
+          },
+        },
+
+        {
+          $skip: skip,
+        },
+
+        {
+          $limit: limit,
+        },
+      ]),
+
+      Product.countDocuments(matchQuery),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Vendor top selling products fetched successfully",
+
+      pagination: {
+        total,
+        page,
+        limit,
+        skip,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: skip + products.length < total,
+        hasPrevPage: skip > 0,
+      },
+
+      data: products,
+    });
+  } catch (error) {
+    console.error("getTopSellingProducts Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
 
@@ -2195,5 +3254,1007 @@ export const profileWallet = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+//// dashboard overviews
+
+// export const getVendorOverviews = async (req, res, next) => {
+//   try {
+//     const vendorId = req.user.id;
+
+//     let { date } = req.query;
+
+//     // DEFAULT TODAY DATE
+//     if (!date) {
+//       const today = new Date();
+//       date = today.toISOString().split("T")[0];
+//     }
+
+//     // START / END OF DAY
+//     const startOfDay = new Date(date);
+//     startOfDay.setHours(0, 0, 0, 0);
+
+//     const endOfDay = new Date(date);
+//     endOfDay.setHours(23, 59, 59, 999);
+
+//     // START OF WEEK
+//     const startOfWeek = new Date();
+//     startOfWeek.setDate(
+//       startOfWeek.getDate() - startOfWeek.getDay(),
+//     );
+//     startOfWeek.setHours(0, 0, 0, 0);
+
+//     const vendorObjectId =
+//       new mongoose.Types.ObjectId(vendorId);
+
+//     const baseMatch = {
+//       "items.vendorId": vendorObjectId,
+//       orderType: "SUB",
+//     };
+
+//     // =====================================================
+//     // QUICK OVERVIEW COUNTS
+//     // =====================================================
+
+//     // NEW ORDERS TODAY
+//     const newOrdersTodayPromise = Order.aggregate([
+//       {
+//         $match: {
+//           ...baseMatch,
+//           createdAt: {
+//             $gte: startOfDay,
+//             $lte: endOfDay,
+//           },
+//         },
+//       },
+
+//       { $unwind: "$items" },
+
+//       {
+//         $match: {
+//           "items.vendorId": vendorObjectId,
+//           "items.status": "PENDING",
+//         },
+//       },
+
+//       {
+//         $count: "count",
+//       },
+//     ]);
+
+//     // PENDING DISPATCH
+//     const pendingDispatchPromise = Order.aggregate([
+//       {
+//         $match: baseMatch,
+//       },
+
+//       { $unwind: "$items" },
+
+//       {
+//         $match: {
+//           "items.vendorId": vendorObjectId,
+//           "items.status": {
+//             $in: ["CONFIRMED", "ACCEPTED"],
+//           },
+//         },
+//       },
+
+//       {
+//         $count: "count",
+//       },
+//     ]);
+
+//     // IN TRANSIT DELIVERY
+//     const inTransitDeliveryPromise = Order.aggregate([
+//       {
+//         $match: baseMatch,
+//       },
+
+//       { $unwind: "$items" },
+
+//       {
+//         $match: {
+//           "items.vendorId": vendorObjectId,
+//           "items.status": {
+//             $in: ["PACKED", "SHIPPED"],
+//           },
+//         },
+//       },
+
+//       {
+//         $count: "count",
+//       },
+//     ]);
+
+//     // RFQ PENDING
+//     const rfqPendingPromise = rfqModel.countDocuments({
+//       vendorId: vendorObjectId,
+//       status: "pending",
+//     });
+
+//     // LOW STOCK PRODUCTS
+//     const lowStockProductsPromise =
+//       Variant.aggregate([
+//         {
+//           $match: {
+//             stock: { $lt: 10 },
+//           },
+//         },
+
+//         {
+//           $lookup: {
+//             from: "products",
+//             localField: "productId",
+//             foreignField: "_id",
+//             as: "product",
+//           },
+//         },
+
+//         {
+//           $unwind: "$product",
+//         },
+
+//         {
+//           $match: {
+//             "product.vendorId": vendorObjectId,
+//           },
+//         },
+
+//         {
+//           $count: "count",
+//         },
+//       ]);
+
+//     // =====================================================
+//     // PAYMENT SUMMARY
+//     // =====================================================
+
+//     const paymentSummaryPromise = Order.aggregate([
+//       {
+//         $match: baseMatch,
+//       },
+
+//       { $unwind: "$items" },
+
+//       {
+//         $match: {
+//           "items.vendorId": vendorObjectId,
+//         },
+//       },
+
+//       {
+//         $group: {
+//           _id: null,
+
+//           // TODAY COLLECTIONS
+//           todaysCollections: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $and: [
+//                     {
+//                       $eq: [
+//                         "$paymentStatus",
+//                         "PAID",
+//                       ],
+//                     },
+
+//                     {
+//                       $gte: [
+//                         "$createdAt",
+//                         startOfDay,
+//                       ],
+//                     },
+
+//                     {
+//                       $lte: [
+//                         "$createdAt",
+//                         endOfDay,
+//                       ],
+//                     },
+//                   ],
+//                 },
+
+//                 {
+//                   $ifNull: [
+//                     "$items.vendorAmount",
+//                     0,
+//                   ],
+//                 },
+
+//                 0,
+//               ],
+//             },
+//           },
+
+//           // PENDING SETTLEMENTS
+//           totalPendingSettlements: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $eq: [
+//                     "$paymentStatus",
+//                     "UNPAID",
+//                   ],
+//                 },
+
+//                 {
+//                   $ifNull: [
+//                     "$items.vendorAmount",
+//                     0,
+//                   ],
+//                 },
+
+//                 0,
+//               ],
+//             },
+//           },
+
+//           // THIS WEEK REVENUE
+//           thisWeekRevenue: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $gte: [
+//                     "$createdAt",
+//                     startOfWeek,
+//                   ],
+//                 },
+
+//                 {
+//                   $ifNull: [
+//                     "$items.vendorAmount",
+//                     0,
+//                   ],
+//                 },
+
+//                 0,
+//               ],
+//             },
+//           },
+
+//           // OUTSTANDING AMOUNT
+//           outstandingAmount: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $and: [
+//                     {
+//                       $ne: [
+//                         "$items.status",
+//                         "DELIVERED",
+//                       ],
+//                     },
+
+//                     {
+//                       $in: [
+//                         "$paymentStatus",
+//                         [
+//                           "UNPAID",
+//                           "FAILED",
+//                         ],
+//                       ],
+//                     },
+//                   ],
+//                 },
+
+//                 {
+//                   $ifNull: [
+//                     "$items.vendorAmount",
+//                     0,
+//                   ],
+//                 },
+
+//                 0,
+//               ],
+//             },
+//           },
+//         },
+//       },
+
+//       {
+//         $project: {
+//           _id: 0,
+
+//           todaysCollections: {
+//             $round: ["$todaysCollections", 2],
+//           },
+
+//           totalPendingSettlements: {
+//             $round: [
+//               "$totalPendingSettlements",
+//               2,
+//             ],
+//           },
+
+//           thisWeekRevenue: {
+//             $round: ["$thisWeekRevenue", 2],
+//           },
+
+//           outstandingAmount: {
+//             $round: [
+//               "$outstandingAmount",
+//               2,
+//             ],
+//           },
+//         },
+//       },
+//     ]);
+
+//     // =====================================================
+//     // DELIVERY TRACKING
+//     // =====================================================
+
+//     const deliveryTrackingPromise = Order.aggregate([
+//       {
+//         $match: baseMatch,
+//       },
+
+//       { $unwind: "$items" },
+
+//       {
+//         $match: {
+//           "items.vendorId": vendorObjectId,
+//         },
+//       },
+
+//       {
+//         $group: {
+//           _id: null,
+
+//           // TODAY DELIVERY
+//           todayDelivery: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $and: [
+//                     {
+//                       $eq: [
+//                         "$items.status",
+//                         "DELIVERED",
+//                       ],
+//                     },
+
+//                     {
+//                       $gte: [
+//                         "$createdAt",
+//                         startOfDay,
+//                       ],
+//                     },
+
+//                     {
+//                       $lte: [
+//                         "$createdAt",
+//                         endOfDay,
+//                       ],
+//                     },
+//                   ],
+//                 },
+
+//                 1,
+//                 0,
+//               ],
+//             },
+//           },
+
+//           // IN TRANSIT
+//           inTransit: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $in: [
+//                     "$items.status",
+//                     ["PACKED", "SHIPPED"],
+//                   ],
+//                 },
+
+//                 1,
+//                 0,
+//               ],
+//             },
+//           },
+
+//           // OUT FOR DELIVERY
+//           outForDelivery: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $eq: [
+//                     "$status",
+//                     "OUT_FOR_DELIVERY",
+//                   ],
+//                 },
+
+//                 1,
+//                 0,
+//               ],
+//             },
+//           },
+
+//           // DELAYED
+//           delayed: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $and: [
+//                     {
+//                       $in: [
+//                         "$items.status",
+//                         [
+//                           "CONFIRMED",
+//                           "ACCEPTED",
+//                           "PACKED",
+//                           "SHIPPED",
+//                         ],
+//                       ],
+//                     },
+
+//                     {
+//                       $lt: [
+//                         "$createdAt",
+//                         new Date(
+//                           Date.now() -
+//                             3 *
+//                               24 *
+//                               60 *
+//                               60 *
+//                               1000,
+//                         ),
+//                       ],
+//                     },
+//                   ],
+//                 },
+
+//                 1,
+//                 0,
+//               ],
+//             },
+//           },
+
+//           // POD PENDING
+//           podPending: {
+//             $sum: {
+//               $cond: [
+//                 {
+//                   $and: [
+//                     {
+//                       $eq: [
+//                         "$items.status",
+//                         "DELIVERED",
+//                       ],
+//                     },
+
+//                     {
+//                       $eq: [
+//                         "$paymentMethod",
+//                         "COD",
+//                       ],
+//                     },
+
+//                     {
+//                       $ne: [
+//                         "$paymentStatus",
+//                         "PAID",
+//                       ],
+//                     },
+//                   ],
+//                 },
+
+//                 1,
+//                 0,
+//               ],
+//             },
+//           },
+//         },
+//       },
+
+//       {
+//         $project: {
+//           _id: 0,
+//           todayDelivery: 1,
+//           inTransit: 1,
+//           outForDelivery: 1,
+//           delayed: 1,
+//           podPending: 1,
+//         },
+//       },
+//     ]);
+
+//     // =====================================================
+//     // TOP SELLING PRODUCTS
+//     // =====================================================
+
+//     const topSellingProductsPromise =
+//       Product.aggregate([
+//         {
+//           $match: {
+//             vendorId: vendorObjectId,
+//             sold: { $gt: 0 },
+//           },
+//         },
+
+//         {
+//           $lookup: {
+//             from: "variants",
+//             localField: "defaultVariantId",
+//             foreignField: "_id",
+//             as: "defaultVariant",
+//           },
+//         },
+
+//         {
+//           $unwind: {
+//             path: "$defaultVariant",
+//             preserveNullAndEmptyArrays: true,
+//           },
+//         },
+
+//         {
+//           $addFields: {
+//             totalSaleAmount: {
+//               $multiply: [
+//                 "$sold",
+//                 {
+//                   $ifNull: [
+//                     "$defaultVariant.price",
+//                     0,
+//                   ],
+//                 },
+//               ],
+//             },
+//           },
+//         },
+
+//         {
+//           $project: {
+//             _id: 1,
+//             name: 1,
+//             images: 1,
+//             sold: 1,
+//             totalSaleAmount: 1,
+//           },
+//         },
+
+//         {
+//           $sort: {
+//             sold: -1,
+//           },
+//         },
+
+//         {
+//           $limit: 10,
+//         },
+//       ]);
+
+//     // =====================================================
+//     // RECENT ORDERS
+//     // =====================================================
+
+//     const recentOrdersPromise = Order.find(baseMatch)
+//       .sort({ createdAt: -1 })
+//       .limit(10)
+//       .populate("items.productId", "name images")
+//       .populate(
+//         "items.variantId",
+//         "price size packageWeight stock",
+//       )
+//       .populate("userId", "name")
+//       .lean();
+
+//     // =====================================================
+//     // RUN ALL PARALLEL
+//     // =====================================================
+
+//     const [
+//       newOrdersTodayRes,
+//       pendingDispatchRes,
+//       inTransitDeliveryRes,
+//       rfqPendingCount,
+//       lowStockProductsRes,
+//       paymentSummaryRes,
+//       deliveryTrackingRes,
+//       topSellingProductsRes,
+//       recentOrdersRes,
+//     ] = await Promise.all([
+//       newOrdersTodayPromise,
+//       pendingDispatchPromise,
+//       inTransitDeliveryPromise,
+//       rfqPendingPromise,
+//       lowStockProductsPromise,
+//       paymentSummaryPromise,
+//       deliveryTrackingPromise,
+//       topSellingProductsPromise,
+//       recentOrdersPromise,
+//     ]);
+
+//     // =====================================================
+//     // FINAL RESPONSE
+//     // =====================================================
+
+//     const response = {
+//       success: true,
+//       message:
+//         "Vendor overview fetched successfully",
+
+//       selectedDate: date,
+
+//       data: {
+//         // QUICK OVERVIEW
+//         newOrdersToday:
+//           newOrdersTodayRes[0]?.count || 0,
+
+//         pendingDispatch:
+//           pendingDispatchRes[0]?.count || 0,
+
+//         inTransitDelivery:
+//           inTransitDeliveryRes[0]?.count || 0,
+
+//         rfqPending: rfqPendingCount || 0,
+
+//         lowStockProducts:
+//           lowStockProductsRes[0]?.count || 0,
+
+//         // PAYMENT SUMMARY
+//         paymentSummary:
+//           paymentSummaryRes[0] || {
+//             todaysCollections: 0,
+//             totalPendingSettlements: 0,
+//             thisWeekRevenue: 0,
+//             outstandingAmount: 0,
+//           },
+
+//         // DELIVERY TRACKING
+//         deliveryTracking:
+//           deliveryTrackingRes[0] || {
+//             todayDelivery: 0,
+//             inTransit: 0,
+//             outForDelivery: 0,
+//             delayed: 0,
+//             podPending: 0,
+//           },
+
+//         // TOP SELLING PRODUCTS
+//         topSellingProducts:
+//           topSellingProductsRes || [],
+
+//         // RECENT ORDERS
+//         recentOrders: recentOrdersRes || [],
+//       },
+//     };
+
+//     return res.status(200).json(response);
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+export const getVendorOverviews = async (req, res, next) => {
+  try {
+    const vendorId = new mongoose.Types.ObjectId(req.user.id);
+
+    // ================= CACHE =================
+    const cacheKey = `vendor:overview:${vendorId}`;
+    const cached = await redisCache.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(JSON.parse(cached));
+    }
+
+    // ================= DATES =================
+    const today = new Date();
+
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - 7);
+
+    const baseMatch = {
+      "items.vendorId": vendorId,
+      orderType: "SUB",
+    };
+
+    // =====================================================
+    // 1. DELIVERY + ORDER OVERVIEW (FAST + FIXED)
+    // =====================================================
+    const deliveryAgg = await Order.aggregate([
+      { $match: baseMatch },
+      { $unwind: "$items" },
+      { $match: { "items.vendorId": vendorId } },
+      {
+        $group: {
+          _id: null,
+
+          newOrdersToday: {
+            $sum: {
+              $cond: [{ $gte: ["$createdAt", startOfDay] }, 1, 0],
+            },
+          },
+
+          pendingDispatch: {
+            $sum: {
+              $cond: [
+                { $in: ["$items.status", ["PENDING", "ACCEPTED"]] },
+                1,
+                0,
+              ],
+            },
+          },
+
+          inTransit: {
+            $sum: {
+              $cond: [{ $eq: ["$items.status", "SHIPPED"] }, 1, 0],
+            },
+          },
+
+          outForDelivery: {
+            $sum: {
+              $cond: [{ $eq: ["$items.status", "OUT_FOR_DELIVERY"] }, 1, 0],
+            },
+          },
+
+          delayed: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$items.status", "OUT_FOR_DELIVERY"] },
+                    { $lt: ["$createdAt", startOfWeek] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          deliveredToday: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$items.status", "DELIVERED"] },
+                    { $gte: ["$updatedAt", startOfDay] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+
+          podPending: {
+            $sum: {
+              $cond: [{ $eq: ["$items.status", "DELIVERED"] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    // =====================================================
+    // 2. PAYMENT SUMMARY (OPTIMIZED + FIXED)
+    // =====================================================
+    const paymentAgg = await Order.aggregate([
+      { $match: baseMatch },
+      {
+        $group: {
+          _id: null,
+
+          todaysCollections: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gte: ["$createdAt", startOfDay] },
+                    { $eq: ["$paymentStatus", "PAID"] },
+                  ],
+                },
+                "$netAmount",
+                0,
+              ],
+            },
+          },
+
+          totalPendingSettlements: {
+            $sum: {
+              $cond: [{ $ne: ["$paymentStatus", "PAID"] }, "$netAmount", 0],
+            },
+          },
+
+          thisWeekRevenue: {
+            $sum: {
+              $cond: [{ $gte: ["$createdAt", startOfWeek] }, "$netAmount", 0],
+            },
+          },
+
+          outstandingAmount: {
+            $sum: {
+              $cond: [{ $ne: ["$paymentStatus", "PAID"] }, "$netAmount", 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    // =====================================================
+    // 3. RFQ OVERVIEW (FIXED STATUS)
+    // =====================================================
+    const rfqAgg = await rfqModel.aggregate([
+      {
+        $match: { vendorId },
+      },
+      {
+        $group: {
+          _id: null,
+
+          totalRFQReceived: { $sum: 1 },
+
+          totalRFQPending: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "pending"] }, 1, 0],
+            },
+          },
+
+          totalRFQSent: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "quoted"] }, 1, 0],
+            },
+          },
+
+          totalRFQWon: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "closed"] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    // =====================================================
+    // 4. TOP SELLING PRODUCTS (FAST)
+    // =====================================================
+    const topSellingProducts = await Order.aggregate([
+      { $match: baseMatch },
+      { $unwind: "$items" },
+      { $match: { "items.vendorId": vendorId } },
+
+      {
+        $group: {
+          _id: "$items.productId",
+          sold: { $sum: "$items.quantity" },
+          totalSaleAmount: {
+            $sum: {
+              $multiply: ["$items.finalPrice", "$items.quantity"],
+            },
+          },
+        },
+      },
+
+      { $sort: { sold: -1 } },
+      { $limit: 10 },
+
+      {
+        $lookup: {
+          from: "products",
+          localField: "_id",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: "$product" },
+
+      {
+        $project: {
+          _id: 1,
+          name: "$product.name",
+          images: "$product.images",
+          sold: 1,
+          totalSaleAmount: 1,
+        },
+      },
+    ]);
+
+    // =====================================================
+    // 5. RECENT ORDERS (LIGHTWEIGHT)
+    // =====================================================
+    const recentOrdersRaw = await Order.find(baseMatch)
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate("userId", "name")
+      .lean();
+
+    const recentOrders = recentOrdersRaw.map((o) => ({
+      orderId: o._id,
+      netAmount: o.netAmount,
+      userName: o.userId?.name || "",
+    }));
+
+    // =====================================================
+    // 6. LOW STOCK PRODUCTS (FAST COUNT ONLY)
+    // =====================================================
+    const lowStockProducts = await Product.countDocuments({
+      vendorId,
+      stock: { $lt: 10 },
+    });
+
+    // =====================================================
+    // 7. WALLET
+    // =====================================================
+    const wallet = await vendorWalletModel.findOne({ vendorId }).lean();
+
+    // =====================================================
+    // FINAL RESPONSE
+    // =====================================================
+    const response = {
+      success: true,
+      message: "Vendor overview fetched successfully",
+
+      data: {
+        newOrdersToday: deliveryAgg[0]?.newOrdersToday || 0,
+
+        pendingDispatch: deliveryAgg[0]?.pendingDispatch || 0,
+
+        inTransitDelivery: deliveryAgg[0]?.inTransit || 0,
+
+        delayed: deliveryAgg[0]?.delayed || 0,
+
+        rfqPending: rfqAgg[0]?.totalRFQPending || 0,
+
+        lowStockProducts: lowStockProducts || 0,
+
+        paymentSummary: {
+          todaysCollections: Number(
+            (paymentAgg[0]?.todaysCollections || 0).toFixed(2),
+          ),
+          totalPendingSettlements: Number(
+            (paymentAgg[0]?.totalPendingSettlements || 0).toFixed(2),
+          ),
+          thisWeekRevenue: Number(
+            (paymentAgg[0]?.thisWeekRevenue || 0).toFixed(2),
+          ),
+          outstandingAmount: Number(
+            (paymentAgg[0]?.outstandingAmount || 0).toFixed(2),
+          ),
+        },
+
+        deliveryTracking: {
+          todayDelivery: deliveryAgg[0]?.deliveredToday || 0,
+
+          inTransit: deliveryAgg[0]?.inTransit || 0,
+
+          outForDelivery: deliveryAgg[0]?.outForDelivery || 0,
+
+          delayed: deliveryAgg[0]?.delayed || 0,
+
+          podPending: deliveryAgg[0]?.podPending || 0,
+        },
+
+        rfqOverview: rfqAgg[0] || {
+          totalRFQReceived: 0,
+          totalRFQPending: 0,
+          totalRFQSent: 0,
+          totalRFQWon: 0,
+        },
+
+        topSellingProducts,
+
+        recentOrders,
+
+        vendorWallet: {
+          totalBalance: wallet?.totalBalance || 0,
+        },
+      },
+    };
+
+    // ================= CACHE SET =================
+    await redisCache.set(cacheKey, JSON.stringify(response));
+
+    return res.status(200).json(response);
+  } catch (error) {
+    next(error);
   }
 };

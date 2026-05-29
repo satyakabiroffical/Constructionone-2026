@@ -14,7 +14,7 @@ import { vendorMiddleware, authMiddleware } from "../../middlewares/auth.js";
 const router = express.Router();
 router.post("/", vendorMiddleware, createAbout);
 router.get("/", vendorMiddleware, getAllAboutsVendorView);
-router.get("/:vendorId", vendorMiddleware, getAllAbouts);
+router.get("/:vendorId", authMiddleware, getAllAbouts);
 router.get("/:id", getAboutById);
 
 router.put("/:id", vendorMiddleware, updateAbout);

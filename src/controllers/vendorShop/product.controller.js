@@ -2734,9 +2734,17 @@ class ProductController {
   //   try {
   //     const { categoryId } = req.params;
 
-  //     const { page = 1, limit = 10, type, brand, size, sort } = req.query;
+  //     const {
+  //       page = 1,
+  //       limit = 10,
+  //       type,
+  //       brand,
+  //       size,
+  //       sort,
+  //       search, // ✅ NEW ADDED
+  //     } = req.query;
 
-  //     const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}:brand:${brand || "all"}:size:${size || "all"}:sort:${sort || "default"}`;
+  //     const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}:brand:${brand || "all"}:size:${size || "all"}:sort:${sort || "default"}:search:${search || "all"}`;
 
   //     // =========================
   //     // CACHE CHECK
@@ -2780,6 +2788,13 @@ class ProductController {
   //       }).distinct("_id");
 
   //       filter.brandId = { $in: brandIds };
+  //     }
+
+  //     // =========================
+  //     // 🔥 SEARCH FILTER (NEW)
+  //     // =========================
+  //     if (search) {
+  //       filter.name = { $regex: search, $options: "i" };
   //     }
 
   //     // =========================
@@ -2897,35 +2912,21 @@ class ProductController {
   //     // =========================
   //     const formattedProducts = paginatedProducts.map((p) => ({
   //       id: p._id,
-
   //       name: p.name,
-
   //       images: p.images,
-
   //       avgRating: p.avgRating,
-
   //       reviewCount: p.reviewCount,
-
   //       properties: p.properties,
-
   //       minDiscount: p.minDiscount,
-
   //       maxDiscount: p.maxDiscount,
-
   //       brand: p.brandId?.name || null,
-
   //       vendor: {
   //         firstName: p.vendorId?.firstName,
   //         lastName: p.vendorId?.lastName,
   //       },
-
-  //       // quick access fields
   //       price: p.defaultVariantId?.price ?? null,
-
   //       discount: p.defaultVariantId?.discount ?? null,
-
   //       type: p.defaultVariantId?.Type ?? null,
-
   //       defaultVariant: p.defaultVariantId || null,
   //     }));
 
@@ -2936,9 +2937,7 @@ class ProductController {
   //       brand: [
   //         ...new Set(products.map((p) => p.brandId?.name).filter(Boolean)),
   //       ],
-
   //       size: ["small", "medium", "large", "extra_large"],
-
   //       sort: [
   //         "low_to_high",
   //         "high_to_low",
@@ -2950,20 +2949,15 @@ class ProductController {
 
   //     const response = {
   //       success: true,
-
   //       page: Number(page),
-
   //       totalPages: Math.ceil(total / limit),
-
   //       totalProducts: total,
-
   //       filters: filterOptions,
-
   //       products: formattedProducts,
   //     };
 
   //     // =========================
-  //     // SET CACHE
+  //     // CACHE SET
   //     // =========================
   //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
@@ -2986,7 +2980,7 @@ class ProductController {
         brand,
         size,
         sort,
-        search, // ✅ NEW ADDED
+        search,
       } = req.query;
 
       const cacheKey = `products:cat:${categoryId}:page:${page}:limit:${limit}:type:${type || "all"}:brand:${brand || "all"}:size:${size || "all"}:sort:${sort || "default"}:search:${search || "all"}`;
@@ -2995,12 +2989,13 @@ class ProductController {
       // CACHE CHECK
       // =========================
       const cachedData = await RedisCache.get(cacheKey);
-
       if (cachedData) {
         return res.json(JSON.parse(cachedData));
       }
 
-      const skip = (page - 1) * limit;
+      const pageNumber = Number(page);
+      const limitNumber = Number(limit);
+      const skip = (pageNumber - 1) * limitNumber;
 
       const filter = {};
 
@@ -3012,16 +3007,17 @@ class ProductController {
       }
 
       // =========================
-      // TYPE FILTER
+      // TYPE FILTER (product level)
       // =========================
       if (type) {
-        const variantIds = await Variant.find({
-          Type: { $regex: new RegExp(`^${type}$`, "i") },
-        }).distinct("_id");
+        const typeUpper = type.toUpperCase();
 
-        filter.defaultVariantId = {
-          $in: variantIds,
-        };
+        const variantProductIds = await Variant.find({
+          Type: typeUpper,
+          disable: false,
+        }).distinct("productId");
+
+        filter._id = { $in: variantProductIds };
       }
 
       // =========================
@@ -3036,7 +3032,7 @@ class ProductController {
       }
 
       // =========================
-      // 🔥 SEARCH FILTER (NEW)
+      // SEARCH FILTER
       // =========================
       if (search) {
         filter.name = { $regex: search, $options: "i" };
@@ -3075,29 +3071,72 @@ class ProductController {
         })
         .lean();
 
+      const productIds = products.map((p) => p._id);
+
+      // =========================
+      // FETCH ALL VARIANTS (FAST)
+      // =========================
+      let allVariants = await Variant.find({
+        productId: { $in: productIds },
+        disable: false,
+      }).lean();
+
+      // =========================
+      // GROUP VARIANTS
+      // =========================
+      const variantsMap = {};
+
+      for (const v of allVariants) {
+        const pid = v.productId.toString();
+
+        if (!variantsMap[pid]) {
+          variantsMap[pid] = [];
+        }
+
+        variantsMap[pid].push(v);
+      }
+
+      // =========================
+      // STRICT TYPE FILTER ON VARIANTS
+      // =========================
+      if (type) {
+        const targetType = type.toUpperCase();
+
+        for (const pid in variantsMap) {
+          variantsMap[pid] = variantsMap[pid].filter(
+            (v) => v.Type === targetType,
+          );
+        }
+
+        // REMOVE PRODUCTS WITH NO MATCHING VARIANTS
+        products = products.filter(
+          (p) => (variantsMap[p._id.toString()] || []).length > 0,
+        );
+      }
+
       // =========================
       // SIZE FILTER
       // =========================
       if (size) {
         products = products.filter((p) => {
-          const weight = Number(p?.defaultVariantId?.packageWeight || 0);
+          const variants = variantsMap[p._id.toString()] || [];
 
-          switch (size.toLowerCase()) {
-            case "small":
-              return weight < 10;
+          return variants.some((v) => {
+            const weight = Number(v.packageWeight || 0);
 
-            case "medium":
-              return weight >= 10 && weight <= 50;
-
-            case "large":
-              return weight > 50 && weight <= 200;
-
-            case "extra_large":
-              return weight > 200;
-
-            default:
-              return true;
-          }
+            switch (size.toLowerCase()) {
+              case "small":
+                return weight < 10;
+              case "medium":
+                return weight >= 10 && weight <= 50;
+              case "large":
+                return weight > 50 && weight <= 200;
+              case "extra_large":
+                return weight > 200;
+              default:
+                return true;
+            }
+          });
         });
       }
 
@@ -3107,19 +3146,19 @@ class ProductController {
       if (sort) {
         switch (sort) {
           case "low_to_high":
-            products.sort(
-              (a, b) =>
-                (a.defaultVariantId?.price || 0) -
-                (b.defaultVariantId?.price || 0),
-            );
+            products.sort((a, b) => {
+              const aPrice = variantsMap[a._id.toString()]?.[0]?.price || 0;
+              const bPrice = variantsMap[b._id.toString()]?.[0]?.price || 0;
+              return aPrice - bPrice;
+            });
             break;
 
           case "high_to_low":
-            products.sort(
-              (a, b) =>
-                (b.defaultVariantId?.price || 0) -
-                (a.defaultVariantId?.price || 0),
-            );
+            products.sort((a, b) => {
+              const aPrice = variantsMap[a._id.toString()]?.[0]?.price || 0;
+              const bPrice = variantsMap[b._id.toString()]?.[0]?.price || 0;
+              return bPrice - aPrice;
+            });
             break;
 
           case "newest_first":
@@ -3129,11 +3168,11 @@ class ProductController {
             break;
 
           case "most_popular":
-            products.sort(
-              (a, b) =>
-                (b.defaultVariantId?.sold || 0) -
-                (a.defaultVariantId?.sold || 0),
-            );
+            products.sort((a, b) => {
+              const aSold = variantsMap[a._id.toString()]?.[0]?.sold || 0;
+              const bSold = variantsMap[b._id.toString()]?.[0]?.sold || 0;
+              return bSold - aSold;
+            });
             break;
 
           case "best_rating":
@@ -3143,37 +3182,53 @@ class ProductController {
       }
 
       // =========================
-      // TOTAL AFTER FILTER
+      // TOTAL
       // =========================
       const total = products.length;
 
       // =========================
       // PAGINATION
       // =========================
-      const paginatedProducts = products.slice(skip, skip + Number(limit));
+      const paginatedProducts = products.slice(skip, skip + limitNumber);
 
       // =========================
-      // RESPONSE FORMAT
+      // FORMAT RESPONSE
       // =========================
-      const formattedProducts = paginatedProducts.map((p) => ({
-        id: p._id,
-        name: p.name,
-        images: p.images,
-        avgRating: p.avgRating,
-        reviewCount: p.reviewCount,
-        properties: p.properties,
-        minDiscount: p.minDiscount,
-        maxDiscount: p.maxDiscount,
-        brand: p.brandId?.name || null,
-        vendor: {
-          firstName: p.vendorId?.firstName,
-          lastName: p.vendorId?.lastName,
-        },
-        price: p.defaultVariantId?.price ?? null,
-        discount: p.defaultVariantId?.discount ?? null,
-        type: p.defaultVariantId?.Type ?? null,
-        defaultVariant: p.defaultVariantId || null,
-      }));
+      const formattedProducts = paginatedProducts.map((p) => {
+        let variants = variantsMap[p._id.toString()] || [];
+
+        // ✅ ENSURE DEFAULT VARIANT IS INCLUDED
+        if (
+          p.defaultVariantId &&
+          !variants.some(
+            (v) => v._id.toString() === p.defaultVariantId._id.toString(),
+          )
+        ) {
+          variants.unshift(p.defaultVariantId);
+        }
+
+        return {
+          id: p._id,
+          name: p.name,
+          images: p.images,
+          slug: p.slug,
+          avgRating: p.avgRating,
+          reviewCount: p.reviewCount,
+          properties: p.properties,
+          minDiscount: p.minDiscount,
+          maxDiscount: p.maxDiscount,
+
+          brand: p.brandId?.name || null,
+
+          vendor: {
+            firstName: p.vendorId?.firstName,
+            lastName: p.vendorId?.lastName,
+          },
+
+          // ✅ FINAL CLEAN VARIANTS ONLY
+          variants,
+        };
+      });
 
       // =========================
       // FILTER OPTIONS
@@ -3192,10 +3247,13 @@ class ProductController {
         ],
       };
 
+      // =========================
+      // RESPONSE
+      // =========================
       const response = {
         success: true,
-        page: Number(page),
-        totalPages: Math.ceil(total / limit),
+        page: pageNumber,
+        totalPages: Math.ceil(total / limitNumber),
         totalProducts: total,
         filters: filterOptions,
         products: formattedProducts,
@@ -3206,9 +3264,10 @@ class ProductController {
       // =========================
       await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
-      res.json(response);
+      return res.json(response);
     } catch (error) {
-      res.status(500).json({
+      return res.status(500).json({
+        success: false,
         message: error.message,
       });
     }
