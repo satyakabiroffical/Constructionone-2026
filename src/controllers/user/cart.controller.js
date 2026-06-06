@@ -600,6 +600,70 @@ export const similarProducts = async (req, res, next) => {
     }
 
     // ── Aggregation pipeline ─────────────────────────────────────
+    // const pipeline = [
+    //   {
+    //     $match: {
+    //       _id: { $ne: new mongoose.Types.ObjectId(productId) },
+    //       subcategoryId: product.subcategoryId,
+    //       disable: false,
+    //       varified: true,
+    //     },
+    //   },
+    //   { $limit: 10 },
+
+    //   {
+    //     $lookup: {
+    //       from: "variants",
+    //       let: { pid: "$_id" },
+    //       pipeline: [
+    //         {
+    //           $match: {
+    //             $expr: { $eq: ["$productId", "$$pid"] },
+    //             disable: false,
+    //           },
+    //         },
+    //         { $sort: { price: 1 } },
+    //         // $limit: 1 remove kar diya
+    //         {
+    //           $project: {
+    //             price: 1,
+    //             mrp: 1,
+    //             discount: 1,
+    //             discountAmount: 1,
+    //             size: 1,
+    //             color: 1,
+    //             stock: 1,
+    //             Type: 1,
+    //             moq: 1,
+    //           },
+    //         },
+    //       ],
+    //       as: "variants", // defaultVariant → variants
+    //     },
+    //   },
+
+    //   // ── match bhi update ─────────────────────────────────────
+    //   { $match: { variants: { $ne: [] } } },
+
+    //   // { $match: { defaultVariant: { $ne: [] } } },
+
+    //   {
+    //     $project: {
+    //       name: 1,
+    //       slug: 1,
+    //       thumbnail: 1,
+    //       images: 1,
+    //       vendorId: 1,
+    //       avgRating: 1,
+    //       reviewCount: 1,
+    //       sold: 1,
+    //       measurementUnit: 1,
+    //       // defaultVariant: { $arrayElemAt: ["$defaultVariant", 0] },
+    //       variants: 1,
+    //     },
+    //   },
+    // ];
+
     const pipeline = [
       {
         $match: {
@@ -611,6 +675,9 @@ export const similarProducts = async (req, res, next) => {
       },
       { $limit: 10 },
 
+      // ===============================
+      // VARIANTS
+      // ===============================
       {
         $lookup: {
           from: "variants",
@@ -623,33 +690,92 @@ export const similarProducts = async (req, res, next) => {
               },
             },
             { $sort: { price: 1 } },
-            { $limit: 1 },
             {
               $project: {
                 price: 1,
                 mrp: 1,
                 discount: 1,
                 discountAmount: 1,
+                size: 1,
+                color: 1,
+                stock: 1,
                 Type: 1,
+                moq: 1,
               },
             },
           ],
-          as: "defaultVariant",
+          as: "variants",
         },
       },
 
-      { $match: { defaultVariant: { $ne: [] } } },
+      {
+        $match: {
+          variants: { $ne: [] },
+        },
+      },
 
+      // ===============================
+      // VENDOR PROFILE
+      // ===============================
+      {
+        $lookup: {
+          from: "vendorprofiles",
+          localField: "vendorId",
+          foreignField: "_id",
+          as: "vendorProfile",
+        },
+      },
+      {
+        $unwind: {
+          path: "$vendorProfile",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // ===============================
+      // VENDOR COMPANY
+      // ===============================
+      {
+        $lookup: {
+          from: "vendorcompanies",
+          localField: "vendorId",
+          foreignField: "vendorId",
+          as: "vendorCompany",
+        },
+      },
+      {
+        $unwind: {
+          path: "$vendorCompany",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // ===============================
+      // RESPONSE
+      // ===============================
       {
         $project: {
           name: 1,
           slug: 1,
           thumbnail: 1,
+          images: 1,
           avgRating: 1,
           reviewCount: 1,
           sold: 1,
           measurementUnit: 1,
-          defaultVariant: { $arrayElemAt: ["$defaultVariant", 0] },
+          variants: 1,
+
+          vendor: {
+            _id: "$vendorId",
+            firstName: "$vendorProfile.firstName",
+            lastName: "$vendorProfile.lastName",
+            avgRating: "$vendorProfile.avgRating",
+            totalReviews: "$vendorProfile.totalReviews",
+            shopName: "$vendorCompany.companyName",
+            shopImage: {
+              $arrayElemAt: ["$vendorCompany.shopImages", 0],
+            },
+          },
         },
       },
     ];

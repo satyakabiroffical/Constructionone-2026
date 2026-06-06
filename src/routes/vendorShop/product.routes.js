@@ -67,6 +67,7 @@ router.post(
   s3Uploader().fields([
     { name: "images", maxCount: 5 },
     { name: "thumbnail", maxCount: 1 },
+    { name: "technicalDocuments", maxCount: 5 },
   ]),
   ProductController.parseFormDataJSON,
   validate(createProductWithVariantSchema),
@@ -80,9 +81,11 @@ router.put(
   s3Uploader().fields([
     { name: "images", maxCount: 5 },
     { name: "thumbnail", maxCount: 1 },
+    { name: "technicalDocuments", maxCount: 5 },
   ]),
   ProductController.updateProduct,
 );
+
 
 router.get("/product/:id", requireAuth, ProductController.getProductById);
 router.get("/product/suggestions/:slug", ProductController.getProductsBySlug);

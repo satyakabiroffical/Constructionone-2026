@@ -36,6 +36,7 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 
 export const getTrending = catchAsync(async (req, res) => {
   const { identifier } = req.params;
+  const { categoryId } = req.query;
 
   const searchKeyword = (req.query.search || "").trim();
 
@@ -46,6 +47,7 @@ export const getTrending = catchAsync(async (req, res) => {
   const cacheKey = trendingSectionService.trendingCacheKey(
     identifier,
     searchKeyword,
+    categoryId,
   );
 
   // =====================================
@@ -54,13 +56,13 @@ export const getTrending = catchAsync(async (req, res) => {
 
   const cached = await RedisCache.get(cacheKey);
 
-  if (cached) {
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(200, JSON.parse(cached), "Trending fetched (cached)"),
-      );
-  }
+  // if (cached) {
+  //   return res
+  //     .status(200)
+  //     .json(
+  //       new ApiResponse(200, JSON.parse(cached), "Trending fetched (cached)"),
+  //     );
+  // }
 
   // =====================================
   // BUILD TRENDING DATA
@@ -69,6 +71,7 @@ export const getTrending = catchAsync(async (req, res) => {
   const data = await trendingSectionService.buildTrending(
     identifier,
     searchKeyword,
+    categoryId,
   );
 
   // =====================================
@@ -80,7 +83,7 @@ export const getTrending = catchAsync(async (req, res) => {
 
   const cacheTTL = searchKeyword ? 300 : 900;
 
-  await RedisCache.set(cacheKey, JSON.stringify(data), cacheTTL);
+  // await RedisCache.set(cacheKey, JSON.stringify(data), cacheTTL);
 
   // =====================================
   // RESPONSE

@@ -23,7 +23,7 @@ export const submitReturnRequest = async (req, res, next) => {
   session.startTransaction();
 
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const { orderId } = req.params;
     const { reason, description, items } = req.body;
 

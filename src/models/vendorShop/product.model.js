@@ -82,6 +82,15 @@ const productSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    hsnCode: {
+      type: String,
+      trim: true,
+    },
+    origin: {
+      type: String,
+      trim: true,
+      default: "India",
+    },
 
     features: {
       type: String,
@@ -236,6 +245,7 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+
     // returnDays: {
     //   type: Number,
     //   default: 7, // days after delivery within which return is allowed
@@ -304,6 +314,10 @@ const productSchema = new mongoose.Schema(
     },
 
     protips: {
+      type: [String],
+      default: [],
+    },
+    productHighlights: {
       type: [String],
       default: [],
     },

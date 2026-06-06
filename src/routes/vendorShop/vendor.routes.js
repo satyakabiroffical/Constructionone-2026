@@ -33,6 +33,7 @@ import {
   getVendorPersonalProfile,
   getVendorCertificates,
   deleteVendorCascade,
+  getVendorProfileInfo,
 } from "../../controllers/vendorShop/vendor.controller.js";
 import {
   adminMiddleware,
@@ -70,6 +71,7 @@ router.post("/verify-aadhar-otp/:vendorId", verifyAadharOtp);
 router.post("/resend-aadhar-otp/:vendorId", resendAadharOtp);
 
 //vendor profile
+router.get("/profile-vendorapp", vendorMiddleware, getVendorProfileInfo);
 router.get("/profile", vendorMiddleware, getVendorProfile);
 router.post("/logout", vendorMiddleware, logoutVendor);
 

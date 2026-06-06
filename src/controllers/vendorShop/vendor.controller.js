@@ -15,8 +15,9 @@ import productModel from "../../models/vendorShop/product.model.js";
 import mongoose from "mongoose";
 import refreshTokenModel from "../../models/vendorShop/refreshToken.model.js";
 import VendorBankAccount from "../../models/vendorShop/vendorBankAccount.model.js";
+import RFQ from "../../models/vendorShop/rfq.model.js";
 import { createActivityLog } from "../admin/activityLog.controller.js";
-
+import redisCache from "../../utils/redisCache.js";
 //vendor auth
 export const vendorAuth = async (req, res) => {
   try {
@@ -2965,6 +2966,7 @@ import adminNotificationModel from "../../models/admin/adminNotification.model.j
 import { sendAdminNotification } from "../../services/adminNotification.service.js";
 import pcategoryModel from "../../models/category/pcategory.model.js";
 import { calculateDistanceAndDuration } from "../../utils/getDistanceInKm.js";
+import orderModel from "../../models/marketPlace/order.model.js";
 
 //without top product array
 // export const getVendorById = async (req, res) => {
@@ -3549,6 +3551,165 @@ export const getVendorCertificates = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+//latest-updates controller for new chnages app-ui
+
+export const getVendorProfileInfo = async (req, res, next) => {
+  try {
+    const vendorId = req.user.id; // from token
+
+    const cacheKey = `vendor:profile-info:${vendorId}`;
+
+    // Cache Check
+    const cachedData = await redisCache.get(cacheKey);
+
+    if (cachedData) {
+      return res.status(200).json(cachedData);
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(vendorId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid vendor id",
+      });
+    }
+
+    const [vendor, company] = await Promise.all([
+      VendorProfile.findById(vendorId).lean(),
+      VendorCompany.findOne({ vendorId }).lean(),
+    ]);
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor not found",
+      });
+    }
+
+    // ==========================
+    // PROFILE STRENGTH
+    // ==========================
+
+    let profileStrength = 0;
+
+    if (vendor.isPhoneVerified) profileStrength += 20;
+
+    if (vendor.isAadharVerified) profileStrength += 20;
+
+    if (vendor.isAdminVerified) profileStrength += 20;
+
+    if (company?.gstNumber) profileStrength += 20;
+
+    const companyCompleted =
+      company?.companyName &&
+      company?.contactNumber &&
+      company?.businessAddress?.address;
+
+    if (companyCompleted) profileStrength += 20;
+
+    // ==========================
+    // TOTAL RFQ WON
+    // ==========================
+
+    const totalRFQWon = await RFQ.countDocuments({
+      vendorId,
+      status: "quoted",
+    });
+
+    // ==========================
+    // ON TIME DELIVERY %
+    // ==========================
+
+    const orders = await orderModel
+      .find({
+        "items.vendorId": vendorId,
+        "items.status": "DELIVERED",
+      })
+      .select("items")
+      .lean();
+
+    let totalDelivered = 0;
+    let onTimeDelivered = 0;
+
+    for (const order of orders) {
+      for (const item of order.items) {
+        if (
+          item.vendorId?.toString() !== vendorId ||
+          item.status !== "DELIVERED"
+        ) {
+          continue;
+        }
+
+        totalDelivered++;
+
+        const outForDelivery = item.statusProgress?.find(
+          (s) => s.status === "OUT_FOR_DELIVERY",
+        );
+
+        const delivered = item.statusProgress?.find(
+          (s) => s.status === "DELIVERED",
+        );
+
+        if (!outForDelivery?.updatedAt || !delivered?.updatedAt) {
+          continue;
+        }
+
+        const outDate = new Date(outForDelivery.updatedAt);
+
+        const deliveredDate = new Date(delivered.updatedAt);
+
+        const sameDay =
+          outDate.getFullYear() === deliveredDate.getFullYear() &&
+          outDate.getMonth() === deliveredDate.getMonth() &&
+          outDate.getDate() === deliveredDate.getDate();
+
+        if (sameDay) {
+          onTimeDelivered++;
+        }
+      }
+    }
+
+    const onTimeDeliveryPercentage =
+      totalDelivered > 0
+        ? Number(((onTimeDelivered / totalDelivered) * 100).toFixed(2))
+        : 0;
+
+    // ==========================
+    // RESPONSE
+    // ==========================
+
+    const response = {
+      success: true,
+      data: {
+        vendorId: vendor._id,
+        shopName: company?.companyName || "",
+        shopImage: company?.shopImages?.[0] || "",
+        businessAddress: company?.businessAddress || null,
+        totalReviews: vendor.totalReviews || 0,
+        avgRating: Number((vendor.avgRating || 0).toFixed(1)),
+        buyerRating: `${Number((vendor.avgRating || 0).toFixed(1))}/5`,
+        createdAt: vendor.createdAt,
+        profileStrength,
+        totalRFQWon,
+        totalDelivered,
+        onTimeDelivered,
+        onTimeDeliveryPercentage,
+        gstVerified: Boolean(company?.gstNumber),
+        aadharVerified: vendor.isAadharVerified,
+        adminVerified: vendor.isAdminVerified,
+        phoneVerified: vendor.isPhoneVerified,
+      },
+    };
+
+    await redisCache.set(cacheKey, response);
+    return res.status(200).json({
+      success: true,
+      response,
+    });
+  } catch (error) {
+    next(error);
   }
 };
 

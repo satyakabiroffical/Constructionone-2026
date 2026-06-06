@@ -1,6 +1,7 @@
 import Variant from "../../models/vendorShop/variant.model.js";
 import { APIError } from "../../middlewares/errorHandler.js";
 import RedisCache from "../../utils/redisCache.js";
+import RFQ from "../../models/vendorShop/rfq.model.js";
 import mongoose from "mongoose";
 
 // export const getInventory = async (req, res, next) => {
@@ -428,6 +429,187 @@ import mongoose from "mongoose";
 //   }
 // };
 
+// export const getInventory = async (req, res, next) => {
+//   try {
+//     const vendorId = req.user.id;
+
+//     let {
+//       page = 1,
+//       limit = 10,
+//       search = "",
+//       type = "ALL",
+//       categoryId = "",
+//       brandId = "",
+//       disable = "",
+//       stockSort = "", // IN_STOCK | LOW_STOCK | OUT_OF_STOCK
+//     } = req.query;
+
+//     page = Number(page);
+//     limit = Number(limit);
+//     const skip = (page - 1) * limit;
+
+//     // -----------------------------------
+//     // MAIN QUERY
+//     // -----------------------------------
+//     let query = {
+//       createdBy: vendorId,
+//     };
+
+//     // Type Filter
+//     if (type !== "ALL") {
+//       query.Type = type;
+//     }
+
+//     // Disable Status Filter
+//     if (disable !== "") {
+//       query.disable = disable === "true";
+//     }
+
+//     // -----------------------------------
+//     // STOCK FILTER
+//     // -----------------------------------
+//     if (stockSort === "OUT_OF_STOCK") {
+//       query.stock = 0;
+//     }
+
+//     if (stockSort === "IN_STOCK") {
+//       query.stock = { $gt: 0 };
+//     }
+
+//     // -----------------------------------
+//     // PRODUCT SEARCH FILTER
+//     // -----------------------------------
+//     let productMatch = {};
+
+//     if (search) {
+//       productMatch.name = {
+//         $regex: search,
+//         $options: "i",
+//       };
+//     }
+
+//     // category filter
+//     if (categoryId) {
+//       productMatch.categoryId = categoryId;
+//     }
+
+//     // brand filter
+//     if (brandId) {
+//       productMatch.brandId = brandId;
+//     }
+
+//     // -----------------------------------
+//     // SORTING
+//     // -----------------------------------
+//     let sortOption = {
+//       createdAt: -1,
+//     };
+
+//     // Low stock first
+//     if (stockSort === "LOW_STOCK") {
+//       sortOption = {
+//         stock: 1,
+//       };
+//     }
+
+//     // High stock first
+//     if (stockSort === "IN_STOCK") {
+//       sortOption = {
+//         stock: -1,
+//       };
+//     }
+
+//     // -----------------------------------
+//     // FIND + POPULATE
+//     // -----------------------------------
+//     let variants = await Variant.find(query)
+//       .populate({
+//         path: "productId",
+//         match: productMatch,
+//         select: "name images measurementUnit categoryId brandId",
+//         populate: [
+//           {
+//             path: "categoryId",
+//             select: "name",
+//           },
+//           {
+//             path: "brandId",
+//             select: "name",
+//           },
+//         ],
+//       })
+//       .sort(sortOption);
+
+//     // remove null products
+//     variants = variants.filter((item) => item.productId !== null);
+
+//     // -----------------------------------
+//     // CATEGORY FILTER OPTIONS
+//     // -----------------------------------
+//     const categories = [
+//       ...new Map(
+//         variants
+//           .filter((v) => v.productId?.categoryId)
+//           .map((v) => [
+//             v.productId.categoryId._id.toString(),
+//             {
+//               _id: v.productId.categoryId._id,
+//               name: v.productId.categoryId.name,
+//             },
+//           ]),
+//       ).values(),
+//     ];
+
+//     // -----------------------------------
+//     // BRAND FILTER OPTIONS
+//     // -----------------------------------
+//     const brands = [
+//       ...new Map(
+//         variants
+//           .filter((v) => v.productId?.brandId)
+//           .map((v) => [
+//             v.productId.brandId._id.toString(),
+//             {
+//               _id: v.productId.brandId._id,
+//               name: v.productId.brandId.name,
+//             },
+//           ]),
+//       ).values(),
+//     ];
+
+//     // -----------------------------------
+//     // PAGINATION
+//     // -----------------------------------
+//     const total = variants.length;
+
+//     variants = variants.slice(skip, skip + limit);
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Inventory fetched successfully",
+
+//       filters: {
+//         types: ["ALL", "BULK", "RETAIL"],
+//         disableStatus: [true, false],
+//         stockSort: ["IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK"],
+//         categories,
+//         brands,
+//       },
+
+//       pagination: {
+//         currentPage: page,
+//         totalPages: Math.ceil(total / limit),
+//         totalItems: total,
+//         perPage: limit,
+//       },
+
+//       data: variants,
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
 export const getInventory = async (req, res, next) => {
   try {
     const vendorId = req.user.id;
@@ -440,8 +622,19 @@ export const getInventory = async (req, res, next) => {
       categoryId = "",
       brandId = "",
       disable = "",
-      stockSort = "", // IN_STOCK | LOW_STOCK | OUT_OF_STOCK
+      stockSort = "",
+      sortBy = "NEWEST",
+      minPrice = "",
+      maxPrice = "",
     } = req.query;
+
+    const cacheKey = `inventory:${vendorId}:${JSON.stringify(req.query)}`;
+
+    const cachedData = await RedisCache.get(cacheKey);
+
+    if (cachedData) {
+      return res.status(200).json(cachedData);
+    }
 
     page = Number(page);
     limit = Number(limit);
@@ -450,23 +643,34 @@ export const getInventory = async (req, res, next) => {
     // -----------------------------------
     // MAIN QUERY
     // -----------------------------------
+
     let query = {
       createdBy: vendorId,
     };
 
-    // Type Filter
     if (type !== "ALL") {
       query.Type = type;
     }
 
-    // Disable Status Filter
     if (disable !== "") {
       query.disable = disable === "true";
     }
 
+    if (minPrice || maxPrice) {
+      query.price = {};
+
+      if (minPrice) {
+        query.price.$gte = Number(minPrice);
+      }
+
+      if (maxPrice) {
+        query.price.$lte = Number(maxPrice);
+      }
+    }
     // -----------------------------------
     // STOCK FILTER
     // -----------------------------------
+
     if (stockSort === "OUT_OF_STOCK") {
       query.stock = 0;
     }
@@ -476,8 +680,9 @@ export const getInventory = async (req, res, next) => {
     }
 
     // -----------------------------------
-    // PRODUCT SEARCH FILTER
+    // PRODUCT FILTERS
     // -----------------------------------
+
     let productMatch = {};
 
     if (search) {
@@ -487,12 +692,10 @@ export const getInventory = async (req, res, next) => {
       };
     }
 
-    // category filter
     if (categoryId) {
       productMatch.categoryId = categoryId;
     }
 
-    // brand filter
     if (brandId) {
       productMatch.brandId = brandId;
     }
@@ -500,27 +703,45 @@ export const getInventory = async (req, res, next) => {
     // -----------------------------------
     // SORTING
     // -----------------------------------
+
     let sortOption = {
       createdAt: -1,
     };
 
-    // Low stock first
-    if (stockSort === "LOW_STOCK") {
-      sortOption = {
-        stock: 1,
-      };
-    }
+    switch (sortBy) {
+      case "PRICE_LOW_TO_HIGH":
+        sortOption = { price: 1 };
+        break;
 
-    // High stock first
-    if (stockSort === "IN_STOCK") {
-      sortOption = {
-        stock: -1,
-      };
+      case "PRICE_HIGH_TO_LOW":
+        sortOption = { price: -1 };
+        break;
+
+      case "STOCK_LOW_TO_HIGH":
+        sortOption = { stock: 1 };
+        break;
+
+      case "STOCK_HIGH_TO_LOW":
+        sortOption = { stock: -1 };
+        break;
+
+      case "BEST_SELLING":
+        sortOption = { soldCount: -1 };
+        break;
+
+      case "RELEVANCE":
+        sortOption = { updatedAt: -1 };
+        break;
+
+      case "NEWEST":
+      default:
+        sortOption = { createdAt: -1 };
     }
 
     // -----------------------------------
-    // FIND + POPULATE
+    // FETCH INVENTORY
     // -----------------------------------
+
     let variants = await Variant.find(query)
       .populate({
         path: "productId",
@@ -537,14 +758,30 @@ export const getInventory = async (req, res, next) => {
           },
         ],
       })
-      .sort(sortOption);
+      .sort(sortOption)
+      .lean();
 
-    // remove null products
     variants = variants.filter((item) => item.productId !== null);
 
+    if (sortBy === "NAME_ASC") {
+      variants.sort((a, b) => a.productId.name.localeCompare(b.productId.name));
+    }
+
+    if (sortBy === "NAME_DESC") {
+      variants.sort((a, b) => b.productId.name.localeCompare(a.productId.name));
+    }
+
     // -----------------------------------
-    // CATEGORY FILTER OPTIONS
+    // FILTER OPTIONS
     // -----------------------------------
+
+    const prices = variants.map((v) => v.price || 0);
+
+    const priceRange = {
+      min: prices.length ? Math.min(Number(req.query.minPrice)) : 0,
+      max: prices.length ? Math.max(Number(req.query.maxPrice)) : 0,
+    };
+
     const categories = [
       ...new Map(
         variants
@@ -559,9 +796,6 @@ export const getInventory = async (req, res, next) => {
       ).values(),
     ];
 
-    // -----------------------------------
-    // BRAND FILTER OPTIONS
-    // -----------------------------------
     const brands = [
       ...new Map(
         variants
@@ -577,20 +811,71 @@ export const getInventory = async (req, res, next) => {
     ];
 
     // -----------------------------------
+    // STATS
+    // -----------------------------------
+
+    const totalProducts = variants.length;
+
+    const lowStockProducts = variants.filter(
+      (item) => item.stock > 0 && item.stock <= 10,
+    ).length;
+
+    const outOfStockProducts = variants.filter(
+      (item) => item.stock === 0,
+    ).length;
+
+    const totalInventoryValue = variants.reduce(
+      (total, item) => total + (item.price || 0) * (item.stock || 0),
+      0,
+    );
+
+    const variantIds = variants.map((v) => v._id);
+
+    const totalRfqEnabledProducts = await Variant.countDocuments({
+      createdBy: vendorId,
+      Type: "BULK",
+      disable: false,
+    });
+
+    // -----------------------------------
     // PAGINATION
     // -----------------------------------
+
     const total = variants.length;
 
-    variants = variants.slice(skip, skip + limit);
+    const paginatedData = variants.slice(skip, skip + limit);
 
-    res.status(200).json({
+    // -----------------------------------
+    // RESPONSE
+    // -----------------------------------
+    const response = {
       success: true,
       message: "Inventory fetched successfully",
+
+      stats: {
+        totalProducts,
+        lowStockProducts,
+        outOfStockProducts,
+        totalInventoryValue,
+        totalRfqEnabledProducts,
+      },
 
       filters: {
         types: ["ALL", "BULK", "RETAIL"],
         disableStatus: [true, false],
+        priceRange,
         stockSort: ["IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK"],
+        sortBy: [
+          "RELEVANCE",
+          "PRICE_LOW_TO_HIGH",
+          "PRICE_HIGH_TO_LOW",
+          "STOCK_LOW_TO_HIGH",
+          "STOCK_HIGH_TO_LOW",
+          "NAME_ASC",
+          "NAME_DESC",
+          "NEWEST",
+          "BEST_SELLING",
+        ],
         categories,
         brands,
       },
@@ -602,12 +887,351 @@ export const getInventory = async (req, res, next) => {
         perPage: limit,
       },
 
-      data: variants,
+      data: paginatedData,
+    };
+    await RedisCache.set(cacheKey, response, 300);
+    return res.status(200).json({
+      response,
     });
   } catch (err) {
     next(err);
   }
 };
+// export const getVendorVariantDetails = async (req, res, next) => {
+//   try {
+//     const { variantId } = req.params;
+//     const vendorId = req.user.id;
+
+//     const cacheKey = `vendor:variant:details:v1:${vendorId}:${variantId}`;
+
+//     // ======================================================
+//     // CACHE
+//     // ======================================================
+
+//     const cached = await RedisCache.get(cacheKey);
+
+//     if (cached) {
+//       return res.json(cached);
+//     }
+
+//     const vId = new mongoose.Types.ObjectId(vendorId);
+//     const varId = new mongoose.Types.ObjectId(variantId);
+
+//     // ======================================================
+//     // VARIANT DETAILS
+//     // ======================================================
+
+//     const variantData = await Variant.aggregate([
+//       // ======================================================
+//       // MATCH VARIANT
+//       // ======================================================
+
+//       {
+//         $match: {
+//           _id: varId,
+//         },
+//       },
+
+//       // ======================================================
+//       // PRODUCT JOIN
+//       // ======================================================
+
+//       {
+//         $lookup: {
+//           from: "products",
+//           localField: "productId",
+//           foreignField: "_id",
+//           as: "product",
+//         },
+//       },
+
+//       {
+//         $unwind: "$product",
+//       },
+
+//       // ======================================================
+//       // VERIFY VENDOR
+//       // ======================================================
+
+//       {
+//         $match: {
+//           "product.vendorId": vId,
+//         },
+//       },
+
+//       // ======================================================
+//       // CATEGORY JOIN
+//       // ======================================================
+
+//       {
+//         $lookup: {
+//           from: "categories",
+//           localField: "product.categoryId",
+//           foreignField: "_id",
+//           as: "category",
+//         },
+//       },
+
+//       {
+//         $unwind: {
+//           path: "$category",
+//           preserveNullAndEmptyArrays: true,
+//         },
+//       },
+
+//       // ======================================================
+//       // SUB CATEGORY JOIN
+//       // ======================================================
+
+//       {
+//         $lookup: {
+//           from: "subcategories",
+//           localField: "product.subcategoryId",
+//           foreignField: "_id",
+//           as: "subCategory",
+//         },
+//       },
+
+//       {
+//         $unwind: {
+//           path: "$subCategory",
+//           preserveNullAndEmptyArrays: true,
+//         },
+//       },
+
+//       // ======================================================
+//       // BRAND JOIN
+//       // ======================================================
+
+//       {
+//         $lookup: {
+//           from: "brands",
+//           localField: "product.brandId",
+//           foreignField: "_id",
+//           as: "brand",
+//         },
+//       },
+
+//       {
+//         $unwind: {
+//           path: "$brand",
+//           preserveNullAndEmptyArrays: true,
+//         },
+//       },
+
+//       // ======================================================
+//       // PRODUCT TYPES JOIN
+//       // ======================================================
+
+//       {
+//         $lookup: {
+//           from: "producttypes",
+//           localField: "product.productTypeId",
+//           foreignField: "_id",
+//           as: "productTypes",
+//         },
+//       },
+
+//       // ======================================================
+//       // ALL PRODUCT VARIANTS
+//       // ======================================================
+
+//       {
+//         $lookup: {
+//           from: "variants",
+//           let: { productId: "$product._id" },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $eq: ["$productId", "$$productId"],
+//                 },
+//               },
+//             },
+
+//             {
+//               $project: {
+//                 _id: 1,
+//                 price: 1,
+//                 mrp: 1,
+//                 discountAmount: 1,
+//                 discount: 1,
+//                 size: 1,
+//                 stock: 1,
+//                 sold: 1,
+//                 Type: 1,
+//                 disable: 1,
+//                 moq: 1,
+//                 packageWeight: 1,
+//                 packageDimensions: 1,
+//                 createdAt: 1,
+//               },
+//             },
+
+//             {
+//               $sort: {
+//                 _id: -1,
+//               },
+//             },
+//           ],
+//           as: "allVariants",
+//         },
+//       },
+
+//       // ======================================================
+//       // FINAL RESPONSE
+//       // ======================================================
+
+//       {
+//         $project: {
+//           _id: 1,
+//           productId: 1,
+
+//           // =========================
+//           // CURRENT VARIANT
+//           // =========================
+
+//           variant: {
+//             _id: "$_id",
+
+//             price: "$price",
+
+//             mrp: "$mrp",
+
+//             discount: "$discount",
+
+//             discountAmount: "$discountAmount",
+
+//             size: "$size",
+
+//             stock: "$stock",
+
+//             sold: "$sold",
+
+//             Type: "$Type",
+
+//             disable: "$disable",
+
+//             moq: "$moq",
+
+//             packageWeight: "$packageWeight",
+
+//             packageDimensions: "$packageDimensions",
+
+//             createdAt: "$createdAt",
+
+//             updatedAt: "$updatedAt",
+//           },
+
+//           // =========================
+//           // PRODUCT DATA
+//           // =========================
+
+//           product: {
+//             _id: "$product._id",
+
+//             name: "$product.name",
+
+//             slug: "$product.slug",
+
+//             images: "$product.images",
+
+//             description: "$product.description",
+
+//             specification: "$product.specification",
+
+//             features: "$product.features",
+
+//             measurementUnit: "$product.measurementUnit",
+
+//             leadTime: "$product.leadTime",
+
+//             warrantyPeriod: "$product.warrantyPeriod",
+
+//             returnDays: "$product.returnDays",
+
+//             deliveryCharges: "$product.deliveryCharges",
+
+//             deliveryOptions: "$product.deliveryOptions",
+
+//             serviceableDeliveryPincode: "$product.serviceableDeliveryPincode",
+
+//             rating: "$product.rating",
+
+//             avgRating: "$product.avgRating",
+
+//             productType: "$product.productType",
+
+//             category: {
+//               _id: "$category._id",
+//               name: "$category.name",
+//             },
+
+//             subCategory: {
+//               _id: "$subCategory._id",
+//               name: "$subCategory.name",
+//             },
+
+//             brand: {
+//               _id: "$brand._id",
+//               name: "$brand.name",
+//               logo: "$brand.logo",
+//             },
+
+//             productTypes: {
+//               $map: {
+//                 input: "$productTypes",
+//                 as: "pt",
+//                 in: {
+//                   _id: "$$pt._id",
+//                   name: "$$pt.typeName",
+//                 },
+//               },
+//             },
+//           },
+
+//           // =========================
+//           // ALL VARIANTS
+//           // =========================
+
+//           variants: "$allVariants",
+//         },
+//       },
+//     ]);
+
+//     // ======================================================
+//     // NOT FOUND
+//     // ======================================================
+
+//     if (!variantData.length) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Variant not found",
+//       });
+//     }
+
+//     // ======================================================
+//     // RESPONSE
+//     // ======================================================
+
+//     const response = {
+//       success: true,
+//       message: "Variant details fetched successfully",
+//       data: variantData[0],
+//     };
+
+//     // ======================================================
+//     // CACHE STORE
+//     // ======================================================
+
+//     await RedisCache.set(cacheKey, response, 300);
+
+//     return res.json(response);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
 export const getVendorVariantDetails = async (req, res, next) => {
   try {
     const { variantId } = req.params;
@@ -619,11 +1243,11 @@ export const getVendorVariantDetails = async (req, res, next) => {
     // CACHE
     // ======================================================
 
-    const cached = await RedisCache.get(cacheKey);
+    // const cached = await RedisCache.get(cacheKey);
 
-    if (cached) {
-      return res.json(cached);
-    }
+    // if (cached) {
+    //   return res.json(cached);
+    // }
 
     const vId = new mongoose.Types.ObjectId(vendorId);
     const varId = new mongoose.Types.ObjectId(variantId);
@@ -633,10 +1257,6 @@ export const getVendorVariantDetails = async (req, res, next) => {
     // ======================================================
 
     const variantData = await Variant.aggregate([
-      // ======================================================
-      // MATCH VARIANT
-      // ======================================================
-
       {
         $match: {
           _id: varId,
@@ -704,6 +1324,45 @@ export const getVendorVariantDetails = async (req, res, next) => {
       },
 
       {
+        $lookup: {
+          from: "orders",
+          let: {
+            variantId: "$_id",
+          },
+          pipeline: [
+            {
+              $unwind: "$items",
+            },
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$items.variantId", "$$variantId"],
+                },
+                "items.status": {
+                  $in: [
+                    "PENDING",
+                    "CONFIRMED",
+                    "ACCEPTED",
+                    "PACKED",
+                    "SHIPPED",
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                reservedStock: {
+                  $sum: "$items.quantity",
+                },
+              },
+            },
+          ],
+          as: "reservedStockData",
+        },
+      },
+
+      {
         $unwind: {
           path: "$subCategory",
           preserveNullAndEmptyArrays: true,
@@ -744,52 +1403,6 @@ export const getVendorVariantDetails = async (req, res, next) => {
       },
 
       // ======================================================
-      // ALL PRODUCT VARIANTS
-      // ======================================================
-
-      {
-        $lookup: {
-          from: "variants",
-          let: { productId: "$product._id" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: ["$productId", "$$productId"],
-                },
-              },
-            },
-
-            {
-              $project: {
-                _id: 1,
-                price: 1,
-                mrp: 1,
-                discountAmount: 1,
-                discount: 1,
-                size: 1,
-                stock: 1,
-                sold: 1,
-                Type: 1,
-                disable: 1,
-                moq: 1,
-                packageWeight: 1,
-                packageDimensions: 1,
-                createdAt: 1,
-              },
-            },
-
-            {
-              $sort: {
-                _id: -1,
-              },
-            },
-          ],
-          as: "allVariants",
-        },
-      },
-
-      // ======================================================
       // FINAL RESPONSE
       // ======================================================
 
@@ -798,45 +1411,35 @@ export const getVendorVariantDetails = async (req, res, next) => {
           _id: 1,
           productId: 1,
 
-          // =========================
-          // CURRENT VARIANT
-          // =========================
-
           variant: {
             _id: "$_id",
-
             price: "$price",
-
             mrp: "$mrp",
-
             discount: "$discount",
-
             discountAmount: "$discountAmount",
-
             size: "$size",
-
             stock: "$stock",
-
             sold: "$sold",
+            totalStock: {
+              $add: [{ $ifNull: ["$stock", 0] }, { $ifNull: ["$sold", 0] }],
+            },
 
+            reservedStock: {
+              $ifNull: [
+                {
+                  $arrayElemAt: ["$reservedStockData.reservedStock", 0],
+                },
+                0,
+              ],
+            },
             Type: "$Type",
-
             disable: "$disable",
-
             moq: "$moq",
-
             packageWeight: "$packageWeight",
-
             packageDimensions: "$packageDimensions",
-
             createdAt: "$createdAt",
-
             updatedAt: "$updatedAt",
           },
-
-          // =========================
-          // PRODUCT DATA
-          // =========================
 
           product: {
             _id: "$product._id",
@@ -844,6 +1447,19 @@ export const getVendorVariantDetails = async (req, res, next) => {
             name: "$product.name",
 
             slug: "$product.slug",
+            finish: "$product.productHighlights",
+
+            sku: {
+              $ifNull: ["$product.sku", "N/A"],
+            },
+
+            hsnCode: {
+              $ifNull: ["$product.hsnCode", "N/A"],
+            },
+
+            origin: {
+              $ifNull: ["$product.origin", "N/A"],
+            },
 
             images: "$product.images",
 
@@ -857,28 +1473,28 @@ export const getVendorVariantDetails = async (req, res, next) => {
 
             leadTime: "$product.leadTime",
 
-            warrantyPeriod: "$product.warrantyPeriod",
+            // warrantyPeriod: "$product.warrantyPeriod",
 
-            returnDays: "$product.returnDays",
+            // returnDays: "$product.returnDays",
 
-            deliveryCharges: "$product.deliveryCharges",
+            // deliveryCharges: "$product.deliveryCharges",
 
-            deliveryOptions: "$product.deliveryOptions",
+            // deliveryOptions: "$product.deliveryOptions",
 
-            serviceableDeliveryPincode: "$product.serviceableDeliveryPincode",
+            // serviceableDeliveryPincode: "$product.serviceableDeliveryPincode",
 
             rating: "$product.rating",
 
             avgRating: "$product.avgRating",
 
-            productType: "$product.productType",
+            Grade: "$product.productType",
 
             category: {
               _id: "$category._id",
               name: "$category.name",
             },
 
-            subCategory: {
+            material: {
               _id: "$subCategory._id",
               name: "$subCategory.name",
             },
@@ -900,12 +1516,6 @@ export const getVendorVariantDetails = async (req, res, next) => {
               },
             },
           },
-
-          // =========================
-          // ALL VARIANTS
-          // =========================
-
-          variants: "$allVariants",
         },
       },
     ]);
@@ -920,10 +1530,6 @@ export const getVendorVariantDetails = async (req, res, next) => {
         message: "Variant not found",
       });
     }
-
-    // ======================================================
-    // RESPONSE
-    // ======================================================
 
     const response = {
       success: true,
@@ -942,5 +1548,3 @@ export const getVendorVariantDetails = async (req, res, next) => {
     next(err);
   }
 };
-
-

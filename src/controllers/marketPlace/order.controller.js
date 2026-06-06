@@ -21,65 +21,7 @@ import vendorTaxInvoice from "../../middlewares/invoice.vendor.js";
 import creditNoteInvoice from "../../middlewares/creditNote.middleware.js";
 import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
 import Address from "../../models/user/address.model.js";
-// generateShippingLabel import removed - now used in shipping.worker.js
 
-/**
- * generateOrderInvoices — fire-and-forget helper
- * Generates:
- *   1. User order invoice (on masterOrder)
- *   2. Vendor tax invoice for each subOrder
- * Saves the PDF URL to order.invoice on each respective document.
- */
-
-//priyanshu-------->
-// async function generateOrderInvoices(masterOrder, subOrders) {
-//   try {
-//     // 1. User order invoice
-//     const userPdfUrl = await invoice(masterOrder);
-//     await Order.updateOne(
-//       { _id: masterOrder._id },
-//       { $set: { invoice: userPdfUrl } },
-//     );
-
-//     // 2. Vendor tax invoices — fetch all VendorCompany docs in one query
-//     const vendorIds = [
-//       ...new Set(subOrders.map((o) => o.vandorId?.toString()).filter(Boolean)),
-//     ];
-//     const vendorCompanyDocs = await VendorCompany.find({
-//       vendorId: { $in: vendorIds },
-//     }).lean();
-//     const vcMap = new Map(
-//       vendorCompanyDocs.map((vc) => [vc.vendorId.toString(), vc]),
-//     );
-
-//     await Promise.allSettled(
-//       subOrders.map(async (subOrder) => {
-//         const vc = vcMap.get(subOrder.vandorId?.toString()) || {};
-//         // Map VendorCompany fields to what buildVendorInvoiceHtml expects
-//         const vendorData = {
-//           businessName: vc.companyName || "Vendor",
-//           gstNumber: vc.gstNumber || "N/A",
-//           address: [
-//             vc.businessAddress?.address,
-//             vc.businessAddress?.city,
-//             vc.businessAddress?.state,
-//             vc.businessAddress?.pincode,
-//           ]
-//             .filter(Boolean)
-//             .join(", "),
-//         };
-
-//         const vendorPdfUrl = await vendorTaxInvoice(subOrder, vendorData);
-//         await Order.updateOne(
-//           { _id: subOrder._id },
-//           { $set: { invoice: vendorPdfUrl } },
-//         );
-//       }),
-//     );
-//   } catch (err) {
-//     console.error("[Invoice] generateOrderInvoices error:", err.message);
-//   }
-// }
 
 async function generateOrderInvoices(masterOrder, subOrders) {
   try {
@@ -2202,6 +2144,189 @@ export const verifyPayment = async (req, res, next) => {
   }
 };
 
+export const cancelOrderUser = async (req, res, next) => {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const { orderId } = req.params;
+    const userId = req.user.id;
+
+    const masterOrder = await Order.findOne({
+      _id: orderId,
+      userId,
+      orderType: "MASTER",
+    }).session(session);
+
+    if (!masterOrder) {
+      throw new APIError(404, "Order not found");
+    }
+
+    if (masterOrder.status !== "PENDING") {
+      throw new APIError(400, "Only pending orders can be cancelled");
+    }
+
+    if (masterOrder.paymentStatus !== "PAID") {
+      throw new APIError(400, "Only paid orders can be cancelled");
+    }
+
+    // ==========================
+    // RESTORE STOCK
+    // ==========================
+
+    const variantOps = [];
+    const productOps = [];
+
+    for (const item of masterOrder.items) {
+      variantOps.push({
+        updateOne: {
+          filter: {
+            _id: item.variantId,
+          },
+          update: {
+            $inc: {
+              stock: item.quantity,
+              sold: -item.quantity,
+            },
+          },
+        },
+      });
+
+      productOps.push({
+        updateOne: {
+          filter: {
+            _id: item.productId,
+          },
+          update: {
+            $inc: {
+              sold: -item.quantity,
+            },
+          },
+        },
+      });
+    }
+
+    if (variantOps.length) {
+      await Variant.bulkWrite(variantOps, {
+        session,
+      });
+    }
+
+    if (productOps.length) {
+      await Product.bulkWrite(productOps, {
+        session,
+      });
+    }
+
+    // ==========================
+    // WALLET REFUND
+    // ==========================
+
+    let wallet = await Wallet.findOne({
+      userId,
+    }).session(session);
+
+    if (!wallet) {
+      wallet = await Wallet.create(
+        [
+          {
+            userId,
+            balance: 0,
+          },
+        ],
+        { session },
+      );
+
+      wallet = wallet[0];
+    }
+
+    wallet.balance += masterOrder.netAmount;
+
+    await wallet.save({ session });
+
+    // ==========================
+    // REFUND TRANSACTION
+    // ==========================
+
+    const refundTransaction = await Transaction.create(
+      [
+        {
+          userId,
+
+          orderId: masterOrder._id,
+
+          amount: masterOrder.netAmount,
+
+          paymentMethod: "WALLET",
+
+          payType: "CREDIT",
+
+          walletPurpose: "ORDER_REFUND",
+
+          status: "SUCCESS",
+        },
+      ],
+      { session },
+    );
+
+    // ==========================
+    // MASTER ORDER
+    // ==========================
+
+    await Order.updateOne(
+      {
+        _id: masterOrder._id,
+      },
+      {
+        $set: {
+          status: "CANCELLED",
+          "items.$[].status": "CANCELLED",
+        },
+      },
+      { session },
+    );
+
+    // ==========================
+    // SUB ORDERS
+    // ==========================
+
+    await Order.updateMany(
+      {
+        parentId: masterOrder._id,
+        orderType: "SUB",
+      },
+      {
+        $set: {
+          status: "CANCELLED",
+          "items.$[].status": "CANCELLED",
+        },
+      },
+      { session },
+    );
+
+    // ==========================
+    // CACHE
+    // ==========================
+
+    await RedisCache.deletePattern(`wallet:history:${userId}:*`);
+
+    await session.commitTransaction();
+
+    return res.status(200).json({
+      success: true,
+      message: "Order cancelled successfully. Refund credited to wallet.",
+      refundAmount: masterOrder.netAmount,
+      transactionId: refundTransaction[0]._id,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    next(error);
+  } finally {
+    session.endSession();
+  }
+};
+
 //user get all order
 export const getAllOrders = async (req, res, next) => {
   try {
@@ -2314,135 +2439,7 @@ export const getAllOrders = async (req, res, next) => {
     next(error);
   }
 };
-/* ========================== GET ALL ORDERS BY VENDOR ========================== */
-// export const getOrdersByVendor = async (req, res, next) => {
-//   try {
-//     const vandorId = req.params.vendorId;
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 10;
-//     const skip = (page - 1) * limit;
 
-//     // Version-based cache: incr version on any status change — no redis.keys() needed
-//     const version = (await redis.get(`vendor:orders:version:${vandorId}`)) || 1;
-//     const cacheKey = `orders:vendor:${vandorId}:v${version}:${JSON.stringify(req.query)}`;
-//     const cached = await redis.get(cacheKey);
-//     if (cached) return res.status(200).json(JSON.parse(cached));
-
-//     const filter = { vandorId, orderType: "SUB" };
-//     if (req.query.status) filter.status = req.query.status;
-//     if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
-
-//     const now = new Date();
-
-//     const dateRangeMap = {
-//       today: () => {
-//         const start = new Date(now);
-//         start.setHours(0, 0, 0, 0);
-//         return { $gte: start };
-//       },
-//       last7days: () => {
-//         const start = new Date(now);
-//         start.setDate(start.getDate() - 7);
-//         return { $gte: start };
-//       },
-//       last30days: () => {
-//         const start = new Date(now);
-//         start.setDate(start.getDate() - 30);
-//         return { $gte: start };
-//       },
-//       last90days: () => {
-//         const start = new Date(now);
-//         start.setDate(start.getDate() - 90);
-//         return { $gte: start };
-//       },
-//       custom: () => {
-//         const range = {};
-//         if (req.query.startDate) range.$gte = new Date(req.query.startDate);
-//         if (req.query.endDate) {
-//           const end = new Date(req.query.endDate);
-//           end.setHours(23, 59, 59, 999);
-//           range.$lte = end;
-//         }
-//         return Object.keys(range).length ? range : null;
-//       },
-//     };
-
-//     const { dateRange } = req.query;
-//     if (dateRange && dateRangeMap[dateRange]) {
-//       const range = dateRangeMap[dateRange]();
-//       if (range) filter.createdAt = range;
-//     }
-
-//     // ── Base filter for stats (aggregate needs ObjectId, not string) ──
-//     const statsFilter = {
-//       vandorId: new mongoose.Types.ObjectId(vandorId),
-//       orderType: "SUB",
-//     };
-
-//     const [orders, total, revenueResult, pendingCount] = await Promise.all([
-//       // 1. Paginated orders list
-//       Order.find(filter)
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(limit)
-//         .populate({ path: "items.product", select: "name thumbnail" })
-//         .populate({ path: "items.variant", select: "size price stock" })
-//         .lean(),
-
-//       // 2. Total orders matching filter (for pagination)
-//       Order.countDocuments(filter),
-
-//       // 3. Total revenue — only PAID + DELIVERED orders
-//       Order.aggregate([
-//         {
-//           $match: {
-//             ...statsFilter,
-//             paymentStatus: "PAID",
-//             status: "DELIVERED",
-//           },
-//         },
-//         {
-//           $group: {
-//             _id: null,
-//             totalRevenue: { $sum: "$totalAmount" },
-//           },
-//         },
-//       ]),
-
-//       // 4. Count of PENDING orders
-//       Order.countDocuments({
-//         ...statsFilter,
-//         status: "PENDING",
-//       }),
-//     ]);
-//     console.log("revenueResult", revenueResult[0]);
-
-//     const totalRevenue = revenueResult[0]?.totalRevenue ?? 0;
-
-//     const response = {
-//       success: true,
-//       message: "Vendor orders fetched successfully",
-//       stats: {
-//         totalRevenue, // sum of totalAmount where PAID + DELIVERED
-//         pendingCount, // count of PENDING orders
-//       },
-//       data: {
-//         orders,
-//         pagination: {
-//           total,
-//           page,
-//           limit,
-//           totalPages: Math.ceil(total / limit),
-//         },
-//       },
-//     };
-
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 300);
-//     res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
 
 // Statuses from which a user is NOT allowed to cancel
 
@@ -2457,7 +2454,7 @@ export const cancelOrder = async (req, res, next) => {
   const session = await mongoose.startSession();
 
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const orderId = req.params.orderId;
     const { reason } = req.body;
 
@@ -2590,6 +2587,8 @@ export const cancelOrder = async (req, res, next) => {
   }
 };
 
+
+//no need to use vendorUpdateOrder - correct method written in vendor dashboard file
 export const vendorUpdateOrder = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -2838,285 +2837,7 @@ export const getOrderById = async (req, res, next) => {
   }
 };
 
-//admin get all orders
-// export const adminGetAllOrders = async (req, res, next) => {
-//   try {
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.limit) || 20;
-//     const skip = (page - 1) * limit;
 
-//     const cacheKey = `admin:orders:${JSON.stringify(req.query)}`;
-//     const cached = await redis.get(cacheKey);
-//     if (cached) return res.status(200).json(JSON.parse(cached));
-
-//     const filter = {};
-//     if (req.query.orderType) filter.orderType = req.query.orderType;
-//     if (req.query.status) filter.status = req.query.status;
-//     if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
-//     if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
-
-//     if (req.query.search) {
-//       filter._id = { $regex: `^${req.query.search}`, $options: "i" };
-//     }
-
-//     const now = new Date();
-//     const dateRangeMap = {
-//       today: () => {
-//         const s = new Date(now);
-//         s.setHours(0, 0, 0, 0);
-//         return { $gte: s };
-//       },
-//       last7days: () => {
-//         const s = new Date(now);
-//         s.setDate(s.getDate() - 7);
-//         return { $gte: s };
-//       },
-//       last30days: () => {
-//         const s = new Date(now);
-//         s.setDate(s.getDate() - 30);
-//         return { $gte: s };
-//       },
-//       last90days: () => {
-//         const s = new Date(now);
-//         s.setDate(s.getDate() - 90);
-//         return { $gte: s };
-//       },
-//       custom: () => {
-//         const range = {};
-//         if (req.query.startDate) range.$gte = new Date(req.query.startDate);
-//         if (req.query.endDate) {
-//           const end = new Date(req.query.endDate);
-//           end.setHours(23, 59, 59, 999);
-//           range.$lte = end;
-//         }
-//         return Object.keys(range).length ? range : null;
-//       },
-//     };
-
-//     const { dateRange } = req.query;
-//     if (dateRange && dateRangeMap[dateRange]) {
-//       const range = dateRangeMap[dateRange]();
-//       if (range) filter.createdAt = range;
-//     }
-
-//     const [orders, total] = await Promise.all([
-//       Order.find(filter)
-//         .sort({ createdAt: -1 })
-//         .skip(skip)
-//         .limit(limit)
-//         .populate({ path: "userId", select: "name email phone" })
-//         .populate({ path: "items.product", select: "name thumbnail" })
-//         // .populate({ path: "vandorId", select: "name email" })
-//         .lean(),
-//       Order.countDocuments(filter),
-//     ]);
-
-//     const response = {
-//       success: true,
-//       message: "Orders fetched successfully",
-//       data: {
-//         orders,
-//         pagination: {
-//           total,
-//           page,
-//           limit,
-//           totalPages: Math.ceil(total / limit),
-//         },
-//       },
-//     };
-
-//     await redis.set(cacheKey, JSON.stringify(response), "EX", 120);
-//     res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
-// export const getOrderById = async (req, res, next) => {
-//   try {
-//     const userId = req.user.id;
-//     const { orderId } = req.params;
-
-//     // =========================
-//     // Fetch Master Order
-//     // =========================
-//     const masterOrder = await Order.findOne({
-//       _id: orderId,
-//       userId,
-//       orderType: "MASTER",
-//     })
-//       .select(
-//         `
-//         invoice userId orderType parentId items shippingAddressId
-//         subTotal totalDeliveryFee netAmount status paymentStatus
-//         paymentMethod transactionRef transactionId createdAt updatedAt
-//       `,
-//       )
-//       .populate({
-//         path: "items.productId",
-//         select:
-//           "name images pcategoryId categoryId subcategoryId productTypeId brandId",
-//         populate: [
-//           { path: "pcategoryId", select: "name" },
-//           { path: "categoryId", select: "name" },
-//           { path: "subcategoryId", select: "name" },
-//           { path: "productTypeId", select: "typeName" },
-//           { path: "brandId", select: "name" },
-//         ],
-//       })
-//       .populate({
-//         path: "items.variantId",
-//         select: "price packageWeight packageDimensions stock sold",
-//       })
-//       .populate({
-//         path: "items.vendorId",
-//         select: "firstName lastName email phoneNumber",
-//       })
-//       .populate({
-//         path: "userId",
-//         select: "name email phone",
-//       })
-//       .populate({
-//         path: "shippingAddressId",
-//         select:
-//           "label userName addressLine country state city pincode landMark",
-//       })
-//       .populate({
-//         path: "transactionId",
-//         select: "amount status paymentMethod razorpayOrderId createdAt",
-//       })
-//       .lean();
-
-//     if (!masterOrder) {
-//       throw new APIError(404, "Order not found");
-//     }
-
-//     // // Master Order Level - Overall Progress
-//    // Master Order Level
-//     // masterOrder.statusProgress = getStatusProgress(masterOrder.status, masterOrder.updatedAt);
-
-//   if (masterOrder.items && masterOrder.items.length > 0) {
-//       masterOrder.items.forEach((item) => {
-//         item.statusProgress = getStatusProgress(item.status, masterOrder.updatedAt);
-//       });
-//     }
-
-//     // masterOrder.progressPercentage = Math.round(
-//     //   ((getStatusIndex(masterOrder.status) + 1) / 5) * 100,
-//     // );
-
-//     // ====================== IMPORTANT ======================
-//     // Item Level Status Progress (Product wise)
-//     // ======================================================
-//     if (masterOrder.items && masterOrder.items.length > 0) {
-//       masterOrder.items.forEach((item) => {
-//         // Har product ke apna statusProgress
-//         item.statusProgress = getStatusProgress(
-//           item.status,
-//           masterOrder.updatedAt,
-//         );
-//       });
-//     }
-
-//     // =========================
-//     // Final Response (subOrders removed as per your request)
-//     // =========================
-//     const response = {
-//       success: true,
-//       message: "Order fetched successfully",
-//       data: {
-//         order: masterOrder,
-//       },
-//     };
-
-//     return res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
-// export const getOrderById = async (req, res, next) => {
-//   try {
-//     const userId = req.user.id;
-//     const { orderId } = req.params;
-
-//     const masterOrder = await Order.findOne({
-//       _id: orderId,
-//       userId,
-//       orderType: "MASTER",
-//     })
-//       .select(`
-//         invoice
-//         userId
-//         orderType
-//         parentId
-//         items
-//         shippingAddressId
-//         subTotal
-//         totalDeliveryFee
-//         netAmount
-//         status
-//         paymentStatus
-//         paymentMethod
-//         transactionRef
-//         transactionId
-//         createdAt
-//         updatedAt
-//       `)
-//       .populate({
-//         path: "items.productId",
-//         select: "name images pcategoryId categoryId subcategoryId productTypeId brandId",
-//         populate: [
-//           { path: "pcategoryId", select: "name" },
-//           { path: "categoryId", select: "name" },
-//           { path: "subcategoryId", select: "name" },
-//           { path: "productTypeId", select: "typeName" },
-//           { path: "brandId", select: "name" },
-//         ],
-//       })
-//       .populate({
-//         path: "items.variantId",
-//         select: "price packageWeight packageDimensions stock sold",
-//       })
-//       .populate({
-//         path: "items.vendorId",
-//         select: "firstName lastName email phoneNumber",
-//       })
-//       .populate({
-//         path: "userId",
-//         select: "name email phone",
-//       })
-//       .populate({
-//         path: "shippingAddressId",
-//         select: "label userName addressLine country state city pincode landMark",
-//       })
-//       .populate({
-//         path: "transactionId",
-//         select: "amount status paymentMethod razorpayOrderId createdAt",
-//       })
-//       .lean();
-
-//     if (!masterOrder) {
-//       throw new APIError(404, "Order not found");
-//     }
-
-//     // Progress Percentage
-//     masterOrder.progressPercentage = calculateProgress(masterOrder.status);
-
-//     const response = {
-//       success: true,
-//       message: "Order fetched successfully",
-//       data: {
-//         order: masterOrder,
-//       },
-//     };
-
-//     return res.status(200).json(response);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-// Helper Function
 const calculateProgress = (status) => {
   const orderList = [
     "PENDING",

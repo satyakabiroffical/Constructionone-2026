@@ -1,6 +1,7 @@
 import redis from "../../config/redis.config.js"; // priyanshu
 import { APIError } from "../../middlewares/errorHandler.js";
 import productModel from "../../models/vendorShop/product.model.js";
+import variantModel from "../../models/vendorShop/variant.model.js";
 import { VendorCompany } from "../../models/vendorShop/vendor.model.js";
 import { globalSearchService } from "../../services/globalSearch.service.js";
 import { calculateDistanceAndDuration } from "../../utils/getDistanceInKm.js";
@@ -249,6 +250,9 @@ export const adminGlobalSearch = async (req, res, next) => {
       .sort()
       .join("+")}`;
 
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) return res.status(200).json(JSON.parse(cachedData));
+
     // ================= SEARCH =================
     const results = await globalSearchService(q, page, limit, entities);
 
@@ -292,14 +296,30 @@ export const adminGlobalSearch = async (req, res, next) => {
           path: "subcategoryId",
           select: "name",
         })
-        .populate({
-          path: "defaultVariantId",
-        })
+        // .populate({
+        //   path: "defaultVariantId",
+        // })
         .populate({
           path: "vendorId",
           select: "firstName lastName",
         })
         .lean();
+
+      const allVariants = await variantModel
+        .find({
+          productId: { $in: productIds },
+          disable: false,
+        })
+        .lean();
+
+      const variantsByProductId = {};
+      allVariants.forEach((variant) => {
+        const pid = variant.productId.toString();
+        if (!variantsByProductId[pid]) {
+          variantsByProductId[pid] = [];
+        }
+        variantsByProductId[pid].push(variant);
+      });
 
       // ================= COMPANY NAME =================
       const vendorIds = products.map((p) => p.vendorId?._id).filter(Boolean);
@@ -340,9 +360,8 @@ export const adminGlobalSearch = async (req, res, next) => {
 
         return {
           ...product,
-
+          variants: variantsByProductId[product._id.toString()] || [],
           distanceInKm: distanceData?.distanceInKm || 0,
-
           durationInMinutes: distanceData?.durationInMinutes || 0,
         };
       });
@@ -380,7 +399,7 @@ export const adminGlobalSearch = async (req, res, next) => {
       results,
     };
 
-    // await redis.set(cacheKey, JSON.stringify(response), "EX", CACHE_TTL);
+    await redis.set(cacheKey, JSON.stringify(response), "EX", CACHE_TTL);
 
     return res.status(200).json(response);
   } catch (error) {

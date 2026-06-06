@@ -1000,6 +1000,9 @@ class ProductController {
       const uploadedImages =
         req.files?.images?.map((file) => file.location) || [];
 
+      const uploadedTechnicalDocuments =
+        req.files?.technicalDocuments?.map((file) => file.location) || [];
+
       const uploadedThumbnail = req.files?.thumbnail?.[0]?.location || null;
 
       // if (!uploadedThumbnail) {
@@ -1144,7 +1147,6 @@ class ProductController {
       productData.shippingCharges = {
         fixed: Number(shipping.fixed || 0),
         distancePerKm: Number(shipping.distancePerKm || 0),
-
         weightPerKg: Number(shipping.weightPerKg || 0),
         perPieceCharge: Number(shipping.perPieceCharge || 0),
         perLiterCharge: Number(shipping.perLiterCharge || 0),
@@ -1213,6 +1215,7 @@ class ProductController {
       // =========================
 
       productData.images = uploadedImages;
+      productData.technicalDocuments = uploadedTechnicalDocuments;
       productData.thumbnail = uploadedThumbnail;
 
       // =========================
@@ -1406,10 +1409,16 @@ class ProductController {
 
       // HANDLE FILES
       const uploadedImages = req.files?.images?.map((f) => f.location) || [];
+      const uploadedTechnicalDocuments =
+        req.files?.technicalDocuments?.map((f) => f.location) || [];
       const uploadedThumbnail = req.files?.thumbnail?.[0]?.location || null;
 
       if (uploadedImages.length) {
         updateData.images = uploadedImages;
+      }
+
+      if (uploadedTechnicalDocuments.length) {
+        updateData.technicalDocuments = uploadedTechnicalDocuments;
       }
 
       if (uploadedThumbnail) {
@@ -2342,15 +2351,21 @@ class ProductController {
   //     const { subcategoryId } = req.params;
   //     const { page = 1, limit = 10, type } = req.query;
 
+  //     const cacheKey = `products:subcat:${subcategoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
+
+  //     // 1. CHECK CACHE
+  //     const cachedData = await RedisCache.get(cacheKey);
+  //     if (cachedData) {
+  //       return res.json(JSON.parse(cachedData));
+  //     }
+
   //     const skip = (page - 1) * limit;
 
-  //     const filter = {
-  //       subcategoryId,
-  //     };
+  //     const filter = { subcategoryId };
 
   //     if (type) {
   //       const variantIds = await Variant.find({
-  //         Type: { $regex: new RegExp(`^${type}$`, "i") }, // case insensitive
+  //         Type: { $regex: new RegExp(`^${type}$`, "i") },
   //       }).select("_id");
 
   //       filter.defaultVariantId = {
@@ -2368,7 +2383,6 @@ class ProductController {
   //       })
   //       .populate({
   //         path: "defaultVariantId",
-  //         select: "price discount Type",
   //       })
   //       .skip(skip)
   //       .limit(Number(limit));
@@ -2389,102 +2403,12 @@ class ProductController {
   //         lastName: p.vendorId?.lastName,
   //       },
 
+  //       // quick access fields (frontend fast rendering)
   //       price: p.defaultVariantId?.price ?? null,
   //       discount: p.defaultVariantId?.discount ?? null,
   //       type: p.defaultVariantId?.Type ?? null,
-  //     }));
 
-  //     const total = await Product.countDocuments(filter);
-
-  //     res.json({
-  //       success: true,
-  //       page: Number(page),
-  //       totalPages: Math.ceil(total / limit),
-  //       totalProducts: total,
-  //       products: formattedProducts,
-  //     });
-  //   } catch (error) {
-  //     console.error(error);
-  //     res.status(500).json({ message: error.message });
-  //   }
-  // }
-
-  // static async getProductBySubCategory(req, res) {
-  //   try {
-  //     const { subcategoryId } = req.params;
-  //     const { page = 1, limit = 10, type } = req.query;
-
-  //     const cacheKey = `products:subcat:${subcategoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
-
-  //     // 1. CHECK CACHE
-  //     // const cachedData = await RedisCache.get(cacheKey);
-  //     // if (cachedData) {
-  //     //   // console.log("CACHE HIT");
-  //     //   return res.json(JSON.parse(cachedData));
-  //     // }
-
-  //     // console.log("CACHE MISS");
-
-  //     const skip = (page - 1) * limit;
-
-  //     const filter = { subcategoryId };
-
-  //     if (type) {
-  //       const variantIds = await Variant.find({
-  //         Type: { $regex: new RegExp(`^${type}$`, "i") },
-  //       }).select("_id");
-
-  //       filter.defaultVariantId = {
-  //         $in: variantIds.map((v) => v._id),
-  //       };
-  //     }
-
-  //     // const products = await Product.find(filter)
-  //     //   .select(
-  //     //     "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
-  //     //   )
-  //     //   .populate({
-  //     //     path: "vendorId",
-  //     //     select: "firstName lastName",
-  //     //   })
-  //     //   .populate({
-  //     //     path: "defaultVariantId",
-  //     //     select: "price discount Type",
-  //     //   })
-  //     //   .skip(skip)
-  //     //   .limit(Number(limit));
-
-  //     const products = await Product.find(filter)
-  //       .select(
-  //         "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
-  //       )
-  //       .populate({
-  //         path: "vendorId",
-  //         select: "firstName lastName",
-  //       })
-  //       .populate({
-  //         path: "defaultVariantId", // full data
-  //       })
-  //       .skip(skip)
-  //       .limit(Number(limit));
-
-  //     const formattedProducts = products.map((p) => ({
-  //       id: p._id,
-  //       name: p.name,
-  //       images: p.images,
-  //       avgRating: p.avgRating,
-  //       reviewCount: p.reviewCount,
-  //       slug: p.slug,
-  //       properties: p.properties,
-  //       minDiscount: p.minDiscount,
-  //       maxDiscount: p.maxDiscount,
-  //       vendor: {
-  //         firstName: p.vendorId?.firstName,
-  //         lastName: p.vendorId?.lastName,
-  //       },
-  //       price: p.defaultVariantId?.price ?? null,
-  //       discount: p.defaultVariantId?.discount ?? null,
-  //       type: p.defaultVariantId?.Type ?? null,
+  //       defaultVariant: p.defaultVariantId || null,
   //     }));
 
   //     const total = await Product.countDocuments(filter);
@@ -2497,98 +2421,414 @@ class ProductController {
   //       products: formattedProducts,
   //     };
 
-  //     //  2. SET CACHE
+  //     // 2. SET CACHE (5 min)
   //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
   //     res.json(response);
   //   } catch (error) {
-  //     // console.error(error);
   //     res.status(500).json({ message: error.message });
   //   }
   // }
 
-  //draft product for vendor
+  // static async getProductBySubCategory(req, res) {
+  //   try {
+  //     const { subcategoryId } = req.params;
+  //     const { page = 1, limit = 10, type, search } = req.query;
+
+  //     const cacheKey = `products:subcat:${subcategoryId}:page:${page}:limit:${limit}:type:${type || "all"}:search:${search || ""}`;
+
+  //     // 1. CHECK CACHE
+  //     const cachedData = await RedisCache.get(cacheKey);
+  //     if (cachedData) {
+  //       return res.json(JSON.parse(cachedData));
+  //     }
+
+  //     const skip = (page - 1) * limit;
+
+  //     // Base product filter
+  //     const filter = { subcategoryId };
+
+  //     // Search filter on product name
+  //     if (search) {
+  //       filter.name = { $regex: new RegExp(search.trim(), "i") };
+  //     }
+
+  //     // Variant filter (always exclude disabled variants)
+  //     const variantFilter = { disable: false };
+
+  //     if (type) {
+  //       variantFilter.Type = { $regex: new RegExp(`^${type}$`, "i") };
+  //     }
+
+  //     // If type is given, restrict products to those having matching variants
+  //     if (type) {
+  //       const matchingVariantProductIds =
+  //         await Variant.find(variantFilter).distinct("productId");
+
+  //       filter._id = { $in: matchingVariantProductIds };
+  //     }
+
+  //     const products = await Product.find(filter)
+  //       .select(
+  //         "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
+  //       )
+  //       .populate({
+  //         path: "vendorId",
+  //         select: "firstName lastName",
+  //       })
+  //       // .populate({
+  //       //   path: "defaultVariantId",
+  //       // })
+  //       .skip(skip)
+  //       .limit(Number(limit));
+
+  //     // Fetch all matching variants for returned products in one query
+  //     const productIds = products.map((p) => p._id);
+
+  //     const allVariants = await Variant.find({
+  //       productId: { $in: productIds },
+  //       ...variantFilter,
+  //     });
+
+  //     // Group variants by productId for O(1) lookup
+  //     const variantsByProduct = allVariants.reduce((acc, v) => {
+  //       const key = v.productId.toString();
+  //       if (!acc[key]) acc[key] = [];
+  //       acc[key].push(v);
+  //       return acc;
+  //     }, {});
+
+  //     const formattedProducts = products.map((p) => {
+  //       const variants = variantsByProduct[p._id.toString()] || [];
+
+  //       return {
+  //         id: p._id,
+  //         name: p.name,
+  //         images: p.images,
+  //         avgRating: p.avgRating,
+  //         reviewCount: p.reviewCount,
+  //         slug: p.slug,
+  //         properties: p.properties,
+  //         minDiscount: p.minDiscount,
+  //         maxDiscount: p.maxDiscount,
+
+  //         vendor: {
+  //           firstName: p.vendorId?.firstName,
+  //           lastName: p.vendorId?.lastName,
+  //         },
+
+  //         // Quick access fields from defaultVariant
+  //         price: p.defaultVariantId?.price ?? null,
+  //         discount: p.defaultVariantId?.discount ?? null,
+  //         type: p.defaultVariantId?.Type ?? null,
+
+  //         defaultVariant: p.defaultVariantId || null,
+
+  //         // All active variants (filtered by type + disable:false)
+  //         variants,
+  //       };
+  //     });
+
+  //     const total = await Product.countDocuments(filter);
+
+  //     const response = {
+  //       success: true,
+  //       page: Number(page),
+  //       totalPages: Math.ceil(total / limit),
+  //       totalProducts: total,
+  //       products: formattedProducts,
+  //     };
+
+  //     // 2. SET CACHE (5 min)
+  //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
+
+  //     res.json(response);
+  //   } catch (error) {
+  //     res.status(500).json({ message: error.message });
+  //   }
+  // }
+
   static async getProductBySubCategory(req, res) {
     try {
       const { subcategoryId } = req.params;
-      const { page = 1, limit = 10, type } = req.query;
 
-      const cacheKey = `products:subcat:${subcategoryId}:page:${page}:limit:${limit}:type:${type || "all"}`;
+      const {
+        page = 1,
+        limit = 10,
+        type,
+        brand,
+        size,
+        sort,
+        search,
+      } = req.query;
 
-      // 1. CHECK CACHE
+      const cacheKey = `products:subcat:${subcategoryId || "all"}:page:${page}:limit:${limit}:type:${type || "all"}:brand:${brand || "all"}:size:${size || "all"}:sort:${sort || "default"}:search:${search || "all"}`;
+
+      // =========================
+      // CACHE CHECK
+      // =========================
       const cachedData = await RedisCache.get(cacheKey);
       if (cachedData) {
         return res.json(JSON.parse(cachedData));
       }
 
-      const skip = (page - 1) * limit;
+      const pageNumber = Number(page);
+      const limitNumber = Number(limit);
+      const skip = (pageNumber - 1) * limitNumber;
 
-      const filter = { subcategoryId };
+      const filter = {};
 
-      if (type) {
-        const variantIds = await Variant.find({
-          Type: { $regex: new RegExp(`^${type}$`, "i") },
-        }).select("_id");
-
-        filter.defaultVariantId = {
-          $in: variantIds.map((v) => v._id),
-        };
+      // =========================
+      // SUBCATEGORY FILTER
+      // =========================
+      if (subcategoryId) {
+        filter.subcategoryId = subcategoryId;
       }
 
-      const products = await Product.find(filter)
+      // =========================
+      // TYPE FILTER
+      // =========================
+      if (type) {
+        const typeUpper = type.toUpperCase();
+
+        const variantProductIds = await Variant.find({
+          Type: typeUpper,
+          disable: false,
+        }).distinct("productId");
+
+        filter._id = { $in: variantProductIds };
+      }
+
+      // =========================
+      // BRAND FILTER
+      // =========================
+      if (brand) {
+        const brandIds = await Brand.find({
+          name: { $regex: new RegExp(brand, "i") },
+        }).distinct("_id");
+
+        filter.brandId = { $in: brandIds };
+      }
+
+      // =========================
+      // SEARCH FILTER
+      // =========================
+      if (search) {
+        filter.name = { $regex: search, $options: "i" };
+      }
+
+      // =========================
+      // FETCH PRODUCTS
+      // =========================
+      let products = await Product.find(filter)
         .select(
-          "name images avgRating reviewCount slug properties minDiscount maxDiscount vendorId defaultVariantId",
+          `name
+         images
+         brandId
+         avgRating
+         reviewCount
+         slug
+         properties
+         minDiscount
+         maxDiscount
+         vendorId
+         defaultVariantId
+         createdAt`,
         )
-        .populate({
-          path: "vendorId",
-          select: "firstName lastName",
-        })
-        .populate({
-          path: "defaultVariantId",
-        })
-        .skip(skip)
-        .limit(Number(limit));
+        .populate({ path: "vendorId", select: "firstName lastName" })
+        .populate({ path: "brandId", select: "name" })
+        .populate({ path: "defaultVariantId" })
+        .lean();
 
-      const formattedProducts = products.map((p) => ({
-        id: p._id,
-        name: p.name,
-        images: p.images,
-        avgRating: p.avgRating,
-        reviewCount: p.reviewCount,
-        slug: p.slug,
-        properties: p.properties,
-        minDiscount: p.minDiscount,
-        maxDiscount: p.maxDiscount,
+      const productIds = products.map((p) => p._id);
 
-        vendor: {
-          firstName: p.vendorId?.firstName,
-          lastName: p.vendorId?.lastName,
-        },
+      // =========================
+      // FETCH ALL VARIANTS
+      // =========================
+      let allVariants = await Variant.find({
+        productId: { $in: productIds },
+        disable: false,
+      }).lean();
 
-        // quick access fields (frontend fast rendering)
-        price: p.defaultVariantId?.price ?? null,
-        discount: p.defaultVariantId?.discount ?? null,
-        type: p.defaultVariantId?.Type ?? null,
+      // =========================
+      // GROUP VARIANTS
+      // =========================
+      const variantsMap = {};
 
-        defaultVariant: p.defaultVariantId || null,
-      }));
+      for (const v of allVariants) {
+        const pid = v.productId.toString();
+        if (!variantsMap[pid]) variantsMap[pid] = [];
+        variantsMap[pid].push(v);
+      }
 
-      const total = await Product.countDocuments(filter);
+      // =========================
+      // STRICT TYPE FILTER ON VARIANTS
+      // =========================
+      if (type) {
+        const targetType = type.toUpperCase();
 
+        for (const pid in variantsMap) {
+          variantsMap[pid] = variantsMap[pid].filter(
+            (v) => v.Type === targetType,
+          );
+        }
+
+        products = products.filter(
+          (p) => (variantsMap[p._id.toString()] || []).length > 0,
+        );
+      }
+
+      // =========================
+      // SIZE FILTER
+      // =========================
+      if (size) {
+        products = products.filter((p) => {
+          const variants = variantsMap[p._id.toString()] || [];
+
+          return variants.some((v) => {
+            const weight = Number(v.packageWeight || 0);
+
+            switch (size.toLowerCase()) {
+              case "small":
+                return weight < 10;
+              case "medium":
+                return weight >= 10 && weight <= 50;
+              case "large":
+                return weight > 50 && weight <= 200;
+              case "extra_large":
+                return weight > 200;
+              default:
+                return true;
+            }
+          });
+        });
+      }
+
+      // =========================
+      // SORTING
+      // =========================
+      if (sort) {
+        switch (sort) {
+          case "low_to_high":
+            products.sort((a, b) => {
+              const aPrice = variantsMap[a._id.toString()]?.[0]?.price || 0;
+              const bPrice = variantsMap[b._id.toString()]?.[0]?.price || 0;
+              return aPrice - bPrice;
+            });
+            break;
+
+          case "high_to_low":
+            products.sort((a, b) => {
+              const aPrice = variantsMap[a._id.toString()]?.[0]?.price || 0;
+              const bPrice = variantsMap[b._id.toString()]?.[0]?.price || 0;
+              return bPrice - aPrice;
+            });
+            break;
+
+          case "newest_first":
+            products.sort(
+              (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+            );
+            break;
+
+          case "most_popular":
+            products.sort((a, b) => {
+              const aSold = variantsMap[a._id.toString()]?.[0]?.sold || 0;
+              const bSold = variantsMap[b._id.toString()]?.[0]?.sold || 0;
+              return bSold - aSold;
+            });
+            break;
+
+          case "best_rating":
+            products.sort((a, b) => (b.avgRating || 0) - (a.avgRating || 0));
+            break;
+        }
+      }
+
+      // =========================
+      // TOTAL + PAGINATION
+      // =========================
+      const total = products.length;
+      const paginatedProducts = products.slice(skip, skip + limitNumber);
+
+      // =========================
+      // FORMAT RESPONSE
+      // =========================
+      const formattedProducts = paginatedProducts.map((p) => {
+        let variants = variantsMap[p._id.toString()] || [];
+
+        // ENSURE DEFAULT VARIANT IS INCLUDED
+        if (
+          p.defaultVariantId &&
+          !variants.some(
+            (v) => v._id.toString() === p.defaultVariantId._id.toString(),
+          )
+        ) {
+          variants.unshift(p.defaultVariantId);
+        }
+
+        return {
+          id: p._id,
+          name: p.name,
+          images: p.images,
+          slug: p.slug,
+          avgRating: p.avgRating,
+          reviewCount: p.reviewCount,
+          properties: p.properties,
+          minDiscount: p.minDiscount,
+          maxDiscount: p.maxDiscount,
+
+          brand: p.brandId?.name || null,
+
+          vendor: {
+            firstName: p.vendorId?.firstName,
+            lastName: p.vendorId?.lastName,
+          },
+
+          variants,
+        };
+      });
+
+      // =========================
+      // FILTER OPTIONS
+      // =========================
+      const filterOptions = {
+        brand: [
+          ...new Set(products.map((p) => p.brandId?.name).filter(Boolean)),
+        ],
+        size: ["small", "medium", "large", "extra_large"],
+        sort: [
+          "low_to_high",
+          "high_to_low",
+          "newest_first",
+          "most_popular",
+          "best_rating",
+        ],
+      };
+
+      // =========================
+      // RESPONSE
+      // =========================
       const response = {
         success: true,
-        page: Number(page),
-        totalPages: Math.ceil(total / limit),
+        page: pageNumber,
+        totalPages: Math.ceil(total / limitNumber),
         totalProducts: total,
+        filters: filterOptions,
         products: formattedProducts,
       };
 
-      // 2. SET CACHE (5 min)
+      // =========================
+      // CACHE SET
+      // =========================
       await RedisCache.set(cacheKey, JSON.stringify(response), 300);
 
-      res.json(response);
+      return res.json(response);
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      return res.status(500).json({
+        success: false,
+        message: error.message,
+      });
     }
   }
 
@@ -3358,238 +3598,6 @@ class ProductController {
       });
     }
   }
-
-  // static async getProductsByBrand(req, res) {
-  //   try {
-  //     const { brandId } = req.params;
-
-  //     const { page = 1, limit = 10, Type, category, size, sort } = req.query;
-
-  //     const skip = (Number(page) - 1) * Number(limit);
-  //     const filter = {
-  //       brandId,
-  //       disable: false,
-  //       varified: true,
-  //     };
-  //     const cacheKey = `products:brand:${brandId}:page:${page}:limit:${limit}:type:${Type || "all"}:category:${category || "all"}:size:${size || "all"}:sort:${sort || "default"}`;
-  //     const cachedData = await RedisCache.get(cacheKey);
-  //     if (cachedData) {
-  //       return res.json(JSON.parse(cachedData));
-  //     }
-
-  //     // =========================
-  //     // TYPE FILTER
-  //     // =========================
-  //     if (Type) {
-  //       const variantFilterIds = await Variant.find({
-  //         Type: { $regex: new RegExp(`^${Type}$`, "i") },
-  //       }).distinct("_id");
-
-  //       filter.defaultVariantId = { $in: variantFilterIds };
-  //     }
-
-  //     // =========================
-  //     // CATEGORY FILTER
-  //     // =========================
-  //     if (category) {
-  //       const categoryIds = await Category.find({
-  //         name: { $regex: new RegExp(category, "i") },
-  //       }).distinct("_id");
-
-  //       filter.categoryId = { $in: categoryIds };
-  //     }
-
-  //     // =========================
-  //     // FETCH PRODUCTS
-  //     // =========================
-  //     let products = await Product.find(filter)
-  //       .select(
-  //         `
-  //       name
-  //       images
-  //       categoryId
-  //       avgRating
-  //       reviewCount
-  //       slug
-  //       properties
-  //       vendorId
-  //       defaultVariantId
-  //       measurementUnit
-  //       createdAt
-  //     `,
-  //       )
-  //       .populate({
-  //         path: "vendorId",
-  //         select: "firstName lastName",
-  //       })
-  //       .populate({
-  //         path: "categoryId",
-  //         select: "name",
-  //       })
-  //       .populate({
-  //         path: "defaultVariantId",
-  //         select:
-  //           "_id price mrp discount Type stock moq packageWeight size sold",
-  //       })
-  //       .lean();
-
-  //     // =========================
-  //     // SIZE FILTER
-  //     // =========================
-  //     if (size) {
-  //       products = products.filter((p) => {
-  //         const weight = Number(p?.defaultVariantId?.packageWeight || 0);
-
-  //         switch (size.toLowerCase()) {
-  //           case "small":
-  //             return weight < 10;
-
-  //           case "medium":
-  //             return weight >= 10 && weight <= 50;
-
-  //           case "large":
-  //             return weight > 50 && weight <= 200;
-
-  //           case "extra_large":
-  //             return weight > 200;
-
-  //           default:
-  //             return true;
-  //         }
-  //       });
-  //     }
-
-  //     // =========================
-  //     // SORTING
-  //     // =========================
-  //     if (sort) {
-  //       switch (sort) {
-  //         case "low_to_high":
-  //           products.sort(
-  //             (a, b) =>
-  //               (a.defaultVariantId?.price || 0) -
-  //               (b.defaultVariantId?.price || 0),
-  //           );
-  //           break;
-
-  //         case "high_to_low":
-  //           products.sort(
-  //             (a, b) =>
-  //               (b.defaultVariantId?.price || 0) -
-  //               (a.defaultVariantId?.price || 0),
-  //           );
-  //           break;
-
-  //         case "newest_first":
-  //           products.sort(
-  //             (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
-  //           );
-  //           break;
-
-  //         case "most_popular":
-  //           products.sort(
-  //             (a, b) =>
-  //               (b.defaultVariantId?.sold || 0) -
-  //               (a.defaultVariantId?.sold || 0),
-  //           );
-  //           break;
-  //       }
-  //     }
-
-  //     // =========================
-  //     // TOTAL AFTER FILTER
-  //     // =========================
-  //     const total = products.length;
-
-  //     // =========================
-  //     // PAGINATION
-  //     // =========================
-  //     const paginatedProducts = products.slice(skip, skip + Number(limit));
-
-  //     // =========================
-  //     // RESPONSE FORMAT
-  //     // =========================
-  //     const formattedProducts = paginatedProducts.map((p) => {
-  //       const variant = p.defaultVariantId;
-
-  //       return {
-  //         id: p._id,
-
-  //         name: p.name,
-
-  //         images: p.images,
-
-  //         avgRating: p.avgRating,
-
-  //         reviewCount: p.reviewCount,
-
-  //         slug: p.slug,
-
-  //         categoryId: p.categoryId,
-
-  //         vendor: {
-  //           firstName: p.vendorId?.firstName || null,
-  //           lastName: p.vendorId?.lastName || null,
-  //         },
-
-  //         variant: variant
-  //           ? {
-  //               id: variant._id,
-  //               price: variant.price,
-  //               mrp: variant.mrp,
-  //               discount: variant.discount,
-  //               type: variant.Type,
-  //               stock: variant.stock,
-  //               sold: variant.sold || 0,
-  //               moq: variant.moq,
-  //               packageWeight: variant.packageWeight || " ",
-  //               size: variant.size || " ",
-  //             }
-  //           : null,
-
-  //         measurementUnit: p.measurementUnit || " ",
-  //       };
-  //     });
-
-  //     // =========================
-  //     // FILTER OPTIONS
-  //     // =========================
-  //     const filterOptions = {
-  //       category: [
-  //         ...new Set(products.map((p) => p.categoryId?.name).filter(Boolean)),
-  //       ],
-
-  //       size: ["small", "medium", "large", "extra_large"],
-
-  //       sort: ["low_to_high", "high_to_low", "newest_first", "most_popular"],
-  //     };
-
-  //     const response = {
-  //       success: true,
-
-  //       page: Number(page),
-
-  //       totalPages: Math.ceil(total / limit),
-
-  //       totalProducts: total,
-
-  //       filters: filterOptions,
-
-  //       products: formattedProducts,
-  //     };
-
-  //     await RedisCache.set(cacheKey, JSON.stringify(response), 300);
-
-  //     return res.json({
-  //       response,
-  //     });
-  //   } catch (error) {
-  //     return res.status(500).json({
-  //       success: false,
-  //       message: error.message,
-  //     });
-  //   }
-  // }
 
   static async getProductsByBrand(req, res) {
     try {

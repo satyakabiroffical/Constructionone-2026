@@ -96,13 +96,13 @@ class VariantController {
 
       const product = await Product.findById(productId);
       if (!product) {
-        throw new APIError("Product not found", 404);
+        throw new APIError(404, "Product not found");
       }
 
       if (String(product.vendorId) !== String(req.user.id)) {
         throw new APIError(
-          "You are not allowed to add variant to this product",
           403,
+          "You are not allowed to add variant to this product",
         );
       }
       //  duplicate check
@@ -114,9 +114,13 @@ class VariantController {
 
       if (exists) {
         throw new APIError(
-          "Variant with same size and type already exists",
           400,
+          "Variant with same size and type already exists",
         );
+      }
+
+      if (variantData.Type === "RETAIL") {
+        variantData.moq = 1;
       }
 
       const mrp = Number(variantData.mrp || 0);
@@ -139,7 +143,7 @@ class VariantController {
       await RedisCache.deletePattern?.("products:*");
       await RedisCache.deletePattern?.("variants:*");
       await RedisCache.deletePattern?.(`product:v1:${productId}:variants:*`);
-
+      await RedisCache.deletePattern(`inventory:${req.user.id}:*`);
       res.status(201).json({
         status: "success",
         message: "Variant added successfully",
@@ -155,7 +159,7 @@ class VariantController {
       const { id } = req.params;
 
       if (!mongoose.Types.ObjectId.isValid(id)) {
-        throw new APIError("Invalid variant id", 400);
+        throw new APIError(400, "Invalid variant id");
       }
 
       const cacheKey = `variant:v1:${id}`;
@@ -181,7 +185,7 @@ class VariantController {
       }).lean();
 
       if (!variant) {
-        throw new APIError("Variant not found", 404);
+        throw new APIError(404, "Variant not found");
       }
 
       const result = {
@@ -205,14 +209,14 @@ class VariantController {
 
       const variant = await Variant.findById(id);
       if (!variant) {
-        throw new APIError("Variant not found", 404);
+        throw new APIError(404, "Variant not found");
       }
       const product = await Product.findById(variant.productId).select(
         "vendorId",
       );
 
       if (String(product.vendorId) !== String(req.user.id)) {
-        throw new APIError("You are not allowed to update this variant", 403);
+        throw new APIError(403, "You are not allowed to update this variant");
       }
 
       // duplicate check if size or Type is changing
@@ -230,8 +234,8 @@ class VariantController {
 
         if (exists) {
           throw new APIError(
-            "Variant with same size and type already exists",
             400,
+            "Variant with same size and type already exists",
           );
         }
       }
@@ -257,6 +261,7 @@ class VariantController {
       await RedisCache.deletePattern?.(
         `product:v1:${variant.productId}:variants:*`,
       );
+      await RedisCache.deletePattern(`inventory:${req.user.id}:*`);
 
       res.json({
         status: "success",
@@ -274,7 +279,7 @@ class VariantController {
 
       const variant = await Variant.findById(id);
       if (!variant) {
-        throw new APIError("Variant not found", 404);
+        throw new APIError(404, "Variant not found");
       }
 
       variant.disable = !variant.disable;
@@ -285,6 +290,7 @@ class VariantController {
       await RedisCache.deletePattern?.(
         `product:v1:${variant.productId}:variants:*`,
       );
+      await RedisCache.deletePattern(`inventory:${req.user.id}:*`);
 
       res.json({
         status: "success",
@@ -303,7 +309,7 @@ class VariantController {
       const variant = await Variant.findByIdAndDelete(id);
 
       if (!variant) {
-        throw new APIError("Variant not found", 404);
+        throw new APIError(404, "Variant not found");
       }
 
       await RedisCache.deletePattern?.("variants:*");
@@ -311,6 +317,7 @@ class VariantController {
       await RedisCache.deletePattern?.(
         `product:v1:${variant.productId}:variants:*`,
       );
+      await RedisCache.deletePattern(`inventory:${req.user.id}:*`);
 
       res.json({
         status: "success",
@@ -325,9 +332,9 @@ class VariantController {
     try {
       const { productId } = req.params;
 
-      // ✅ validate id
+      // validate id
       if (!mongoose.Types.ObjectId.isValid(productId)) {
-        throw new APIError("Invalid product id", 400);
+        throw new APIError(400, "Invalid product id");
       }
 
       const page = Math.max(parseInt(req.query.page) || 1, 1);

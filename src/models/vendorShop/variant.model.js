@@ -71,7 +71,8 @@ const variantSchema = new mongoose.Schema(
     },
     color: {
       //color code
-      type: String,
+      type: [String],
+      default: "",
       
     },
 
