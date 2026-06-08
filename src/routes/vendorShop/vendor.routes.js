@@ -34,6 +34,7 @@ import {
   getVendorCertificates,
   deleteVendorCascade,
   getVendorProfileInfo,
+  getBusinessPerformance
 } from "../../controllers/vendorShop/vendor.controller.js";
 import {
   adminMiddleware,
@@ -55,6 +56,7 @@ const router = express.Router();
 
 router.get("/company-profile", vendorMiddleware, getVendorCompany);
 router.get("/personal-profile", vendorMiddleware, getVendorPersonalProfile);
+router.get("/business-performance", vendorMiddleware, getBusinessPerformance);
 router.get("/certificates", vendorMiddleware, getVendorCertificates);
 router.put("/personal-profile", vendorMiddleware, updateVendorProfile);
 router.put("/company-profile", vendorMiddleware, updateVendorCompany);

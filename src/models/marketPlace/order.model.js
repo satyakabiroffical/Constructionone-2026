@@ -200,9 +200,8 @@ const statusProgressSchema = new mongoose.Schema(
     isCurrent: { type: Boolean, default: false },
     updatedAt: { type: Date, default: null },
   },
-  { _id: false }
+  { _id: false },
 );
-
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -261,6 +260,8 @@ const orderItemSchema = new mongoose.Schema(
         "SHIPPED",
         "DELIVERED",
         "CANCELLED",
+        "RETURN_REQUESTED",
+        "RETURNED",
       ],
 
       default: "PENDING",
@@ -329,6 +330,8 @@ const orderSchema = new mongoose.Schema(
         "OUT_FOR_DELIVERY",
         "DELIVERED",
         "CANCELLED",
+        "RETURN_REQUESTED",
+        "RETURNED",
       ],
       default: "PENDING",
     },

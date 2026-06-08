@@ -3361,6 +3361,61 @@ export const getSimilarCompanies = async (req, res) => {
 
 //--------------->profile section - vendor
 
+// export const updateVendorProfile = async (req, res) => {
+//   try {
+//     const vendorId = req.user.id;
+
+//     if (!vendorId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Vendor ID is required",
+//       });
+//     }
+
+//     const allowedFields = {
+//       moduleId: req.body.moduleId,
+//       phoneNumber: req.body.phoneNumber,
+//       firstName: req.body.firstName,
+//       lastName: req.body.lastName,
+//       email: req.body.email,
+//       governmentIdType: req.body.governmentIdType,
+//       governmentIdNumber: req.body.governmentIdNumber,
+//       uploadId: req.body.uploadId,
+//       fcmToken: req.body.fcmToken,
+//       disable: req.body.disable,
+//     };
+
+//     // remove undefined fields
+//     Object.keys(allowedFields).forEach(
+//       (key) => allowedFields[key] === undefined && delete allowedFields[key],
+//     );
+
+//     const updatedVendor = await VendorProfile.findByIdAndUpdate(
+//       vendorId,
+//       { $set: allowedFields },
+//       { new: true, runValidators: true },
+//     );
+
+//     if (!updatedVendor) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Vendor profile not found",
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Vendor profile updated successfully",
+//       data: updatedVendor,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+
 export const updateVendorProfile = async (req, res) => {
   try {
     const vendorId = req.user.id;
@@ -3371,6 +3426,10 @@ export const updateVendorProfile = async (req, res) => {
         message: "Vendor ID is required",
       });
     }
+
+    // =========================
+    // Vendor Profile Update
+    // =========================
 
     const allowedFields = {
       moduleId: req.body.moduleId,
@@ -3385,15 +3444,17 @@ export const updateVendorProfile = async (req, res) => {
       disable: req.body.disable,
     };
 
-    // remove undefined fields
     Object.keys(allowedFields).forEach(
-      (key) => allowedFields[key] === undefined && delete allowedFields[key],
+      (key) => allowedFields[key] === undefined && delete allowedFields[key]
     );
 
     const updatedVendor = await VendorProfile.findByIdAndUpdate(
       vendorId,
       { $set: allowedFields },
-      { new: true, runValidators: true },
+      {
+        new: true,
+        runValidators: true,
+      }
     );
 
     if (!updatedVendor) {
@@ -3403,10 +3464,60 @@ export const updateVendorProfile = async (req, res) => {
       });
     }
 
+    // =========================
+    // Company Address Update
+    // =========================
+
+    const {
+      address,
+      city,
+      state,
+      country,
+      pincode,
+      latitude,
+      longitude,
+    } = req.body;
+
+    const companyUpdate = {};
+
+    if (
+      address ||
+      city ||
+      state ||
+      country ||
+      pincode ||
+      latitude ||
+      longitude
+    ) {
+      companyUpdate.businessAddress = {
+        address,
+        city,
+        state,
+        country,
+        pincode,
+        latitude,
+        longitude,
+      };
+
+      // GeoJSON location
+      if (latitude && longitude) {
+        companyUpdate.location = {
+          type: "Point",
+          coordinates: [Number(longitude), Number(latitude)],
+        };
+      }
+
+      await VendorCompany.findOneAndUpdate(
+        { vendorId },
+        { $set: companyUpdate },
+        { new: true, runValidators: true }
+      );
+    }
+
     return res.status(200).json({
       success: true,
       message: "Vendor profile updated successfully",
-      data: updatedVendor,
+      // data: updatedVendor,
     });
   } catch (error) {
     return res.status(500).json({
@@ -3495,13 +3606,42 @@ export const getVendorCompany = async (req, res) => {
   }
 };
 
+// export const getVendorPersonalProfile = async (req, res) => {
+//   try {
+//     const vendorId = req.user.id; // from token
+
+//     const vendor = await VendorProfile.findById(vendorId)
+//       .populate("moduleId", "title id")
+//       .select("-__v");
+
+//     if (!vendor) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Vendor profile not found",
+//       });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Vendor profile fetched successfully",
+//       data: vendor,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message,
+//     });
+//   }
+// };
+
 export const getVendorPersonalProfile = async (req, res) => {
   try {
-    const vendorId = req.user.id; // from token
+    const vendorId = req.user.id;
 
     const vendor = await VendorProfile.findById(vendorId)
       .populate("moduleId", "title id")
-      .select("-__v");
+      .select("-__v")
+      .lean();
 
     if (!vendor) {
       return res.status(404).json({
@@ -3510,10 +3650,20 @@ export const getVendorPersonalProfile = async (req, res) => {
       });
     }
 
+    const company = await VendorCompany.findOne({
+      vendorId: vendorId,
+    }).select("companyName businessAddress location gstNumber contactNumber");
+    if (company?.location?.coordinates?.length === 2) {
+      company.latitude = company.location.coordinates[1];
+      company.longitude = company.location.coordinates[0];
+    }
     return res.status(200).json({
       success: true,
       message: "Vendor profile fetched successfully",
-      data: vendor,
+      data: {
+        ...vendor,
+        companyDetails: company || null,
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -3523,6 +3673,225 @@ export const getVendorPersonalProfile = async (req, res) => {
   }
 };
 
+export const getBusinessPerformance = async (req, res) => {
+  try {
+    const vendorId = new mongoose.Types.ObjectId(req.user.id);
+
+    // ==========================
+    // VENDOR INFO
+    // ==========================
+
+    const vendor = await VendorProfile.findById(vendorId)
+      .select("avgRating totalReviews")
+      .lean();
+
+    // ==========================
+    // ORDER STATS
+    // ==========================
+
+    const stats = await Order.aggregate([
+      {
+        $unwind: "$items",
+      },
+      {
+        $match: {
+          "items.vendorId": vendorId,
+        },
+      },
+      {
+        $facet: {
+          delivered: [
+            {
+              $match: {
+                "items.status": "DELIVERED",
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: {
+                  $sum: {
+                    $ifNull: ["$items.vendorAmount", 0],
+                  },
+                },
+                totalCompletedItems: {
+                  $sum: 1,
+                },
+              },
+            },
+          ],
+
+          returned: [
+            {
+              $match: {
+                "items.status": "RETURNED",
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalReturnedItems: {
+                  $sum: 1,
+                },
+              },
+            },
+          ],
+
+          onTimeOrders: [
+            {
+              $match: {
+                "items.status": "DELIVERED",
+              },
+            },
+            {
+              $project: {
+                statusProgress: "$items.statusProgress",
+              },
+            },
+            {
+              $addFields: {
+                outForDelivery: {
+                  $first: {
+                    $filter: {
+                      input: "$statusProgress",
+                      as: "sp",
+                      cond: {
+                        $eq: ["$$sp.status", "OUT_FOR_DELIVERY"],
+                      },
+                    },
+                  },
+                },
+                delivered: {
+                  $first: {
+                    $filter: {
+                      input: "$statusProgress",
+                      as: "sp",
+                      cond: {
+                        $eq: ["$$sp.status", "DELIVERED"],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            {
+              $project: {
+                isOnTime: {
+                  $cond: [
+                    {
+                      $and: [
+                        "$outForDelivery.updatedAt",
+                        "$delivered.updatedAt",
+                        {
+                          $eq: [
+                            {
+                              $dateToString: {
+                                format: "%Y-%m-%d",
+                                date: "$outForDelivery.updatedAt",
+                              },
+                            },
+                            {
+                              $dateToString: {
+                                format: "%Y-%m-%d",
+                                date: "$delivered.updatedAt",
+                              },
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalDelivered: { $sum: 1 },
+                onTimeDelivered: { $sum: "$isOnTime" },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    // ==========================
+    // EXTRACT DATA
+    // ==========================
+
+    const deliveredData = stats?.[0]?.delivered?.[0] || {};
+    const returnedData = stats?.[0]?.returned?.[0] || {};
+    const onTimeData = stats?.[0]?.onTimeOrders?.[0] || {};
+
+    const totalRevenue = deliveredData.totalRevenue || 0;
+
+    const totalCompletedItems =
+      deliveredData.totalCompletedItems || 0;
+
+    const totalReturnedItems =
+      returnedData.totalReturnedItems || 0;
+
+    const totalDelivered =
+      onTimeData.totalDelivered || 0;
+
+    const onTimeDelivered =
+      onTimeData.onTimeDelivered || 0;
+
+    // ==========================
+    // CALCULATIONS
+    // ==========================
+
+    const onTimeRate =
+      totalDelivered > 0
+        ? Number(
+            (
+              (onTimeDelivered / totalDelivered) *
+              100
+            ).toFixed(2)
+          )
+        : 0;
+
+    const returnRate =
+      totalCompletedItems + totalReturnedItems > 0
+        ? Number(
+            (
+              (totalReturnedItems /
+                (totalCompletedItems +
+                  totalReturnedItems)) *
+              100
+            ).toFixed(2)
+          )
+        : 0;
+
+    // ==========================
+    // RESPONSE
+    // ==========================
+
+    return res.status(200).json({
+      success: true,
+      message: "Dashboard stats fetched successfully",
+      data: {
+        totalRevenue,
+        onTimeRate,
+        avgRating: vendor?.avgRating || 0,
+        totalRatings: vendor?.totalReviews || 0,
+        totalCompletedOrders: totalCompletedItems,
+        totalReturnedOrders: totalReturnedItems,
+        returnRate,
+      },
+    });
+  } catch (error) {
+    console.error("Dashboard Stats Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 export const getVendorCertificates = async (req, res) => {
   try {
     const vendorId = req.user.id; // from token
